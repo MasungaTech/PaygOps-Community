@@ -1,0 +1,5 @@
+Serial Number,Destination,Note,Hub Id,User Id
+NPG-1234,in stock,My note,1,
+1234,with user,My Note,,1
+ABC-1234,orphaned,,,
+ABC-1234,lost,who lost it?,,

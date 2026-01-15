@@ -1,0 +1,12 @@
+{{ ftext('
+<p>
+    <b>Please note:</b><br>
+    - The file should have the following columns <i>Serial Number</i>, <i>Destination</i>, <i>Note</i>, <i>Hub Id</i>, <i>User Id</i>. All the values are case insensitive.<br>
+    - The first line might be the headers (exactly as described above) or they can be removed, starting with the first movement from the first line<br>
+    - <i>Serial number</i> must have the device type prefix unless the device type is the fallback device (See <a href="{}#device_settings_form" target="_blank">platform settings</a>)<br>
+    - <i>Destination</i> must be one of the following values: <i>lost</i>, <i>orphaned</i>, <i>in_stock</i> or <i>with_user</i>.<br>
+    - <i>Note</i> might be any short text with any extra information about the movement.<br>
+    - <i>Hub Id</i> must be provided if <i>Destination</i> is <i>in_stock</i>. The column must be a valid {} Id<br>
+    - <i>User Id</i> must be provided if <i>Destination</i> is <i>with_user</i>. The column must be a valid User Id (See <a href="{}" target="_blank">list of users</a>)<br>
+    - A template can be downloaded <a href="{}?version={}">here</a> for some more examples.
+</p>', url_for('admin.settings_editor_get'), 'Operational Entity', url_for('user.list_users'), url_for('stock.static', filename='bulk_movements_example.csv'),COMMIT_SHA,  novar=true) }}
