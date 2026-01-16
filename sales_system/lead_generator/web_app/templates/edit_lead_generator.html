@@ -1,0 +1,45 @@
+{% extends 'macros/base.html' %}
+{% import 'macros/general_macros.html' as ui with context %}
+
+{% if lead_generator is not defined %}
+    {% set action='Add' %}
+    {% set editing=false %}
+    {% set title=ftext('Add Lead Generator') %}
+    {% set lead_generator=EmptyObject %}
+    {% set person=EmptyObject %}
+    {% set async_url='/lead_generators' %}
+{% else %}
+  {% set action='Edit' %}
+  {% set editing=true %}
+  {% set title=ftext('Edit Lead Generator: {}', lead_generator.full_name, novar=true) %}
+  {% set person=lead_generator.person %}
+  {% set async_url='/lead_generators/'+lead_generator.id|string %}
+{% endif %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('Lead Generators', action, object=lead_generator) }}{% endblock %}
+
+{% block content %}
+<div class="row">
+  <div {{ ui.card_start() }}>
+    <form class="row card-row">
+      {{ forms.input('name', 'First Name', size=6, value=person.name, uicon='user', required=true) }}
+      {{ forms.input('surname', 'Surname', size=6, value=person.surname, uicon='user', required=true) }}
+      
+      {{ forms.input('birthdate', 'Birth Date', value=person.birthdate, max_val=NOW, type='datepicker', micon='insert_invitation', size=6) }}
+      {{ forms.select('gender', {'male': 'Male', 'female': 'Female'}, labeltag='Gender', value=person.get_gender_name(lower=true) if person else none, uicon="wc", size=6) }}
+
+      {{ forms.select('type', choices=[lg_types, 'name', 'name']|dictMapper, size=6, value=lead_generator.type.name if lead_generator.type else none, labeltag='Lead Generator Type', uicon='bookmark', required=true) }}
+      
+      {{ forms.checkbox('working:boolean', 'Lead Generator is Active', id='working', checked=lead_generator.working if editing else true, labeltag='Active', size=6) }}
+
+      {{ forms.input_phones(lead_generator=lead_generator, required=false) }}
+
+      {{ forms.button(label=action+' Lead Generator', uicon='save', type='action', fit=true, size=6, center=true,
+                      action='async_post', async_url=async_url, 
+                      redirect_url='/lead_generators/', redirect_append='id') }}
+    </form>
+  </div {{ ui.card_end() }}>
+</div>
+{% endblock %}

@@ -1,0 +1,46 @@
+{% extends "macros/base.html" %}
+{% import 'macros/form_macros.html' as forms with context %}
+{% import 'macros/general_macros.html' as ui with context %}
+
+{% block title %}{{ ftext('Test Menu') }}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('Admin', 'Test Menu') }}{% endblock %}
+
+{% block page_actions %}{% endblock %}
+
+{% block content %}
+    <div {{ ui.card_start(title='Form Tests', uicon='forms', body_class='row') }}>
+        {{ui.button('Create Test Forms', size=6, fit=true, type='action', link=url_for('admin.secret_route', action='create_test_survey'))}}
+    </div {{ ui.card_end() }}>
+
+    <div {{ ui.card_start(title='Translation Tests', uicon='language') }}>
+        {{ ui.info_card(type='warning', text='Translations uploaded here and new key found are reset everytime the platform is restarted. Make sure to frequently download new keys when working on translation and keep a copy of the translation files you upload. ')}}
+        <form method="POST" class="row" action="/admin/test_menu/upload_translation" enctype="multipart/form-data">
+            {{ui.button('Download Translation Files', size=6, fit=true, center=true, type='action', link='/admin/test_menu/download_translation')}}
+            {{ ui.divider('Upload Translations', small=true)}}
+            {{forms.file(name='translation', icon='upload', size=6, label='Translation File (with proper name)', tooltip='Ensure to use the proper file name for the translations')}}
+            {{ui.button('Upload Translation File', size=6, fit=true, type='action', inline=true)}}
+        </form>
+    </div {{ ui.card_end() }}>
+
+    <div {{ ui.card_start(title='Bugs Test', uicon='bug_report', body_class='row') }}>
+        {{ui.button('Generate Fake Exception', size=6, fit=true, type='action', link=url_for('admin.secret_route', action='generate_test_exception'))}}
+    </div {{ ui.card_end() }}>
+
+    <div {{ ui.card_start(title='Feature Flag Roles and Users', uicon='user', body_class='row') }}>
+        {{ui.button('Create roles and users for each feature flag', size=6, fit=true, type='action', link=url_for('admin.secret_route', action='generate_test_feature_flag_users'))}}
+    </div {{ ui.card_end() }}>
+
+    <div {{ ui.card_start(title='Simulate Incoming Message', uicon='user', body_class='row') }}>
+        {{ ui.info_card(type='warning', text='Any Message added here will be <a href="/messages/manual_list">logged</a> with your name, IP address and time.')}}
+
+        <form id="ManualMessagesForm" action="/messages/add" method="post" class="row">
+            {{ forms.input('from_number', 'Phone Number Sending Message', valid="phoneTZ", required=True, size=6) }}
+            {{ forms.input('body', 'Message Body', required=true, size=6) }}
+
+            {{ forms.button(label='Add Manual Message', type="action", redirect_url="/admin/test_menu", uicon='save', fit=true, size=6, center=true) }}
+        </form>
+    </div {{ ui.card_end() }}>
+{% endblock %}
+
+{% block scripts %}{% endblock %}

@@ -1,0 +1,34 @@
+{% extends 'macros/base.html' %}
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'macros/form_macros.html' as forms with context %}
+
+{% if Portfolio is not defined %}
+    {% set Portfolio=EmptyObject %}
+    {% set object = none %}
+    {% set Action='Add' %}
+    {% set async_url='/portfolios' %}
+{% else %}
+    {% set object = Portfolio %}
+    {% set Action='Edit' %}
+    {% set async_url='/portfolios/'+Portfolio.id|string %}
+{% endif %}
+
+
+{% block title %}{{ ftext(Action+' Portfolio') }}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('Portfolios', Action, object=object) }}{% endblock %}
+
+
+{% block content %}
+<div {{ ui.card_start() }}>
+    <form class="row card-row">
+        {{ forms.input('name', 'Name', value=Portfolio.name, uicon='work', required=true, size=6) }}
+        {{ forms.input('description', 'Description', value=Portfolio.description, uicon='work', required=true, size=6) }}
+        {{ forms.input('budget', ftext('Budget ({})', Currency, novar=true), type='number', min_val=0, value=Portfolio.budget, uicon='work', required=false, size=6) }}
+
+        {{ ui.button(uicon='save', label=Action+' Portfolio', fit=true, size=6, center=true, type='action',
+            action='async_post', async_url=async_url, redirect_url='/portfolios/', redirect_append='id')}}
+    </form>
+</div {{ ui.card_end() }}>
+
+{% endblock %}

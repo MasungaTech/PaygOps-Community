@@ -1,0 +1,183 @@
+{% extends "macros/base.html" %}
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'macros/form_macros.html' as forms with context %}
+
+{% block title %}{{ ftext('Add Communication Campaign') }}{% endblock %}
+{% block page_title %}{{ ui.page_title('Communication Campaigns', 'Add') }}{% endblock %}
+
+
+{% block content %}
+
+{% set extension = GlobalSetting('PhoneExtension') %}
+{% set min = GlobalSetting('PhoneLengthMin') %}
+{% set length = GlobalSetting('PhoneLength') %}
+
+<div {{ ui.card_start(title="Campaign Info", uicon='info') }}>
+    <form class="row">
+        {{forms.input('name', label="Campaign name", size=6, required=true)}}
+        {{forms.select('source:skip', {'csv': 'Import CSV list of phone numbers', 'filter': 'Select Clients/Leads using filters'}, size=6, labeltag='Recipient Source', required=true, onchange="selectToggleFormsMap(this, 'value', {'csv': '.csv_inputs', 'filter': '.filter_inputs'})")}}
+    </form>
+</div {{ ui.card_end() }}>
+
+<div {{ ui.card_start(title="Import CSV list of phone numbers", uicon='folder_open', class='csv_inputs') }}>
+    <form id="csv_file_form" method="POST" enctype="multipart/form-data" class="row">
+        {{ ui.info_card(text=ftext('Please note: <br> - The file should have one column, with the first line being the header.<br>
+        - From the second line on it should contain a list of phone numbers with one number per row (line).<br>
+        - The number should be a valid phone number, starting with +{extension} or 00{extension} and between {min} and {l} digits.<br>
+        - The phone numbers can be in double quotes or not, e.g. "+{extension}{tmin}" or 00{extension}{fmin}<br>
+        - A template can be downloaded <a href="{url}">here</a> for some more examples.<br>', extension=extension, min=min, tmin=(min*'3'), fmin=(length*'5'), l=length, url=url_for('admin.phones_csv_example'), novar=true), uicon='info', color='secondary', class='mt-3 mb-2', in_card=true) }}
+
+        {{ forms.input(label='Select phone list CSV File', name='csv_file', type='file', size=6) }}
+        
+        <div class="{{ui.col_size(6)}} mt-4 pt-3">
+            {{ui.badge(text='0', color='green', class='no-new counter')}}
+            {{ ftext('valid phones detected') }}
+            <span class="invalid-phones-text hide">
+                ({{ui.badge(text='0', color='red', class='invalid-counter')}}
+                {{ ftext('invalids out of') }}
+                {{ui.badge(text='0', color='blue', class='total-counter')}})
+            </span>
+        </div>
+    </form>
+</div {{ ui.card_end() }}>
+
+
+<div {{ ui.card_start(title='Select Clients/Leads using filters', uicon='filter', class='filter_inputs') }}>
+    <form id="recipients_filter" class="row">
+        {{ ui.info_card(text=ftext('Please note: <br>
+        - You must select an option for the required filters marked with * (even if the option is "All", to avoid
+        mistakes).<br>
+        - For each filter, you can select multiple options.<br>'), uicon='info', color='secondary', class='mt-3 mb-2',
+        in_card=true) }}
+        {{ ui.divider('Select Clients',small=true) }}
+
+        <div class="row filter_row" id="Client[Location]">
+            {{forms.searchable_select('client_location_selector', locations, 'Add Locations...', size=6,
+            labeltag="Add clients by location*", translate=false)}}
+            {{ chip_holder('location') }}
+        </div>
+
+        <div class="row filter_row" id="Client[Status]">
+            {{forms.select('client_status_selector', client_statuses, 'Add Statuses...', size=6,
+            labeltag="Add clients by status*", translate=false)}}
+            {{ chip_holder('location') }}
+        </div>
+
+        <div class="row filter_row" id="Client[OfferType]">
+            {{forms.select('client_offer_type_selector', client_offer_types, 'Add Offer Type...', size=6,
+            labeltag="Add clients by offer type*")}}
+            {{ chip_holder('offer type') }}
+        </div>
+
+        <div class="row filter_row" id="Client[Tags]">
+            {{forms.select('client_tag_selector', client_tags, 'Add tags...', size=6,
+            labeltag="Add clients by tag (Optional)", translate=false)}}
+            {{ chip_holder('tag', false) }}
+        </div>
+
+        {{ ui.report_field('Total Clients selected',  ui.badge(text='0', color='green', id='client_count'), size=6, class='mt-3') }}
+
+        {{ ui.divider('Select Leads',small=true) }}
+
+        <div class="row filter_row" id="Lead[Location]">
+            {{forms.select('lead_location_selector', locations, 'Add Locations...', size=6,
+            labeltag="Add leads by location*", translate=false)}}
+            {{ chip_holder('location') }}
+        </div>
+
+        <div class="row filter_row" id="Lead[Status]">
+            {{forms.select('lead_status_selector', lead_statuses, 'Add Statuses...', size=6,
+            labeltag="Add leads by status*", translate=false)}}
+            {{ chip_holder('location') }}
+        </div>
+
+        <div class="row filter_row" id="Lead[OfferType]">
+            {{forms.select('lead_offer_type_selector', offer_types, 'Add Type...', size=6,
+            labeltag="Add leads by offer type*")}}
+            {{ chip_holder('offer type') }}
+        </div>
+
+        {{ ui.report_field('Total Leads selected',  ui.badge(text='0', color='green', id='lead_count'), size=6, class='mt-4') }}
+    </form>
+</div {{ ui.card_end() }}>
+
+<div {{ ui.card_start() }}>
+    {{ forms.input(name="sms_content", type="textarea", placeholder="Message to send...", label="Message",
+    id="sms_content", required=true) }}
+    <span class="charcount-wrapper" style="position: initial;">
+        <var class="charcount">0</var> {{ftext('characters')}} (<var class="smscount">0</var> SMS)
+        <i class="material-symbols-rounded tiny red-text warning hide" {{ui.tooltip_code('You are using special characters that reduce the available length of the SMS and might increase the cost')}}>warning</i>
+    </span>
+    <div class="chip-template hide">
+        <div class="chip">
+            <input type="hidden" name="%name%" value="%val%" />
+            <span class="label">%label%</span>{{ ui.icon('cancel','close') }}
+        </div>
+    </div>
+    {{forms.button('Preview', uicon='view', size=4, fit=true, center=true, action="checkValid()", type='action')}}
+
+</div {{ ui.card_end() }}>
+
+
+<div {{ ui.modal_start('preview_modal', 'Campaign Summary' ) }}>
+    <div class="modal-body">
+        {{ ftext('<p>You are going to send the "<var class="name_preview"></var>" SMS campaign with the following content:</p>') }}
+        {{ ui.info_card(color='secondary', uicon='message', text='', body_class='preview') }}
+        {{ ftext('<p>To a total of <var class="bold total_count"></var> recipients that match the following rules:</p>
+        <p>- <var class="bold phones_count"></var> valid phones detected in the CSV file</p>
+        <p>- <var class="bold client_count"></var> clients that belong to <span class="client_locs_list"></span>, have
+            <span class="client_tag_list"></span> <b>tags</b> and are <span class="client_status_list"></span>
+        </p>
+        <p>- <var class="bold lead_count"></var> leads that belong to <span class="lead_locs_list"></span> and are <span
+                class="lead_status_list"></span></p>') }}
+        {{ ui.info_card(type='warning', text='This action may entail additional costs.') }}
+    </div>
+    <div class="modal-footer">
+        {{ ui.modal_close_button() }}
+        <button type="button" class="btn btn-danger" data-bs-dismiss="modal" onclick="showModal('#confirmation_modal')">{{ftext('Send')}}</button>
+    </div>
+</div {{ ui.modal_end() }}>
+
+<div {{ ui.modal_start('confirmation_modal', 'Submission Confirmation' ) }}>
+    <div class="modal-body">
+        {{ ui.info_card(type='warning', text='The messages will be sent right away and this action cannot be reversed. Are you sure you want to proceed?')}}
+    </div>
+    <div class="modal-footer">
+        {{ ui.modal_close_button() }}
+        <button type="button" class="btn btn-danger" data-bs-dismiss="modal" onclick="submitCommunication()">{{ftext('Confirm and Send')}}</button>
+    </div>
+</div {{ ui.modal_end() }}>
+
+
+<div {{ ui.modal_start('result_modal', 'Sending Communication' ) }}>
+    <div class="modal-body">
+        <h4>{{ftext('Sending communication')}}</h4>
+        <div class="loading">
+            <div class="progress">
+                <div class="indeterminate red"></div>
+            </div>
+            <div class="info-card">
+                <p>{{ftext('This might take some time. Please wait.')}}</p>
+            </div>
+        </div>
+    </div>
+</div {{ ui.modal_end() }}>
+
+
+<div class="chip-template hide">
+    <div class="badge bg-label-secondary main-badge me-2 mt-2">
+        <input type="hidden" name="%name%" value="%val%" />
+        <span class="label">%label%</span>{{ ui.icon('cancel', 'tiny close', style="top: 3px;position:relative;") }}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/admin/com_campaign.js?version={{COMMIT_SHA}}"></script>
+<script type="text/javascript" src="{{ url_for('static', filename='js/sms_counter.min.js') }}?version={{ COMMIT_SHA }}"></script>
+<script type="text/javascript" src="{{ url_for('message.static', filename='js/common.js') }}?version={{ COMMIT_SHA }}"></script>
+{% endblock %}
+
+{% macro chip_holder(name, required=true) %}
+<div class="{{ui.col_size(6)}} chips-container mt-4" placeholder="{{ftext('No {} selected', name)}} {{ ftext('(Required)') if required else ftext('(Optional)') }}"></div>
+{% endmacro %}
