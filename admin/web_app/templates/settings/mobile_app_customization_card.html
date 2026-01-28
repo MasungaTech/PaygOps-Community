@@ -1,0 +1,405 @@
+{% extends "macros/list_base.html" %}
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'macros/form_macros.html' as forms with context %}
+{% import 'macros/filter_macros.html' as filter with context %}
+
+
+{% block title %}{{ ftext('Custom App Designer') }}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('Admin', 'Custom App Designer') }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div {{ ui.collapsible_card_start(
+                body_class='row', 
+                uicon="palette",
+                active=true, 
+                title='Mobile App Customization')}}>
+            <form id="tag_new" action="" method="POST">
+                <div class="row">
+                    <div class="form-row row px-0 mx-0">
+                        <div class="col-6 pt-3">
+                            <div class="enabled-configuration-info"
+                                    {% if not mobile_app_customization_settings.enabled %} hidden {% endif %}>
+                                {{ ui.info_card(type='info',
+                                                text='By submitting a new Mobile Customisation, PaygOps team will receive your request for implementation.\
+                                                        The publishing of the custom mobile App typically happens on the following 2 to 4 weeks.\
+                                                        For any questions contact customersuccess@paygops.com' )}}
+                            </div>
+                            <div class="disabled-configuration-info"
+                                    {% if mobile_app_customization_settings.enabled %} hidden {% endif %}>
+                                {{ ui.info_card(type='warning',
+                                                text='When the switch is disabled you will enjoy the "default" version of the mobile App. \
+                                                        Enabling Mobile App Customization will trigger a request to the PaygOps team to implement the changes, they will let you know if the requested changes have any costs associated to them before processing.' )}}
+                            </div>                          
+                        </div>
+                        
+                        <div class="col-6">
+                            {{ forms.checkbox(
+                                'mobileAppCustomizationCardSetting[enabled]:boolean',
+                                checked=GlobalSetting('mobileAppCustomizationCardSetting').get('enabled'),
+                                value='true',
+                                id="enabled",
+                                size=12,
+                                labeltag='Mobile App Custom Branding',
+                                label='Enable',
+                                onchange="toggleFormInputs(this)"
+                            ) }}
+                        </div>
+                    </div>
+
+                    <div class="customization-section row"
+                        {% if not mobile_app_customization_settings.enabled %} hidden {% endif %}>
+                            {{ forms.input('mobileAppCustomizationCardSetting[mobile_app_name]', 
+                                    id='mobile_app_name', 
+                                    value=GlobalSetting('mobileAppCustomizationCardSetting').get('mobile_app_name'),
+                                    label='Mobile App Name', 
+                                    placeholder="Type Mobile App", 
+                                    max=20,
+                                    size=6) }}
+                            {{ ui.info_card(type='info', size=6, class='pt-2',
+                                    text='A maximum of 20 characters is recommended for your App name to \
+                                    obtain abetter result on the App Store listing and your phone Home Screen')}}
+
+                            {{ forms.input('mobileAppCustomizationCardSetting[app_store_description]', 
+                                            id='app_store_description', 
+                                            value=GlobalSetting('mobileAppCustomizationCardSetting').get('app_store_description'),
+                                            label='App Store Description', 
+                                            placeholder="Type App Description", 
+                                            size=12) }}
+
+                        {{ forms.input('mobileAppCustomizationCardSetting[primary_corporate_colour]', 
+                                            id='primary_corporate_colour', 
+                                            value=GlobalSetting('mobileAppCustomizationCardSetting').get('primary_corporate_color'),
+                                            label='Primary Corporate Colour', 
+                                            placeholder="# Hex Colour Code", 
+                                            size=6, 
+                                            icon="palette") }}
+                        {{ ui.info_card(type='info', size=6, class='pt-2',
+                                            text='This colour will be the background of the splash screen and used as primary color for the app.')}}
+
+                        {{ forms.picture('mobileAppCustomizationCardSetting[pictured_id]', 
+                                label='App Logo (for icon and splash screen)', 
+                                tooltip='The logo will be used for the app icon and the splash screen',
+                                value=GlobalSetting('mobileAppCustomizationCardSetting').get('picture_id'),
+                                size=6) }}
+                        {{ ui.info_card(type='info', size=6, class='pt-4',
+                                text='File must be in PNG format, resolution of 1024x1024 pixels.')}}
+                            
+                        <div class="form-row row px-0 mx-0">
+                            <div class="col-6">
+                                {{ forms.checkbox(
+                                    'mobileAppCustomizationCardSetting[available_in_google_play_store]:boolean',
+                                    checked=GlobalSetting('mobileAppCustomizationCardSetting').get('available_in_google_play_store', true),
+                                    value='true',
+                                    id="available_in_google_play_store",
+                                    size=12,
+                                    labeltag='Google Play Store',
+                                    label='Make App available for Android'
+                                ) }}
+                            </div>
+                            <div class="col-6">
+                                {{ forms.checkbox(
+                                    'mobileAppCustomizationCardSetting[available_in_apple_app_store]:boolean',
+                                    checked=GlobalSetting('mobileAppCustomizationCardSetting').get('available_in_apple_app_store'),
+                                    value='true',
+                                    disabled=true,
+                                    tooltip='Please contact support directly for this option',
+                                    id="available_in_apple_app_store",
+                                    size=12,
+                                    labeltag='Apple App Store',
+                                    label='Make App available for iOS (iPhone/iPad)'
+                                ) }}
+                            </div>
+                        </div>
+                    </div>
+                    {{ ui.button(
+                            uicon='save', 
+                            label='Submit for Publication on App Stores', 
+                            type='action', 
+                            fit=true, 
+                            size=6, 
+                            center=true,
+                            action='async_post', 
+                            async_url='/settings', 
+                            success_message='Settings saved',
+                             success_action='message') 
+                    }}
+                </div>
+            </form>
+    </div {{ ui.collapsible_card_end() }}>
+    
+    <div {{ ui.collapsible_card_start(body_class='row', class="menu_row", uicon='widgets', title="Menus") }}>
+        <div class="pb-2">
+            {{ forms.checkbox(
+                'taskMenuSetting[enabled]:boolean',
+                checked=GlobalSetting('taskMenuSetting').get('enabled'),
+                value='true',
+                id="task-menu-enable-checkbox",
+                size=6,
+                labeltag='Enable Task Menu',
+                label='Enable'
+            ) }}
+        </div>
+
+        <form id="menu_edit_form" class="p-0 m-0 row">
+            <div class="menus-wrapper">
+                {% for menu in custom_app_menus %}
+                    <div class="py-2 menu-item-wrapper">
+                        {{ menu_form(menu)}}
+                    </div>
+                {% endfor %}
+                <div class="py-2 menu-item-wrapper new_menu hiddenform">
+                    {{ menu_form(none)}}
+                </div>
+            </div>
+
+            {{ ui.button(
+                'Add Menu', 
+                id="add_menu_button", 
+                uicon='add', 
+                size=6, 
+                type='action', 
+                class='add_menu_button', 
+                fit=true, 
+                action='addMenu()', 
+                tooltip='Add a new Menu') 
+            }}
+
+            {{ ui.button(
+                    'Save Menu', 
+                    uicon='save', 
+                    size=6, 
+                    type='action', 
+                    class='submit-btn forms_save_button', 
+                    fit=true, 
+                    action='async_post', 
+                    async_url='/settings', 
+                    success_message='Journey saved!') 
+            }}
+        </form>
+    </div {{ ui.collapsible_card_end() }}>       
+</div>
+{% endblock %}
+
+
+{% block scripts %}
+<script>
+
+    function updateSortable() {
+        new Sortable($('.menus-wrapper')[0], {
+            handle: 'i',
+            animation: 150,
+            onSort: function (evt) {
+                formEdited()
+            },
+        });
+    }
+    $(document).ready(function () {
+        updateSortable();
+    });
+   
+    function toggleFormInputs(event){        
+        if(event.checked == true) {
+            $(".enabled-configuration-info").removeAttr("hidden").show();
+            $(".disabled-configuration-info").hide();
+            $(".customization-section").removeAttr("hidden").show();
+        } else {
+            $(".enabled-configuration-info").hide();
+            $(".disabled-configuration-info").removeAttr("hidden").show();;
+            $(".customization-section").hide();
+        }
+    }
+
+    function addMenu() {
+        showForm(".new_menu");
+        updateTooltip($('#add_menu_button'), "{{ftext('You must save before adding a new menu')}}")
+        $('#add_menu_button').attr('onclick', function(i, val) {
+            return val.replace('addMenu()', 'toast("{{ftext('You must save before adding a new menu')}}")');
+        });
+    }
+
+    function deleteMenu(element) {
+        $(element).closest('.menu-item-wrapper').remove();
+        formEdited();
+    }
+
+    function formEdited() {
+        enableElement($('.forms_save_button'));
+    }
+
+    function toggleMenuTypeSelects(selectElement) {
+        const wrapper = selectElement.closest('.menu-item-wrapper');
+        if (!wrapper) return;
+    
+        const selectedType = selectElement.value;
+    
+        // Define class map
+        const classMap = {
+            user_journey: '.user_journey_select',
+            management: '.management_select',
+            after_sales: '.after_sales_select',
+            sales: '.sales_select',
+            clients: '.clients_select',
+            inventory: '.inventory_select'
+        };
+    
+        // Hide all second selects in this wrapper
+        Object.values(classMap).forEach(cls => {
+            wrapper.querySelectorAll(cls).forEach(el => el.classList.add('hiddenform'));
+        });
+    
+        // Show only the one that matches selected type
+        const toShowSelector = classMap[selectedType];
+        if (toShowSelector) {
+            wrapper.querySelectorAll(toShowSelector).forEach(el => el.classList.remove('hiddenform'));
+        }
+    
+        refreshHiddenElements(); // Optional if needed to re-trigger UI updates
+    }
+
+    $(document).ready(function () {
+        $("#task-menu-enable-checkbox").on("change", (element) => {
+            const checked = $(element.target).is(":checked");
+            const action = checked ? 'Enable' : 'Disable';
+            const data = {
+                "taskMenuSetting": {
+                    "enabled": checked
+                }
+            }
+            
+            $.ajax({
+                url: `/api/v1/settings`,
+                type: "POST",
+                data: JSON.stringify(data),
+                beforeSend: function(xhr) { xhr.setRequestHeader("Authorization", "Bearer "+JWTKey); },
+                contentType: "application/json",
+                success: function (result) {
+                    success_toast(`Task menu has been ${action}d`);
+                },
+                error: function (result, ajaxOptions, thrownError) {
+                error_toast(`Error trying to ${action} Task menu`);
+                }
+            });
+        });
+    });
+    
+</script>
+
+{% endblock %}
+
+{% macro menu_form(menu) %}
+    <div {{ ui.card_start(body_class='row') }}>
+        <div class="{{ ui.col_size(1) }} pt-2">
+            {{ ui.icon('drag_indicator', color='lightgrey', style="cursor: move;") }}
+        </div>
+        {{ forms.select(
+            'app_menu[][type]', 
+            choices=[('user_journey', 'User Journey'), ('management', 'Management'), ('after_sales', 'After-Sales'),
+                    ('sales', 'Sales'), ('clients', 'Clients'), ('inventory', 'Inventory')], 
+            value=menu.get('type') if menu else 'user_journey', 
+            labeltag='', 
+            uicon='widgets', 
+            required=true, 
+            size=5, 
+            onchange='toggleMenuTypeSelects(this)'
+            ) }}
+
+        {{ forms.select(
+            'app_menu[][management]', 
+            choices=[('operational_entities_0', 'Level 0 Operational Entities'), ('client_groups', 'Client Groups')], 
+            value=menu.get('management', '') if menu else None, 
+            labeltag='', 
+            uicon='groups', 
+            required=true, 
+            size=6,
+            id=menu.get('management', '') | string if menu else '', 
+            tooltip='Select Menu to Add', 
+            btn_icon='delete', 
+            btn_action="deleteMenu(this)",
+            selector_class='management_select hiddenform'
+            ) }}
+
+        {{ forms.select(
+            'app_menu[][after_sales]', 
+            choices=[('interactions', 'Interactions')], 
+            value=menu.get('after_sales', '') if menu else None, 
+            labeltag='', 
+            uicon='service', 
+            required=true, 
+            size=6,
+            id=menu.get('after_sales', '') | string if menu else '', 
+            tooltip='Select Menu to Add', 
+            btn_icon='delete', 
+            btn_action="deleteMenu(this)",
+            selector_class='after_sales_select hiddenform'
+            ) 
+        }}
+
+        {{ forms.select(
+            'app_menu[][user_journey]', 
+            choices=[journeys, 'id', 'name']|dictMapper if menu else [new_journeys, 'id', 'name']|dictMapper, 
+            value=menu.get('user_journey', '') if menu else None, 
+            labeltag='', uicon='process', 
+            translate=false, 
+            required=true, 
+            type="number", 
+            size=6,
+            id=menu.get('user_journey') | string if menu else '', 
+            tooltip='Select Menu to Add', 
+            btn_icon='delete', 
+            btn_action="deleteMenu(this)",
+            selector_class='user_journey_select hiddenform'
+            ) }}
+
+        {{ forms.select(
+            'app_menu[][sales]', 
+            choices=[('list_leads', 'List Leads'), ('add_lead', 'Add Lead')], 
+            value=menu.get('sales', '') if menu else None, 
+            labeltag='', 
+            uicon='service', 
+            required=true, 
+            size=6,
+            id=menu.get('sales', '') | string if menu else '', 
+            tooltip='Select Menu to Add', 
+            btn_icon='delete', 
+            btn_action="deleteMenu(this)",
+            selector_class='sales_select hiddenform'
+            ) 
+        }}
+
+        {{ forms.select(
+            'app_menu[][clients]', 
+            choices=[('list_clients', 'List Clients')], 
+            value=menu.get('clients', '') if menu else None, 
+            labeltag='', 
+            uicon='service', 
+            required=true, 
+            size=6,
+            id=menu.get('clients', '') | string if menu else '', 
+            tooltip='Select Menu to Add', 
+            btn_icon='delete', 
+            btn_action="deleteMenu(this)",
+            selector_class='clients_select hiddenform'
+            ) 
+        }}
+
+        {{ forms.select(
+            'app_menu[][inventory]', 
+            choices=[('stock_movements', 'Stock Movements'), ('stock_items', 'Stock Items')], 
+            value=menu.get('inventory', '') if menu else None, 
+            labeltag='', 
+            uicon='service', 
+            required=true, 
+            size=6,
+            id=menu.get('inventory', '') | string if menu else '', 
+            tooltip='Select Menu to Add', 
+            btn_icon='delete', 
+            btn_action="deleteMenu(this)",
+            selector_class='inventory_select hiddenform'
+            ) 
+        }}
+
+    </div {{ ui.card_end() }}>
+{% endmacro %}
+

@@ -1,0 +1,179 @@
+{% extends 'macros/base.html' %}
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'macros/form_macros.html' as forms with context %}
+{% import 'addon_categories_macros.html' as addons_categories with context %}
+
+{% block title %}{{ ftext('Add Add-on to contract') }}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('Contracts', 'Add Add-On', object=contract) }}{% endblock %}
+
+{% block content %}
+{% if GlobalSetting('EnableLimitOnPlannedDeliveryDate') and not current_user.can_access('OverrideDeliveryDateLimitsLeads', person=contract.client.person) %}
+    {% set min_day = NOW + timedelta(days=GlobalSetting('BeforeLimitOnPlannedDeliveryDate')|float) %}
+    {% set max_day = NOW + timedelta(days=GlobalSetting('AfterLimitOnPlannedDeliveryDate')|float) if GlobalSetting('AfterLimitOnPlannedDeliveryDate') else none %}
+{% else %}
+    {% set min_day = none %}
+    {% set max_day = none %}
+{% endif %}
+<div {{ ui.card_start() }}>
+    <form class="novalidate row">
+        {% if bundles_available %}
+            {{ forms.select('addons_or_bundles:skip', {'addons': 'Add-ons', 'bundles': 'Bundles'}, value='addons', labeltag="Add-ons or bundles", uicon='filter', size=6) }}
+        {%endif%}
+        {% if categories_available %}
+            {{ addons_categories.addons_categories_navigation(none, callback="updateCategoryFilter", with_results="offers", tooltip='Offer category filter: ', icon='filter', size=6) }}
+        {%endif%}
+    </form>
+
+    <form id="addonFromBundle" action="" method="post" novalidate class="hiddenform row">
+        <input type="hidden" name="contract_reference" value="{{contract.reference}}" />
+        {{ forms.select('bundle_id', bundle_id, 'Choose addon bundle', required=true, labeltag='Add-on bundle', source='bundle_id', uicon='offer', size=6, id='bundle_id_selector')}}
+        {{ forms.button(label='Add add-ons from bundle', uicon='save', type='action', fit=true, size=6, center=true,
+                        action='async_post', async_url='/addons_from_bundle', success_message='Add-On bundle added successfully.') }}
+        <div class="progress hiddenform">
+            <div class="indeterminate"></div>
+        </div>
+    </form>
+
+    <form id="addonToContractForm" action="" method="post" novalidate>
+        <div class="row">
+            <input type="hidden" name="contract_reference" value="{{contract.reference}}" />
+            {{ forms.select('offer_version_id', offer_version_id, required=true, label="Choose Offer",
+                            labeltag="Add-on Offer", source='offer_version_id', uicon='offer', size=6, id='offer_id_selector') }}
+            {{ forms.select('loan_mode', loan_modes, size=6, label='Choose Loan Extension option...',
+                labeltag="Loan extension option", errormsg="Loan extension mode is required", selector_class='loan-mode hiddenform') }}
+
+            {% if current_user.can_access('EditPlannedDeliveryDateAddOns', person=contract.client.person) %}
+                {{ forms.input('planned_delivery_date', 'Choose delivery date', type='datepicker',size=6, id='delivery_date', uicon='date', min=min_day, max=max_day, selector_class='delivery_planning hiddenform') }}
+            {% endif %}
+
+            {{ forms.input('quantity_sold', 'Quantity added', required=true, numeric=true, not_zero=true, size=6, id='quantity_sold', selector_class="hiddenform not-linked-to-product", value=1) }}
+            {{forms.searchable_select('device_serial', [], 'Choose device', labeltag="Select Device", uicon='device',
+                size=6, source="add_on_devices", selector_class="hiddenform linked-to-product", ajax=true)}}
+            <div id="allow_decimal_quantities" class="hiddenform">
+                <div style="color:red;">{{ftext('Only whole numbers allowed')}}</div>
+            </div>
+            {{ forms.input('note', 'Notes', type="textarea", size=6) }}
+        </div>
+
+        <div class="row">
+            {{ ui.report_field(ftext('Add-on Unit Price ({}/unit)', GlobalSetting('CurrencySymbol'), novar=true), ftext('<var>{}</var>', '-', novar=true), class='offer_price_display hiddenform pt-4', size=6) }}
+            {{ ui.report_field(ftext('Total sale price ({}/unit)', GlobalSetting('CurrencySymbol'), novar=true), ftext('<var>{}</var>', '-', novar=true), class='total_price_display hiddenform pt-4', size=6) }}
+            {{ ui.report_field('Total days added', ftext('<var>{}</var> days', '-', novar=true), class='total_days_display hiddenform pt-4', size=6) }}
+        
+            <div class="cash_checkbox_container hiddenform pt-3">
+                {% if current_user.can_access('CollectCashActions', person=contract.client.person) %}
+                    {{ ui.info_card(text='This add-on can be paid in cash right now (if not, it can be paid later
+                    either in cash or by mobile money). By checking the box below you confirm that you have collected the total amount of the sale,
+                    that will be added to your personal cash account')}}
+                    {{ forms.checkbox('cash_collection_agent:number', label="Tick if you collected the cash", value=current_user.id, size=6) }} 
+                {% endif %}
+            </div>
+            <div class="info-card hiddenform pt-3">
+                <span class="lump-sum">
+                    {{ ui.info_card(text='This add-on is sold as a lump-sum sale and it can be paid either in cash or by mobile money.') }}
+                </span>
+                <span class="loan-duration">
+                    {{ ui.info_card(text='This add-on will be sold as a loan duration extension. Once the add-on is added and approved (if needed) the loan value and duration
+                    will be increased to repay the total addon value, maintaining the Reference Pricing Amount.') }}
+                </span>
+                <span class="loan-amount">
+                    {{ ui.info_card(text='This add-on is sold as a loan reference pricing extension. Once the add-on is added and approved (if needed) the loan value and Reference Pricing Amount
+                    will be increased to repay the total addon value, maintaining the loan duration.') }}
+                </span>
+                <span class="needs-approval">
+                    {{ ui.info_card(text='This sale is under an offer that requires approval. By clicking in “Add Add-on” you confirm the request to be sent for approval.') }}
+                </span>
+            </div>
+            {{ forms.button(label='Add add-ons', uicon='save', type='action', fit=true, size=6, center=true,
+                        action='async_post', async_url='/addons', success_message='Add-On added successfully.',
+                        redirect_url=url_for('contract.view_contract', contract_reference=contract.reference)+'#addons') }}
+        </div>
+    </form>
+</div {{ ui.card_end() }}>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    var offers = {{offers_data|safe}};
+
+    update_prices = function () {
+        offer = $('#offer_id_selector').val();
+        if (offer) {
+            offer_dis = $('.offer_price_display');
+            offer_dis.removeClass('hiddenform');
+            $('.info-card').removeClass('hiddenform');
+            if_show(offers[offer].needs_loan_mode, '.loan-mode');
+            selected_loan_mode = offers[offer].needs_loan_mode ? $('.loan-mode select').val() : '' ;
+            if_show(offers[offer].lump && !offers[offer].purchasing_addon, '.info-card .lump-sum');
+            if_show(!offers[offer].lump && (offers[offer].duration || selected_loan_mode == "{{AddOnLoanExtensionMode.duration}}"), '.info-card .loan-duration');
+            if_show(!offers[offer].lump && (offers[offer].amount || selected_loan_mode == "{{AddOnLoanExtensionMode.amount}}"), '.info-card .loan-amount');
+            if_show(offers[offer].lump && !offers[offer].approval && !offers[offer].purchasing_addon, '.cash_checkbox_container');
+            if_show(offers[offer].approval, '.info-card .needs-approval');
+            if_show(offers[offer].can_be_delivered, '.delivery_planning');
+            if (offers[offer].linked_to_product && offers[offer].is_serialized) {
+                showForm('.linked-to-product');
+                hideForm('.not-linked-to-product');
+            } else {
+                showForm('.not-linked-to-product');
+                hideForm('.linked-to-product');
+            }
+            $('#device_serial').attr('data-add_on_offer', offer)
+            up = offers[offer].price;
+            offer_dis.find('var').text(offers[offer].price);
+            quant = parseFloat($('#quantity_sold').val());
+            allow_decimal_quantities = offers[offer].allow_decimal_quantities
+            if (!allow_decimal_quantities && !Number.isInteger(quant)) {
+                 $('#allow_decimal_quantities').removeClass('hiddenform')
+            }else {
+                $('#allow_decimal_quantities').addClass('hiddenform')
+            }
+            total = Math.round((quant*up + Number.EPSILON) * 100) / 100;
+            od = offers[offer].duration_change;
+            total_days = Math.round((quant*od + Number.EPSILON) * 100) / 100;
+            if (!isNaN(total_days) && od != 0) {
+                $('.total_days_display').removeClass('hiddenform').find('var').text(total_days);
+            } else {
+                $('.total_days_display').addClass('hiddenform')
+            }
+            if (!isNaN(total) && up != 0) {
+                $('.total_price_display').removeClass('hiddenform').find('var').text(total);
+            } else {
+                $('.total_price_display').addClass('hiddenform')
+            }
+            if ($('.info-card span:not(.hiddenform)').length == 0) {
+                $('.info-card').addClass('hiddenform');
+            }
+
+        }
+    }
+
+    function if_show(c, selector) {
+        if (c) {$(selector).removeClass('hiddenform')} else {$(selector).addClass('hiddenform')}
+    }
+
+    function updateCategoryFilter(data) {
+        $('#offer_id_selector').attr('data-category', data["id"])
+        $('#bundle_id_selector').attr('data-category', data["id"])
+    }
+
+    $('#addons_or_bundles').change(function () {
+        if ($(this).val() == 'addons') {
+            $('#addonFromBundle').addClass('hiddenform');
+            $('#addonToContractForm').removeClass('hiddenform');
+            $('#category_navigation').attr('data-with_results', "offers")
+        } else {
+            $('#addonFromBundle').removeClass('hiddenform');
+            $('#addonToContractForm').addClass('hiddenform');
+            $('#category_navigation').attr('data-with_results', "bundles")
+        }
+    })
+
+    $(document).ready(function () {
+        $('#offer_id_selector').change(update_prices);
+        $('#quantity_sold').keyup(update_prices);
+        $('.loan-mode select').change(update_prices);
+    })
+
+</script>
+{% endblock %}

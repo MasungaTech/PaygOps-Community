@@ -1,0 +1,223 @@
+{% extends "macros/base.html" %}
+{% import 'macros/form_macros.html' as forms with context %}
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'offline_token_view_macros.html' as offline_tokens_view with context %}
+{% import 'client_map_macro.html' as device_map with context %}
+{% import 'client_view_macros.html' as client_macros with context %}
+{% import 'token_list_macros.html' as token_list with context %}
+{% import 'transaction_macros.html' as transaction with context %}
+
+{% block title %}{{ ftext('View Stock Item {}', Device.get_display_name(), novar=true) }}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('Stock Items', 'View', object=Device) }}{% endblock %}
+
+{% block page_actions %}
+{% if not is_custom_app %}
+    {% if GlobalSetting('AllDeviceAPIS').get(Device.type, {}).get('device_pairing') == 'ENABLED' %}
+        {{ ui.button(modal='pair-device', uicon="plug_connect", tooltip="Pair Device", type="header-action", permission="PairDevices") }}
+    {% endif %}
+    {{ ui.button(link=url_for('.sync_device', device_id=Device.id), uicon="sync", tooltip="Sync Device Data", type="header-action") }}
+    {{ ui.button(link=url_for('.delete_device', device_id=Device.id), uicon="delete", tooltip="Delete Device", permission="DeleteDevices", type="header-action") }}
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<div {{ ui.card_start(title='Stock Item (Device) Details', uicon='stock', body_class='row') if not is_custom_app else ui.collapsible_card_start(title='Stock Item (Device) Details', uicon='stock', body_class='row') }}>
+    {{ ui.report_field('Serial Number', Device.get_display_name(), 'stock', size=6) }}
+    {% set model_str = ' - '+Device.product_sub_type.name if Device.product_sub_type else '' %}
+    {{ ui.report_field_start('Product Type', size=6) }}
+        {{Device.type+model_str}} {% if current_user.can_access('EditSubTypeDevices') and not is_custom_app %}{{ ui.button(uicon='edit', modal='edit-sub-type', type='tiny-action') }}{% endif %}
+    {{ ui.report_field_end() }}
+    {{ ui.report_field('Location', ftext('{} ({})', ftext(stock_statuses.to_human(Device.stock_item.status)), ui.stock_location(Device.stock_item)), 'stock', size=6) }}
+    {% if Device.addon %}
+    {{ ui.report_field('Linked Add-on', ui.contract_link(Device.addon.contract, text=Device.addon.reference) if Device.addon.contract else Device.addon.reference+' '+ui.lead_link(Device.addon.lead, opts='brackets'), size=6) }}
+    {% else %}
+    {{ ui.report_field('Linked Contract', Device.allocated_lead.future_contract_reference+' '+ui.lead_link(Device.allocated_lead, opts='brackets') if Device.allocated_lead else ui.contract_link(Device.contract), 'contract', size=6) }}
+    {% endif %}
+    {% if Device.type != 'NPG' %}
+        {{ ui.divider('PAYGO Info', small=true)}}
+        {{ ui.report_field('PAYGO Status', ui.device_paygo_status(Device), 'device', size=6) }}
+        {{ ui.report_field('First Activation', ui.datetime(Device.get_first_activation()) if Device.get_first_activation() else none, 'date', size=6) }}
+        {% if Device.get_offer() is not none %}
+            {{ ui.report_field('PAYGO Mode', Device.get_mode_name(), 'device', size=6) }}
+            {{ ui.report_field('PAYGO Expiration', ui.datetime(Device.ActiveUntil), 'device', size=6) }}
+        {% endif %}
+    {% endif %}
+</div {{ ui.card_end() if not is_custom_app else ui.collapsible_card_end() }}>
+<div {{ ui.modal_start('edit-sub-type', 'Edit sub-type') }}>
+    <form>
+        <div class="modal-body">
+            {{ forms.select('product_sub_type_id', product_sub_types, labeltag='Product sub-type', placeholder='Product sub-type', value=Device.product_sub_type.id if Device.product_sub_type else None) }} 
+        </div>
+        <div class="modal-footer">
+            {{ ui.modal_close_button() }}
+            {{ ui.button(uicon='save', label='Edit sub-type', action='async_post', async_url='/devices/'+Device.composed_serial) }}
+        </div>
+    </form>
+</div {{ ui.modal_end() }}>
+{% if not is_custom_app %}
+    <div {{ ui.card_start(title='Quick Access', uicon='redo', body_class='row') }}>
+        <div class="align-items-center justify-content-between">
+            {# After-sales (Issues) is an enterprise-only feature.
+               Hide this quick access when enterprise features are disabled. #}
+            {% if config.ENABLE_ENTERPRISE_FEATURES %}
+            {{ ui.quick_access('ViewIssues', 'Issues', uicon='issue', link=url_for('issue.list_issue', serial_number=Device.composed_serial)) }}
+            {% endif %}
+            {{ ui.quick_access('ViewActions', 'Token Requests', uicon='request', link=url_for('mentor_request.token_list', device_id=Device.id)) }}
+            {{ ui.quick_access('ViewActions', 'User Requests', uicon='request', link=url_for('mentor_request.list_request', device_id=Device.id)) }}
+        </div>
+    </div {{ ui.card_end() }}>
+{% endif %}
+<div {{ ui.card_start(body_class='card-row') }}>
+    <form id="device_tag_form" action="" method="post" class="row">
+        {{ forms.input('tags', type='device_tags', label='Device Tags', placeholder='+Tags', size="11" if not is_custom_app else 2, value=Device.tags, icon='tags', size_class='col-8 col-md-8' if is_custom_app else '' ) }} 
+        {{ ui.button(uicon='save', tooltip='Save changes', color='danger', inline=true, align_end=true, size='1' if not is_custom_app else '10s', size_class='col-4 pt-3' if is_custom_app else '', action='async_post', async_url='/devices/' + Device.composed_serial|string, permission='EditTagsDevices') }}
+    </form> 
+</div {{ ui.card_end() }}>
+
+
+{% for note in Device.notes|sort(attribute="time", reverse=true) %}
+<div class="alert alert-primary d-flex align-items-center" role="alert">
+<span class="badge-center rounded-pill text-primary p-3 me-2">{{ ui.icon('note', 'round-badge-icon') }}</span>
+<div class="d-flex flex-column alert-p ps-1">
+    <h6 class="alert-heading d-flex align-items-center fw-bold mb-1">"{{ note.content }}"</h6>
+    <span>
+        {% if not is_custom_app %}{{ ui.user_link(note.user) }}{%else%}{{ui.user_link(note.user, link=false) }}{% endif %} on {{ui.datetime(note.time)}} {{ ui.button(uicon='delete', tooltip='Delete note', type="tiny-action", action='async_delete', async_url='/devices_notes/'+note.id|string, disabled=none if current_user.can_access('DeleteNotesDevices') else true) }}</span>
+</div>
+</div>
+{% endfor %}
+
+<div {{ ui.card_start(body_class='card-row') }}>
+    <form id="add_note_form" action="" method="post" class="row">
+        {{ forms.input('content', 'Add a note to the device', type='textarea', size=11 if not is_custom_app else 2, icon='note', disabled=not current_user.can_access('AddNotesDevices'), size_class='col-8 col-md-8' if is_custom_app else '') }}
+        {{ ui.button(uicon='save', tooltip='Save note', color='danger', inline=true, align_end=true, size=1 if not is_custom_app else '10s', size_class='col-4 pt-4' if is_custom_app else '', action='async_post', async_url='/devices/'+Device.composed_serial+'/notes', disabled=none if current_user.can_access('AddNotesDevices') else true) }}
+    </form>
+</div {{ ui.card_end() }}>
+
+
+<div {{ ui.collapsible_card_start(title='Token Requests', uicon='token', active=false, body_class='table-responsive') }}>
+    <table {{ ui.table_start() }}>
+        {{ token_list.token_list_core(tokens, more=url_for('mentor_request.token_list', device_id=Device.id) if more_tokens else none) }}
+    </table>
+</div {{ ui.collapsible_card_end() }}>
+
+<div {{ ui.collapsible_card_start(title='Offline Tokens', uicon='token', active=false, body_class='table-responsive') }}>
+    <table {{ ui.table_start() }}>
+        <thead>
+        <tr>
+            {% if is_custom_app %}
+                {{ ui.table_header('Generation Date')}}
+                {{ ui.table_header('Token Type')}}
+                {{ ui.table_header('Amount')}}
+                {{ ui.table_header('Unit')}}
+            {% else %}
+                {{ ui.table_header('UUID')}}
+                {{ ui.table_header('Generation Date')}}
+                {{ ui.table_header('Token Type')}}
+                {{ ui.table_header('Amount')}}
+                {{ ui.table_header('Unit')}}
+            {% endif %}
+        </tr>
+        </thead>
+        <tbody>
+        {% for token in offline_tokens %}
+        <tr {% if token.used %} style="background-color: #ddd;"{% endif %}>
+            {% if is_custom_app %}
+                <td sorttable_customkey="{{ ui.sortabledate(token['generation_time']) }}">{{ token['generation_time'].st }}</td>
+                <td>{{ token['type'] }}</td>
+                <td>{{ token['credit_value'] }}</td>
+                <td>{{ token['unit'] }}</td>
+            {% else %}
+                <td>{{token.uuid}}</td>
+                <td sorttable_customkey="{{ ui.sortabledate(token['generation_time']) }}">{{ ui.datetime(token['generation_time']) }}</td>
+                <td>{{ token['type'] }}</td>
+                <td>{{ token['credit_value'] }}</td>
+                <td>{{ token['unit'] }}</td>
+            {% endif %}
+        </tr>
+        {% else %}{{ui.no_results_row(4 if is_custom_app else 5, 'No offline tokens')}}
+        {% endfor %}
+        </tbody>
+    </table>
+</div {{ ui.collapsible_card_end() }}>
+
+<div {{ ui.modal_start('pair-device', 'Pair Device') }}>
+    <form id="MainForm">
+        <input type="hidden" name='device_serial' value="{{Device.composed_serial}}" id='device-serial'>
+        <div class="modal-body" id="core_content">
+            Are you sure you want to pair this device?
+        </div>
+        <div class="modal-footer">
+            {{ ui.modal_close_button() }}
+            {{ ui.button(uicon='save', label='Pair Device', color='danger', action="validateAndSubmit('/api/v1/transaction_requests/pair_device/');", class='transaction_action ') }}
+            {{ ui.button('Send Token to Client', color='danger', action="sendAnswerToClient($(this).data('uuid'));", class='send_to_client hide') }}
+        </div>
+    </form>
+</div {{ ui.modal_end() }}>
+
+
+{{ offline_tokens_view.offline_token_config_view(offline_token_configs) }}
+
+{% set text_metrics = Device.used_metric_units(include_gps=False, include_string=True, objects=True) %}
+{% set metrics = Device.used_metric_units(include_gps=False, include_string=False, objects=True) %}
+{% set metrics_uuid = Device.used_metric_units(include_gps=False, include_string=False) %}
+
+{% if metrics or text_metrics %}
+    {{ ui.divider('Device Metrics', small=true, class='pb-2') }}
+    <div {{ ui.collapsible_card_start(title='Metrics Summary (Current)', uicon='graph_up', body_class='row') }}>
+        {% for metric in text_metrics %}
+            {{ ui.report_field(metric['name']|notranslate, Device.get_last_usage_metrics(metric['uuid']).get_display_value()|string+' '+(metric['unit'] if ('N/A' not in metric['unit'] and '-' not in metric['unit']) else '')|notranslate, size=6) }}
+        {% endfor %}
+    </div {{ ui.card_end() }}>
+{% endif %}
+
+{% if metrics %}
+    {% if Device.last_gps_coordinates() %}
+    <div {{ ui.collapsible_card_start(title='Last Location', uicon='map') }}>
+        <div id="map-container" style="height: 300px; width: 100%; margin: 0;">
+            <div id="map" style="height: 100%; width: 100%; margin:0; padding:0; position: relative;"></div>
+        </div>
+    </div {{ ui.card_end() }}>
+    {% endif %}
+
+    <div {{ ui.card_start(title='Metrics Range', uicon='filter', icon_color='') }}>
+        <form class="row">
+        {{ forms.input('start_date', 'From (included)', value=BeginDate, type='datepicker', uicon='date', size=4) }}
+        {{ forms.input('end_date', 'To (included)', value=EndDate, type='datepicker', uicon='date', size=4) }}
+
+        {{ forms.button(label='Change Range',uicon='date',size=4, type='action', inline=true, fit=true,
+            action="filterMetricsByDate("+Device.id|string+", "+metrics_uuid|string+", begin='start_date', end='end_date')") }}
+        </form>
+    </div {{ ui.card_end() }}>
+{% endif %}
+
+{% for metric in metrics %}
+    <div {{ ui.collapsible_card_start(title=ftext('{} ({})', metric['name']|notranslate, metric['unit']|notranslate), uicon='graph_up') }}>
+        <canvas id="device_metric_{{metric['uuid']}}" width="500" height="100"></canvas>
+    </div {{ ui.card_end() }}>
+{% endfor %}
+
+{% endblock %}
+
+
+{% block scripts %}
+<script type="text/javascript" src="/static/js/transaction_request_sender.v1.1.js"></script>
+{{transaction.transaction_script_macro() }}
+    {% if Device.last_gps_coordinates() %}
+        {{ device_map.device_map_script(Device.last_gps_coordinates()) }}
+    {% endif %}
+    <script src="/static/js/chart.min.js"></script>
+    <script type="text/javascript"
+            src="{{ url_for('device.static', filename='js/device_metrics_chart.js') }}">
+
+    </script>
+    <script type="text/javascript" src="/static/js/chart_helper.js?version={{ COMMIT_SHA }}"></script>
+    <script>
+        $(document).ready(function () {
+            var metrics = {{Device.used_metric_units(include_gps=False, include_string=False)|safe }};
+            if(metrics.length > 0){
+                filterMetricsByDate({{Device.id}}, metrics, begin='start_date', end='end_date');
+            }
+        });
+    </script>
+{% endblock %}

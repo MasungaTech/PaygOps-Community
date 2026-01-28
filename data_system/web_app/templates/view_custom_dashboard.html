@@ -1,0 +1,34 @@
+{% extends "macros/base.html" %}
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'macros/form_macros.html' as forms %}
+{% import 'macros/filter_macros.html' as filters with context %}
+
+{% block title %}{{ clean_name }}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('Dashboards', clean_name|notranslate) }}{% endblock %}
+
+{% block page_actions %}
+    {% if current_user.get_client_groups().count() != 0 %}
+        {{ ui.button(uicon='info', type='action-grey', disabled=false, action='', tooltip='Custom dashboards do not support Client Groups, thus this dashboard only includes information from the operational entities that you are associated with. ') }}
+    {% endif %}
+    {% if default_dashboard %}{{ ui.button(uicon='timeline', tooltip='Switch to default dashboard', link=url_for(default_dashboard), type='header-action') }}{% endif %}
+{% endblock %}
+
+{% block content %}
+{{ filters.entities_navigation_filter(entity, show_user=user_filter) }}
+
+<script src="{{ base_url }}/app/iframeResizer.js"></script>
+<div class="pt-3" style="margin-right: -0.5rem;margin-left: -0.5rem;">
+    <iframe 
+        id="metabase-iframe"
+        style="margin-top: -1.5em;"
+        src="{{ custom_dashboard_iframe_url }}"
+        frameborder="0"
+        width="100%"
+        height="auto"
+        allowtransparency
+        onload="iFrameResize({}, this);"
+    ></iframe>
+</div>
+
+{% endblock %}

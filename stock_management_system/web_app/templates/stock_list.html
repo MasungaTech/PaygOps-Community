@@ -1,0 +1,109 @@
+{% extends "macros/list_base.html" %}
+{% import 'macros/form_macros.html' as forms with context %}
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'macros/filter_macros.html' as filter with context %}
+
+{% block title %}{{ ftext('List Stock Items') }}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('Stock Items', 'List') }}{% endblock %}
+
+{% block page_actions %}
+    {% if not is_custom_app %}  
+        {{ui.button(link=url_for('admin.bulk_upload_task_view', entity='devices'), uicon='cloud_upload', tooltip='Bulk Upload Non-PAYGO devices', permission='AddDevices', type='header-action')}}
+        {{ filter.special_views_filter(views, view) }}
+    {% endif %}
+{% endblock %}
+
+{% block header %}
+    {% if not is_custom_app %}  
+        {{ filter.entities_navigation_filter(entity) }}
+    {% endif %}
+
+    <div {{ ui.collapsible_card_start(title='Filters', uicon='filter', icon_color='', active=any_filter([search, product_type, status])) }}>
+        <form id="filter_form_v2" action="" method="get" class="row">
+            {{ forms.input('search', 'Search by Serial Number', size=6, value=search) }}
+            {{ forms.input('tags', type='device_tags', label='Filter by Tags', placeholder='+Tags', size=6, value=tags, icon='tags') }} 
+
+            {% set selectedtype = product_type or '' %}
+            {{ forms.select('product_type', product_types, label='Any product type', size=4, value=product_type, labeltag='Filter by product type', translate=false, onchange="updatedProductType()") }}
+            {{ forms.select('product_sub_type', product_sub_types, value=product_sub_type, size=4, labeltag='Filter by Product Sub-type', placeholder="Choose Product Sub-type", source='product_sub_types', onchange="updatedProductSubType()", min_chars=0) }}
+            {% set selectedstatus = status or 'any' %}
+            {{ forms.select('status', statuses._human_codes, label='Any status', size=4, value=selectedstatus,  labeltag='Filter by status') }}
+
+            {# We dynamically show or hide extra filters based on status filter #}
+            {{ forms.input('stock_user', 'Search by user name', size=6, visible=(status == statuses.with_user), value=stock_user) }}
+            {{ forms.input('stock_client', 'Search by client name', size=6, visible=(status == statuses.installed), value=stock_client) }}
+            {{ forms.select('stock_shop', choices=shoplist, value=stock_shop, size=6, visible=(status == statuses.in_stock), labeltag='Filter by Entity', source='shoplist') }}
+            
+            {{ filter.filter_buttons() }}
+        </form>
+    </div {{ ui.collapsible_card_end() }}>
+{% endblock %}
+
+{% block table %}
+<table {{ ui.table_start(pagination, class='stock-items-table') }}>
+    <thead>
+        <tr>
+            {{ui.sortable_header('serial_number', "Serial Number", class='ps-4', pagination=pagination)}}
+            {{ui.sortable_header('product_sub_type', "Product Sub-Type", pagination=pagination)}}
+            {{ui.sortable_header('status', "Status", pagination=pagination)}}
+            {{ui.sortable_header('location', "Location", class=('hidden-c-app' if is_custom_app else ''), pagination=pagination)}}
+            {{ui.sortable_header('contract', "Contract", class=('pe-4 hidden-c-app' if is_custom_app else 'pe-4'), pagination=pagination)}}
+            {{ui.table_header("PAYG Status", class='pe-4 hidden-c-app' if is_custom_app else 'pe-4')}} 
+            {{ ui.table_header(uicon='style', class='pe-4 hidden-c-app' if is_custom_app else 'pe-4', tooltip='Tags') }}
+            
+        </tr>
+    </thead>
+    <tbody>
+        {% for si in pagination.objects %}
+        <tr>
+            {% set device = si.device %}
+            <td class="ps-4"><a href="{{ url_for('device.view_device', device_id=si.device.id) }}" >{{ si.device.composed_serial }}</a></td>
+            <td>
+                {{ si.device.product_sub_type.name if si.device.product_sub_type else '-' }}
+                {% if si.device.product_sub_type and si.device.product_sub_type.sku %}
+                    {{ ui.icon('info', 'tiny', tooltip=si.device.product_sub_type.sku, translate_tooltip=false) }}
+                {% endif %}
+            </td>       
+            <td>{{ ftext(statuses.to_human(si.status)) }}</td>
+            <td class="truncate-horable{{ ' hidden-c-app' if is_custom_app else '' }}">{{ ui.stock_location(si, show_pending=true) }}</td>
+            <td class="{{ 'hidden-c-app' if is_custom_app else '' }}">{{ si.device.allocated_lead.future_contract_reference + ' (' + ui.lead_link(si.device.allocated_lead)+')' if si.device.allocated_lead else ui.contract_link(si.device.contract) }}</td>
+            <td class="pe-4{{ ' hidden-c-app' if is_custom_app else '' }}">{{ ui.device_paygo_status(device) }}</td>
+            <td class="pe-4{{ ' hidden-c-app' if is_custom_app else '' }}">
+                {% if si.device.tags %}{{ ui.table_icon('tags', 'table-icon', tooltip=si.device.tags|map('tagsList')|join, translate_tooltip=false) }}{% else %}
+                {{ ui.table_icon('style', 'table-icon', color='grey') }}{% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}
+{% block scripts %}
+<script>
+const modelTypeMapping = {
+    {% for model in product_models_data -%}
+    {{model.id}}: "{{model.device_type}}"{%if not loop.last%},{%endif%}
+    {% endfor -%}
+}
+function updatedProductSubType() {
+    let device_type_selector = $('#product_type')
+    let model = $('#product_sub_type').val();
+    if (model) device_type_selector.val(modelTypeMapping[model]).change();
+}
+function updatedProductType() {
+    let selected_value = $('#product_type').val()
+    $('#product_sub_type').attr('data-device_type', selected_value)
+    let selected_model = $('#product_sub_type').val();
+    if (selected_model && selected_value && modelTypeMapping[selected_model] != selected_value) {
+        $('#product_sub_type').val('').change();
+    }
+}
+document.addEventListener('DOMContentLoaded', function () {
+    if ("{{ 'true' if is_custom_app else 'false' }}" === "true") {
+        document.querySelectorAll('.stock-items-table .hidden-c-app').forEach(function (el) {
+            el.classList.add('hidden');
+        });
+    }
+});
+</script>
+{%endblock%}
