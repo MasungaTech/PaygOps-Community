@@ -1,0 +1,59 @@
+{% extends "macros/base.html" %}
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'macros/form_macros.html' as forms %}
+{% import 'macros/charts_macros.html' as charts with context %}
+{% import 'macros/filter_macros.html' as filter with context %}
+
+{% block title %}{{ ftext('Demographics Dashboard') }}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('Dashboards', 'Demographics') }}{% endblock %}
+
+{% block page_actions %}
+    {{ ui.custom_dashboard_link('demographic') }}
+    {{ filter.special_views_filter(views, view) }}
+{% endblock %}
+
+{% block content %}
+{% if GlobalSetting('StressMode') %}
+    {{ ui.info_card('We are experiencing a high load on the server. Dashboards have been temporarily disabled.')}}
+{% else %}
+{{filter.entities_navigation_filter(entity)}}
+
+<div class="row">
+<div {{ ui.card_start(size='6', uicon='wc', icon_color='green', title='Gender Distribution', tooltip='Based on all the clients with the gender specified. ') }}>
+    <canvas id="GenderChart" width="80px"></canvas>
+</div {{ ui.card_end() }}>
+
+<div {{ ui.card_start(size='6', uicon='elderly', icon_color='amber', title='Age Distribution', tooltip='Based on all the clients with the age specified. ') }}>
+    <canvas id="AgeChart" width="80px"></canvas>
+</div {{ ui.card_end() }}>
+
+<div {{ ui.card_start(6) }}>
+    {{ ui.stat_card_header(uicon='storefront', color='main', tooltip='Calculated as: number of clients that reported business use / number of clients. ', title='Businesses', number=business_clients_ratio, number_text='Share of Businesses', number_post='%', if_number_null='-') }}
+</div {{ ui.card_end() }}>
+
+<div {{ ui.card_start(6) }}>
+    {{ ui.stat_card_header(uicon='house', color='blue', tooltip='Average based on form answers (if any) for the questions of number of child and number of adults in houshold. ', title='Households', number=average_household_size_computed, number_text='Avg. Household Size', number_post=' pers.', if_number_null='-') }}
+</div {{ ui.card_end() }}>
+
+<div {{ ui.card_start(6) }}>
+    {{ ui.stat_card_header(uicon='people', color='red', tooltip='Total number of clients (incl. defaulted) multiplied by avg. household size or 4, if avg. unavailable (number taken from study of avg. household size). ', title='People', number=number_total_impacted|round|int if number_total_impacted else none, number_text='People served (total)', if_number_null='-') }}
+</div {{ ui.card_end() }}>
+
+<div {{ ui.card_start(6) }}>
+    {{ ui.stat_card_header(uicon='people', color='red', tooltip='Total number of clients with active or completed contracts multiplied by avg. household size or 4, if avg. unavailable (number taken from study of avg. household size). ', title='People', number=number_current_impacted|round|int if number_current_impacted else none, number_text='People served (now)', if_number_null='-') }}
+</div {{ ui.card_end() }}>
+
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if not GlobalSetting('StressMode') %}
+<script src="/static/js/chart.min.js"></script>
+<script>
+    {{ charts.pieJS('doughnut', 'GenderChart', gender_chart_data) }}
+    {{ charts.pieJS('doughnut', 'AgeChart', age_chart_data) }}
+</script>
+{% endif %}
+{% endblock %}

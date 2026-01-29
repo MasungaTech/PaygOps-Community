@@ -1,0 +1,229 @@
+{% import 'reversal_flow_modals.html' as reversal with context %}
+
+{% macro contract_timeline_table(contract) -%}
+  {% import 'macros/general_macros.html' as ui with context %}
+  {% import 'macros/pagination.html' as pagination_nav with context %}
+  <table {{ ui.table_start() }}>
+      <thead>
+        <tr>
+          {% if not is_custom_app %}
+            {{ ui.table_header('ID') }}
+            {{ ui.table_header('Date') }}
+            {{ ui.table_header('Lateness', visible=not (contract.offer.type == OfferType.usage_based)) }}
+            {{ ui.table_header('Paid') }}
+            {{ ui.table_header('Discounted') }}
+            {{ ui.table_header('Type') }}
+            {{ ui.table_header('% Paid') }}
+            {{ ui.table_header('Source') }}
+            {{ ui.table_header('') }}
+          {% else %}
+            {{ ui.table_header('Date') }}
+            {{ ui.table_header('Lateness', visible=not (contract.offer.type == OfferType.usage_based)) }}
+            {{ ui.table_header('Paid') }}
+            {{ ui.table_header('Discounted') }}
+            {{ ui.table_header('Type') }}
+            {{ ui.table_header('% Paid') }}
+            {{ ui.table_header('Source') }}
+          {% endif %}
+        </tr>
+      </thead>
+      <tbody>
+      {% set total_value = contract.get_total_value() %}
+      {% set cumulative_paid = {'total': 0} %}
+      {% for event in contract.sorted_repayments() %}
+          {% if cumulative_paid.update({'total': cumulative_paid['total'] + event.amount}) %}{% endif %}
+          {% if event.downpayment and cumulative_paid.update({'total': cumulative_paid['total'] + contract.loan_addons_downpayments_paid}) %}{% endif %}
+          {% if event.converse and event.converse.downpayment and cumulative_paid.update({'total': cumulative_paid['total'] - contract.loan_addons_downpayments_paid}) %}{% endif %}
+          {% if not is_custom_app %}
+            <tr {% if event.converse %}class="disabled"{% endif%}>
+            <th>{{ event.id }}</th>
+            <td sorttable_customkey="{{ ui.sortabledate(event.time) }}">{{ ui.date(event.time) }}</td>
+            {% if contract.offer.type != OfferType.usage_based %}
+              {% if event.discount_type != 'Purchasing Add-on' %}
+                <td sorttable_customkey="{{ (event.hours_late/24)|round|int }}">{{ (event.hours_late/24)|round|int }}d</td>
+              {% else %}
+                <td>-</td>
+              {% endif %}
+            {% endif %}
+            {% set negative = "-" if event.converse and event.converse.downpayment else "+" %}
+            <td>{% if (event.downpayment or (event.converse and event.converse.downpayment)) and contract.loan_addons_downpayments %}{{ ui.amount(event.amount_paid-contract.loan_addons_downpayments if event.converse and event.converse.downpayment else event.amount_paid+contract.loan_addons_downpayments)}} {{ui.icon('info', 'tiny', tooltip=ui.amount(event.amount_paid)+" of offer downpayment "+negative+" "+ui.amount(contract.loan_addons_downpayments)+" of add-ons' downpayments")}}{%else%}{{ui.amount(event.amount_paid) }}{%endif%}</td>
+            <td>{{ ui.amount(event.amount_discounted) }}</td>
+            {# <!-- <td>{{ event.credit_value|round if event.credit_value else '' }}{{'d' if contract.offer.type != OfferType.usage_based else ' '+contract.offer.credit_unit }}</td> -->#}
+            <td>{{ ftext(event.discount_type or 'Simple Payment') }}</td>
+            <td class="tooltipped" data-tooltip="{{ ui.amount(cumulative_paid['total']) }}">{{ ui.isnone(total_value, cumulative_paid['total']/(total_value or 1), percent=true, decimals=1, suffix="%") if (total_value or 1) >= cumulative_paid['total'] else '-' }}</td>
+            <td class="truncate-hoverable">
+              {% if event.discount_type == 'Payout' %}{{ ui.icon('arrow_right', 'tiny') }}{% endif %}
+              {{sources(event.reconciled_payments)}}
+              {% if event.downpayment or (event.converse and event.converse.downpayment) %}
+                {% for a in contract.loan_addons %}
+                {{sources(a.get_reconciled_payments_for_downpayment(event if event.downpayment else event.converse))}}
+                {%endfor%}
+              {% endif %}
+              {% if event.discount_type in [ContractRepaymentDiscountTypes.purchasing_addon, ContractRepaymentDiscountTypes.downpayment] %}
+                {{purchasing_addon_source(event.addons)}}
+              {% endif %}
+            </td>
+            <td>
+              {% if not contract.lump_sum %}
+              {% if event.reversable and current_user.can_access("HandleReversedPayments") and not event.discount_type == ContractRepaymentDiscountTypes.downpayment %}
+                {{ ui.button(uicon='undo', tooltip='Reverse', modal='confirm_repayment_reversal', action="$('#confirm_repayment_reversal .repayment_id').text('"+event.id|string+"')", type='tiny-action') }}
+              {% endif %}
+              {% if event.reversable and event.discount_type == ContractRepaymentDiscountTypes.downpayment and current_user.can_access("HandleReversedPayments") and not event.addons %}
+                {{ ui.button(uicon='undo', tooltip='Reverse Downpayment', modal='confirm_downpayment_reversal', action="$('#confirm_downpayment_reversal .downpayment_id').text('"+event.id|string+"')", type='tiny-action') }}
+              {% endif %}
+              {% endif %}
+            </td>
+          </tr>
+        {% else %}
+          <tr {% if event.converse %}class="disabled"{% endif%}>
+          <td sorttable_customkey="{{ ui.sortabledate(event.time) }}">{{ ui.date(event.time) }}</td>
+          {% if contract.offer.type != OfferType.usage_based %}
+            {% if event.discount_type != 'Purchasing Add-on' %}
+              <td sorttable_customkey="{{ (event.hours_late/24)|round|int }}">{{ (event.hours_late/24)|round|int }}d</td>
+            {% else %}
+              <td>-</td>
+            {% endif %}
+          {% endif %}
+          {% set negative = "-" if event.converse and event.converse.downpayment else "+" %}
+          <td>{% if (event.downpayment or (event.converse and event.converse.downpayment)) and contract.loan_addons_downpayments %}{{ ui.amount(event.amount_paid-contract.loan_addons_downpayments if event.converse and event.converse.downpayment else event.amount_paid+contract.loan_addons_downpayments)}} {{ui.icon('info', 'tiny', tooltip=ui.amount(event.amount_paid)+" of offer downpayment "+negative+" "+ui.amount(contract.loan_addons_downpayments)+" of add-ons' downpayments")}}{%else%}{{ui.amount(event.amount_paid) }}{%endif%}</td>
+          <td>{{ ui.amount(event.amount_discounted) }}</td>
+          <td>{{ ftext(event.discount_type or 'Simple Payment') }}</td>
+          <td class="tooltipped" data-tooltip="{{ ui.amount(cumulative_paid['total']) }}">{{ ui.isnone(total_value, cumulative_paid['total']/(total_value or 1), percent=true, decimals=1, suffix="%") if (total_value or 1) >= cumulative_paid['total'] else '-' }}</td>
+          <td class="truncate-hoverable">
+            {% if event.discount_type == 'Payout' %}{{ ui.icon('arrow_right', 'tiny') }}{% endif %}
+            {{sources(event.reconciled_payments)}}
+            {% if event.downpayment or (event.converse and event.converse.downpayment) %}
+              {% for a in contract.loan_addons %}
+              {{sources(a.get_reconciled_payments_for_downpayment(event if event.downpayment else event.converse))}}
+              {%endfor%}
+            {% endif %}
+            {% if event.discount_type in [ContractRepaymentDiscountTypes.purchasing_addon, ContractRepaymentDiscountTypes.downpayment] %}
+              {{purchasing_addon_source(event.addons)}}
+            {% endif %}
+          </td>
+        </tr>
+      {% endif %}
+      {% endfor %}
+      </tbody>
+  </table>
+  {{ reversal.reverse_repayment_confirmation((contract.linked_device and contract.linked_device.type != 'NPG')) }}
+  {{ reversal.reverse_downpayment_confirmation() }}
+{%- endmacro %}
+
+
+{% macro contract_pending_table(contract) -%}
+  {{ pending_table_core(contract.pending_reconciled_payments_filtered) }}
+  <br>
+  {% if not GlobalSetting('EnableContractPaymentsForReversedDownpayments') and contract.client.has_pending_downpayment() %}
+  {{ ui.report_field('Total amount pending', ftext('{} ({} left for downpayment)', ui.amount(contract.pending_amount, include_currency=true), ui.amount(contract.offer.registration_fee-contract.pending_amount, include_currency=true)), size=12, class='mt-2') }}
+  {% elif contract.status != ContractStatus.paused %}
+  {{ ui.report_field('Total amount pending', ftext('{} ({} left for next repayment)', ui.amount(contract.pending_amount, include_currency=true), ui.amount(contract.minimum_payment-contract.pending_amount, include_currency=true)), size=12, class='mt-2') }}
+  {% else %}
+  {{ ui.report_field('Total amount pending', ui.amount(contract.pending_amount, include_currency=true), size=12, class='mt-2') }}
+  {% endif %}
+{%- endmacro %}
+
+{% macro client_pending_table(client) -%}
+  {{ pending_table_core(client.person.pending_reconciled_payments_filtered) }}
+  <br>
+  <div class="{{ui.col_size(3)}}"></div>
+  {{ ui.report_field('Total amount pending', ui.amount(client.get_total_overpaid(), include_currency=true), size=6, class='mt-2') }}
+{%- endmacro %}
+
+{% macro pending_table_core(pending_payments) %}
+<table {{ ui.table_start() }}>
+  <thead>
+  <tr>
+    {{ ui.table_header('Transaction ID') }}
+    {{ ui.table_header(ftext('Amount ({})', Currency)) }}
+    {{ ui.table_header('Time Received') }}
+    {{ ui.table_header('Memo') }}
+    {{ ui.table_header(uicon='wallet') }}
+    {{ ui.table_header('') }}
+  </tr>
+  </thead>
+  <tbody>
+  {% for reconciled in pending_payments|sort(attribute='time', reverse=true) %}
+    <tr>
+      <td>{{ reconciled.linked_payment.Reference if reconciled.linked_payment else 'From Balance' }}</td>
+      <td>{{ ui.amount(reconciled.amount) }}</td>
+      <td sorttable_customkey="{{ ui.sortabledate(reconciled.time) }}">{{ ui.datetime(reconciled.time) }}</td>
+      <td>{{ reconciled.linked_payment.memo if reconciled.linked_payment and reconciled.linked_payment.memo else '-' }}</td>
+      <td><a href="{{ url_for('payment.account', account_id=reconciled.payment_account.id) }}">{{ ui.table_icon('wallet') }}</a></td>
+      <td>{{ ui.button(uicon='undo', tooltip='Undo reconciliation', modal='confirm_pending_reconciled_reversal', type='tiny-action', action="$('#confirm_pending_reconciled_reversal .reconciled_id').text('"+reconciled.id|string+"')") }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{{ reversal.reverse_pending_reconciled_confirmation() }}
+{% endmacro %}
+
+{% macro sources(recons) -%}
+{%- for p in recons -%}
+  {%- if p.origin_reconciled_payment -%}
+    {% if p.origin_reconciled_payment.repayment %}
+      {{ ui.icon('contract', 'tiny') }} {{ ui.contract_link(p.origin_reconciled_payment.repayment.contract) }}
+    {% else %}
+      {{ ui.icon('lead', 'tiny') }} {{ ui.lead_link(p.origin_reconciled_payment.lead) }}
+    {% endif %}
+  {% elif p.destination_reconciled_payment %}
+    {% if p.destination_reconciled_payment.repayment %}
+      {{ ui.icon('contract', 'tiny') }} {{ ui.contract_link(p.destination_reconciled_payment.repayment.contract) }}
+    {% else %}
+      {{ ui.icon('lead', 'tiny') }} {{ ui.lead_link(p.destination_reconciled_payment.lead) }}
+    {% endif %}
+  {%- elif p.linked_payment -%}
+    {{ ui.payment_source_tooltip(p.linked_payment) }}
+    {{ ui.account_link_from_payment(p.linked_payment) }}
+  {%- else -%}
+    {{ ui.wallet_source_tooltip(p.payment_account) }}
+    {{ ui.wallet_link(p.payment_account, short=True) }}
+  {%- endif -%}
+{%- endfor -%}
+{% endmacro %}
+
+{% macro purchasing_addon_source(addons) %}
+{% for addon in addons %}
+  {{ ui.icon('add_to_queue', 'tiny', tooltip=ftext('Addon: {}', addon.offer_version.offer.name)) }}
+  {{ui.addon_link(addon)}}
+{% endfor %}
+{% endmacro %}
+
+{% macro payment_planning(contract) -%}
+<table {{ ui.table_start() }}>
+  <thead>
+    <tr>
+      {{ ui.table_header('#') }}
+      {{ ui.table_header('Date') }}
+      {{ ui.table_header('Amount') }}
+      {{ ui.table_header('Type') }}
+      {{ ui.table_header('Total paid') }}
+      {{ ui.table_header('% Paid', visible=contract.can_be_completed) }}
+    </tr>
+  </thead>
+  <tbody>
+    {% set points = contract.get_expected_payments_table(cached=true) %}
+    {% if not points %}
+      <tr>
+        <td colspan="5">{{ ftext('Too many installments to show') }}</td> 
+      </tr>
+    {% else %}
+    {% for point in points %}
+      <tr>
+        <td>{{ loop.index }}</td>
+        <td>{{ ui.date(point[0]) }}</td>
+        <td>{{ ui.amount(point[1], include_currency=true) }}</td>
+        <td>{{ ftext(point[3]) }}</td>
+        <td>{{ ui.amount(point[2], include_currency=true) }}</td>
+        {% if contract.can_be_completed and point[4] != 0 %}<td>{{ ui.amount(point[2]/point[4]*100) }}%</td>{%endif%}
+      </tr>
+    {% endfor %}
+    {% if not contract.can_be_completed %}
+      <tr>
+        <td colspan="5">...</td> 
+      </tr>
+    {% endif %}
+    {% endif %}
+  </tbody>
+</table>
+{% endmacro %}

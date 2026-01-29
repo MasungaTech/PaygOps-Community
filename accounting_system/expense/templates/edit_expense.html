@@ -1,0 +1,101 @@
+{% extends "macros/base.html" %}
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'macros/form_macros.html' as forms with context %}
+
+{% if Expense is not defined or not Expense %}
+    {% set Title='Add Expense' %}
+    {% set Expense=EmptyObject %}
+    {% set ExpenseData=EmptyObject %}
+    {% set object = none %}
+    {% set Action='Add' %}
+    {% set async_url='/expenses' %}
+    {% set redirect_url='/accounting/expenses/' %}
+    {% set action_button = ui.button(uicon='save', label='Add expense', type='action', fit=true, size=6, center=true, action="") %}
+{% else %}
+    {% set Title=ftext('Edit Expense: {}', Expense.id, novar=true) %}
+    {% set object = Expense %}
+    {% set Action='Edit' %}
+    {% set ExpenseData = Expense.getAdditionalData() %}
+    {% set async_url='/expenses/' + Expense.id|string %}
+    {% set redirect_url='/accounting/expenses/' %}
+    {% set ExpenseID = Expense.account.owner.webUserID if Expense.account.owner is defined else None %}
+{% endif %}
+
+{% set extra_choices={'Other': 'Other'} %}
+{% block title %}{{ ftext(Title) }}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('Expenses', Action, object=object) }}{% endblock %}
+
+{% block content %}
+<div>
+<div {{ ui.card_start() }}>
+    <form class="row card-row">
+        {{ forms.searchable_select('user_id:number', user_accounts, labeltag="User", uicon='user', size=6, 
+            source='user_accounts', required=true, value=Expense.account.owner.webUserID if Expense.account.id is defined else none) }}
+        {{ forms.input('date', 'Expense Date', type='datepicker', value=Expense.date if Expense.date else NOW, uicon='insert_invitation', 
+            required=true, size=6) }}
+        {{ forms.input('amount:number', ftext('Amount ({})', Currency), placeholder='Amount', uicon='attach_money', value=Expense.amount if Expense.amount is defined else '',
+             required=true, size=6, type='number') }}
+        {{ forms.input('description', 'Expense description', uicon='description', 
+            value=Expense.description if Expense.description is defined else '', required=true, size=6) }}
+        {{ forms.input('receipt_picture', type='picture', label='Upload a picture of the receipt', value=Expense.receiptPicture if Expense.amount is defined else '',  size=6, required=true) }}
+        {{ forms.searchable_select('receipt_type:number', receipt_types, labeltag='Receipt type', size=6, uicon='receipt', required=true, 
+            value=Expense.receiptType if Expense.amount is defined else '', size_class='hiddenform') }}
+
+        {{ forms.select('category', ALL_EXPENSE_CATEGORIES|listMapper, size=6, required=true, labeltag='Expense Category', 
+            value=Expense.category if Expense else none, onchange="selectToggleFormsMap(this, 'value', {'Fuel': '.additional_data'})")}}
+        {{ forms.input('additional_data[litres_of_fuel]', 'Litres of fuel (if fuel)', uicon='local_gas_station', size_class=' additional_data',
+            value=ExpenseData.litres_of_fuel if ExpenseData.litres_of_fuel is defined else '', required=true, size=6) }}
+        {{ forms.input('additional_data[mileage]', 'Mileage reading at time of purchase in km (if fuel)', uicon='motorcycle',  size_class=' additional_data',
+            value=ExpenseData.mileage if ExpenseData.mileage is defined else '', required=true, size=6) }}
+
+        {{ ui.divider('Supporting documents', small=true, uicon='attachment') }}
+
+        {{ forms.input('supporting_document_1', type='picture', label='Upload the supporting document 1 (optional)', size=6) }}
+        {{ forms.searchable_select('supporting_document_1_type:number', receipt_types, labeltag='supporting document 1 type', size=6, uicon='receipt', size_class="hiddenform", required=true) }}
+        {{ forms.input('supporting_document_2', type='picture', label='Upload the supporting document 2 (optional)', size=6) }}
+        {{ forms.searchable_select('supporting_document_2_type:number', receipt_types, labeltag='supporting document 2 type', size=6, uicon='receipt', size_class="hiddenform", required=true) }}
+        {{ forms.input('supporting_document_3', type='picture', label='Upload the supporting document 3 (optional)', size=6) }}
+        {{ forms.searchable_select('supporting_document_3_type:number', receipt_types, labeltag='supporting document 3 type', size=6, uicon='receipt', size_class="hiddenform", required=true) }}
+
+        {{ ui.button(uicon='save', label='Edit Expense' if Action == 'Edit' else 'Add Expense', type='action', fit=true, size=6, center=true, 
+            action='async_post', async_url=async_url, redirect_url=redirect_url, redirect_append='id') }}
+    </form>
+</div {{ ui.card_end() }}>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    $(document).ready(function() {
+        $('#receipt_picture').change(function () {
+            if ($('#receipt_picture').val()) {
+                showForm('#input_receipt_type')
+            } else {
+                hideForm('#input_receipt_type')
+            }
+        });
+        $('#supporting_document_1').change(function () {
+            if ($('#supporting_document_1').val()) {
+                showForm('#input_supporting_document_1_type')
+            } else {
+                hideForm('#input_supporting_document_1_type')
+            }
+        });
+        $('#supporting_document_2').change(function () {
+            if ($('#supporting_document_2').val()) {
+                showForm('#input_supporting_document_2_type')
+            } else {
+                hideForm('#input_supporting_document_2_type')
+            }
+        });
+        $('#supporting_document_3').change(function () {
+            if ($('#supporting_document_3').val()) {
+                showForm('#input_supporting_document_3_type')
+            } else {
+                hideForm('#input_supporting_document_3_type')
+            }
+        });
+    });
+</script>
+{% endblock %}

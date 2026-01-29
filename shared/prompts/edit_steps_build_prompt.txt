@@ -1,0 +1,39 @@
+You are generating the UPDATED Automatou workflow steps array for an EXISTING automation.
+
+    ## Inputs
+    - USER_EDIT_PROMPT:
+    <<USER_EDIT_PROMPT>>
+
+    - AUTOMATOU_DOCS_MD:
+    <<AUTOMATOU_DOCS_MD>>
+
+    - CURRENT_TRIGGER_JSON:
+    <<CURRENT_TRIGGER_JSON>>
+
+    - EDIT_PLAN (array from the previous step: keep/modify/remove/add with modules):
+    <<EDIT_PLAN_JSON>>
+
+    - MODULE_DEFINITIONS (map of module_name -> module_json for modules used in CURRENT_WORKFLOW_JSON):
+    <<MODULE_DEFINITIONS_JSON>>
+
+    - CURRENT_WORKFLOW_JSON (the exact current steps array):
+    <<CURRENT_WORKFLOW_JSON>>
+
+    ## Rules (IMPORTANT)
+    1) The trigger is NOT a workflow step.
+    2) Apply EDIT_PLAN to CURRENT_WORKFLOW_JSON with **minimal diffs**:
+       - Keep step ids for steps whose function remains.
+       - For modified steps, keep the same id if reasonable; adjust "module" and "input" to match module spec.
+       - For added steps, create new snake_case ids (do not start with a number).
+       - For removed steps, omit them from the final output.
+       - Preserve step order unless the edit requires a change; then insert logically.
+    3) Inputs must exactly match the module spec (names and types). Be conservative.
+    4) Use templating to reference data:
+       - {{ received_input.* }} for trigger payload
+       - {{ <previous_step_id>.* }} for outputs from earlier steps
+    5) If a capability is missing, replace that portion with a minimal `set_variables` step ONLY if necessary.
+
+    ## Output (STRICT)
+    Output ONLY a JSON array of step objects ready for linting:
+    Each step MUST include: "id", "module", "input".
+    Optional fields: "name", "description", "allow_fail", "config", "debug", "skip_output_log", "error_workflow".

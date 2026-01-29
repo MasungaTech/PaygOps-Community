@@ -1,0 +1,76 @@
+{% extends "macros/list_base.html" %}
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'macros/form_macros.html' as forms with context %}
+{% import 'macros/filter_macros.html' as filter with context %}
+
+{% block title %}{{ ftext('User List') }}{% endblock %}
+{% block page_title %}{{ ui.page_title('Users','List') }}{% endblock %}
+
+{% block page_actions %}
+{{ui.button(link=url_for('.add_user'), uicon='add', tooltip='Add User', permission='AddUsers', type='header-action')}}
+{{ui.button(link=url_for('admin.bulk_upload_task_view', entity='users'), uicon='cloud_upload', tooltip='Bulk Upload Users', permission='AddUsers', type='header-action')}}
+{{ filter.special_views_filter(views, view) }}
+{% endblock %}
+    
+{% block header %}
+    {{ filter.entities_navigation_filter(entity) }}
+    <div {{ ui.collapsible_card_start(title='Filters', uicon='filter', icon_color='', active=any_filter([active_filter, role, role_type, pagination.search])) }}>
+    <form id="filter_form_v2" action="" method="get" class="row">
+            {{forms.input('search', 'Search Users', value=pagination.search, tooltip="Filter users by ID, name, email, phone number", size=7)}}
+            {{forms.select('active_filter', active_options, value=active_filter, size=5, labeltag="Filter by status")}}
+            {{ forms.select('role', roles, 'All', labeltag="Filter by role",
+                    size=4, value=role.id if role else none, source="roles")}}
+            {{ forms.select('role_type', role_types, 'All', labeltag="Filter by role type",
+                    size=4, value=role_type if role_type else none)}}
+
+            {{filter.filter_buttons()}}
+        </form>
+    </div {{ ui.collapsible_card_end() }}>
+{% endblock %}
+
+{% block table %}
+<table {{ ui.table_start(pagination) }}>
+    <thead>
+    <tr>
+            {{ui.sortable_header('id', "ID", pagination=pagination, class='ps-4')}}
+            {{ui.sortable_header('full_name', "Full Name", pagination=pagination)}}
+            {{ui.sortable_header('username', "Username", pagination=pagination)}}
+            {{ui.sortable_header('email', uicon='email', tooltip="Email", pagination=pagination)}}
+            {{ ui.table_header(uicon='phone', tooltip='Phone Number') }}
+            {#{{ui.sortable_header('organization', "Org", pagination=pagination)}}#}
+            {{ui.sortable_header('role', "Role", pagination=pagination)}}
+            {{ui.sortable_header('expiration_date', "Active", pagination=pagination)}}
+            {{ui.sortable_header('ref_entity', "Ref. Entity", pagination=pagination, class='pe-4')}}
+        </tr>
+        </thead>
+        <tbody>
+            {% for U in pagination.objects %}
+                <tr>
+                    <td class="ps-4"><a href="{{ url_for('.view_user', user_id=U.id) }}">{{ U.id }}</a></td>
+                    <td class="truncate-hoverable">{{ U.full_name }}</td>
+                    <td class="truncate-hoverable">{{ U.username }}</td>
+                    <td>{{ ui.table_icon('email', color='red', tooltip=U.email|notranslate) if U.email else ui.table_icon('email', color='grey') }}</td>
+                    <td>{{ ui.phone_number_table_icon(U.person) }}</td>
+                    {#<td class="truncate-hoverable">{{ U.organization }}</td>#}
+                    <td class="truncate-hoverable"><a href="{{url_for('permissions.edit_role', role_id=U.AuthorizationLevel.id)}}">{{ U.get_authorization_level() }}</a></td>
+        
+                    {% if U.loginExpirationDate is not none %}
+                        {% set expire_date='Expires: '+ui.datetime(U.loginExpirationDate) %}
+                    {% else %}
+                        {% set expire_date='Never Expires' %}
+                    {% endif %}
+                    <td>
+                        {% if not U.is_expired() %}
+                            {{ ui.table_icon('allowed', color='green', tooltip=expire_date) }}
+                        {% else %}
+                            {{ ui.table_icon('forbidden', color='red', tooltip=expire_date) }}
+                        {% endif %}
+                    </td>
+                    <td class="pe-4 truncate-hoverable">{{ ui.entity_link(U.shop) }}</td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        
+        {% endblock %}
+        
