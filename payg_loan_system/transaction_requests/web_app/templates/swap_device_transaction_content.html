@@ -1,0 +1,13 @@
+{% extends 'transaction_base.html' %}
+
+{% block title %}{{ ftext('Swap Device') }}{% endblock %}
+
+{% block form %}
+    {{ transaction.device_selector_macro(request_code=true, prefix='old_', prefix_label='Current') }}
+    {{ transaction.device_selector_macro(request_code=true, new_device=true, prefix='new_', prefix_label='New') }}
+    {{ forms.input('note', 'Note', type="textarea", size=6 if lead is defined else 12, max=40) }}
+{% endblock %}
+
+{% block button %}
+    {{ ui.button('Swap Device', color='danger', class='transaction_action', action="validateAndSubmit('/api/v1/transaction_requests/swap_device/');") }}
+{% endblock %}

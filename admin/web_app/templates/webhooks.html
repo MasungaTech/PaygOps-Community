@@ -1,0 +1,116 @@
+{% extends "macros/base.html" %}
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'macros/form_macros.html' as forms with context %}
+
+{% block title %}{{ ftext('Webhooks Manager') }}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('Admin', 'Webhooks Manager') }}{% endblock %}
+{% block page_actions %}
+    {{ ui.button(modal="add-webhook", uicon='add', tooltip='Add Webhook', type='header-action') }}
+{% endblock %}
+{% block content %}
+
+{{
+    ui.info_card(
+        uicon='info', color='warning',
+        text=ftext('Editing, deleting or desactivating webhooks can have critical effects in the platform integrations and workflows. Please only change this configuration if you know what you are doing.')
+    )
+}}
+    
+
+<div {{ ui.card_start(body_class='table-responsive') }}>
+    {{ ftext('<strong>Total webhooks:</strong> {}', webhooks.count()) }}
+    <table {{ ui.table_start() }}>
+        <thead>
+            <tr>
+                {{ ui.table_header('ID') }}
+                {{ ui.table_header('Event') }}
+                {{ ui.table_header('Target URL / Automation') }}
+                {{ ui.table_header('Created By') }}
+                {{ ui.table_header('Failures', tooltip="Since last success") }}
+                {{ ui.table_header('Active') }}
+                <td></td>
+            </tr>
+        </thead>
+        <tbody>
+            {% for hook in webhooks %}
+            <tr>
+                <td>{{ hook.id }}</td>
+                <td>{{ hook.event }}</td>
+                <td>{{ hook.target_url if not hook.automation else ui.automation_link(hook.automation) }}</td>
+                <td>{{ ui.user_link(hook.created_by_user) }}</td>
+                <td>{{ hook.failures_since_last_success }}</td>
+                <td sorttable_customkey="{{ hook.active }}" class="center">
+                    {{ forms.switch_simple('active', checked=hook.active, onchange='toggleActive(this, '+hook.id|string+')', id='')}}
+                </td>
+                <td>
+                    {% if  not hook.automation %}
+                    <form>
+                        {{ ui.button(
+                            modal="edit-webhook-"+hook.id|string,
+                            type='card-action',
+                            uicon='edit',
+                            tooltip='Edit',
+                        ) }}
+                        {{ ui.button(
+                            action="async_delete",
+                            type='card-action-grey',
+                            uicon='delete',
+                            tooltip='Delete',
+                            async_url='/webhooks/'+hook.id|string,
+                        ) }}
+                    </form>
+                    {% else %}
+                     {{ ui.table_icon('info', tooltip=ftext('This webhook is linked to an automation. You can edit the automation instead.')) }}
+                    {% endif %}
+                    <div {{ ui.modal_start("edit-webhook-"+hook.id|string, 'Edit Webhook') }}>
+                        <form>
+                            <div class="modal-body">
+                                {{ forms.searchable_select('event', choices=events, value=hook.event, translate=false, required=true, id='') }}
+                                {{ forms.input('target_url', 'Target Url', uicon='http', value=hook.target_url, required=true, id='') }}
+                            </div>
+                            <div class="modal-footer">
+                                {{ ui.modal_close_button() }}
+                                {{ ui.button(
+                                    uicon='save',
+                                    label='Edit Webhook',
+                                    action="async_post",
+                                    async_url='/webhooks/'+hook.id|string,
+                                ) }}
+                            </div>
+                        </form>
+                    </div {{ ui.modal_end() }}>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <div {{ ui.modal_start("add-webhook", 'Add Webhook') }}>
+        <form>
+            <div class="modal-body">
+                {{ forms.searchable_select('event', choices=events, translate=false, required=true, id='') }}
+                {{ forms.input('target_url', 'Target Url', uicon='http', required=true, id='') }}
+            </div>
+            <div class="modal-footer">
+                {{ ui.modal_close_button() }}
+                {{ ui.button(
+                    uicon='save',
+                    label='Create Webhook',
+                    action="async_post",
+                    async_url='/webhooks',
+                ) }}
+            </div>
+        </form>
+    </div {{ ui.modal_end() }}>
+</div {{ ui.card_end() }}>
+{% endblock %}
+{% block scripts %}
+<script>
+    function toggleActive(input, hook_id) {
+        sendDataToAPI({active: $(input).is(":checked")}, "/webhooks/"+hook_id, {
+            "success_action": "reload",
+        })
+    }
+</script>
+{% endblock %}
+

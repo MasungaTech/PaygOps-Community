@@ -1,0 +1,23 @@
+{% extends 'macros/base.html' %}
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'lead_list_table.html' as lead_table with context %}
+{% import 'macros/charts_macros.html' as charts with context %}
+
+{% block title %}{{ ftext('Merge Lead Generator: {}', lead_generator.full_name, novar=true) }}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('Lead Generators', 'Merge', object=lead_generator) }}{% endblock %}
+
+{% block content %}
+<div class="row">
+  <div {{ ui.card_start(uicon='merge', title='Merge Lead Generator with User', body_class='') }}>
+    {{ ui.info_card(uicon='warning', title='Important', text='This will replace the name and surname of the lead generator by the one of the user.
+      This operation cannot be reverted. ', class='mt-4') }}
+    <form>
+      {{ forms.select(name='linked_user_id:number', id='linked_user_id', uicon='user', choices=users, labeltag='User to merge with', source="users") }}
+      {{ forms.button(label='Merge Lead Generator', uicon='merge', type='action', fit=true, size=6, center=true,
+                      action='async_post', async_url='/lead_generators/'+lead_generator.id|string) }}
+    </form>
+  </div {{ ui.card_end() }}>
+</div>
+</div>
+{% endblock %}

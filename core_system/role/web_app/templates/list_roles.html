@@ -1,0 +1,31 @@
+{% extends "macros/list_base.html" %}
+{% import 'macros/form_macros.html' as forms %}
+{% import 'macros/general_macros.html' as ui with context %}
+
+{% block title %}{{ ftext('Roles') }}{% endblock %}
+{% block page_title %}{{ ui.page_title('User Roles','List') }}{% endblock %}
+
+{% block page_actions %}
+{{ ui.button(link=url_for('.create_role'), uicon="add", tooltip="Add", type="header-action", permission="CreateRoles") }}
+{% endblock %}
+
+{% block table %}
+<table {{ ui.table_start(pagination=pagination) }}>
+    <thead>
+        <tr>
+            {{ ui.table_header('ID', class='ps-4') }}
+            {{ ui.table_header('Role name') }}
+            {{ ui.table_header('Type', class='pe-4') }}
+        </tr>
+    </thead>
+    <tbody>
+        {% for Role in pagination.objects %}
+        <tr>
+            <th class="ps-4"><a href="{{ url_for('.edit_role', role_id=Role.id) }}">{{ Role.id }}</a></th>
+            <td>{{ Role.name }}</td>
+            <td class="pe-4">{{ ftext(get_role_type_name(Role.type)) }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

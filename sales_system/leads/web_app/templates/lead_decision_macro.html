@@ -1,0 +1,31 @@
+{% macro lead_decision_display(Lead, active=true) -%}
+<div {{ ui.collapsible_card_start(uicon='gavel', title='Approval Decision', body_class='row', active=active) }}>
+    {{ ui.info_card(text="Approval Decision is only available once the lead has reached an 'Awaiting Decision' status", uicon='info', color='secondary', class='mt-3 mb-2', in_card=true) }}
+</div {{ ui.collapsible_card_end() }}>
+{%- endmacro %}
+
+{% macro lead_decision_form(Lead, locked, active=true) -%}
+<div {{ ui.collapsible_card_start(uicon='gavel', title='Approval Decision', class='locked-card' if locked else '', body_class='row', active=active) }}>
+    {% if not Lead.offer_editing_locked %}
+        {{ ui.info_card(text="Please save and lock offer before taking a decision. ", uicon='info', color='secondary', class='mt-3 mb-2', in_card=true) }}
+    {% else %}
+        <form class="row">
+            {% set decision_statuses = [approve_statuses, "id", "name"]|dictMapper %}
+            {% set dummy = decision_statuses.update([discarded_statuses, "id", "name"]|dictMapper) %}
+            {{ forms.select('status', labeltag='Approval Decision for the Lead', choices=decision_statuses, uicon='label', size=6, translate=false) }}
+            {{ forms.select('portfolio', choices=portfolios, source='portfolios', labeltag="Portfolio", value=Lead.portfolio.id if Lead and Lead.portfolio else none, uicon="work", size=6, translate=false) }}
+
+            {{ forms.input('status_comment', 'Notes about the decision', value=Lead.status_comment, type='textarea', uicon='comment', size=6) }}
+
+            {{ ui.button(uicon='save', label='Edit Lead', type='action', fit=true, size=6, center=true,
+            action='async_post', async_url='/leads/'+Lead.id|string if Lead else none, success_message='Lead Edited') }}
+        </form>
+        {{ ui.divider('Key Information', small=true) }}
+        {{ ui.report_field('Decision by', ui.user_link(current_user), 'gavel', size=6) }}
+        {{ ui.report_field('Total Downpayment Amount', ui.amount(Lead.downpayment, include_currency=true) if Lead.offer else '-', 'local_atm', size=6) }}
+        {% if Lead.person.client %}
+            {{ ui.report_field_start('Previous Contracts', 'contract') }} {% for contract in Lead.person.client.contracts %}{{ ui.contract_link(contract) }}{%if not loop.last%},{% endif %}{% endfor %} {{ ui.report_field_end() }}
+        {% endif %}
+    {% endif %}
+</div {{ ui.collapsible_card_end() }}>
+{%- endmacro %}

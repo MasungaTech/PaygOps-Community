@@ -1,0 +1,26 @@
+{% extends "macros/base.html" %}
+
+{% block title %}{{ ftext('Online Training') }}{% endblock %}
+{% block page_title %}{{ ui.page_title('Admin', 'Online Training') }}{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-body">
+        {{ ui.info_card(
+            in_card=true, 
+            type='info',
+            text= ftext('This playlist includes several videos. If you are unable to watch more than one video, please access the Online training <a href="{}" target="_blank">here</a>.', 
+            GlobalSetting('OnlineTrainingUrl'))
+        )}}
+        <div class="ratio ratio-16x9">
+            <iframe 
+                src="{{ GlobalSetting('OnlineTrainingUrl')|replace('playlist', 'embed/videoseries') }}" 
+                title="YouTube video player" 
+                frameborder="0" 
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowfullscreen>
+            </iframe>
+        </div>
+    </div>
+</div>
+{% endblock %}

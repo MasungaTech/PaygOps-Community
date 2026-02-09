@@ -1,0 +1,156 @@
+{% extends "macros/base.html" %}
+{% import 'macros/form_macros.html' as forms with context %}
+{% import 'macros/general_macros.html' as ui with context %}
+
+{% block title %}{{ ftext('Backup Codes') }}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('Admin', 'Backup Codes') }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        {% if show_codes %}
+            <!-- Show generated backup codes -->
+            <div {{ ui.card_start(title='Two-factor Authentication Setup Completed' if first_setup else 'Backup Codes Generated', uicon='verified_user', icon_color='main') }}>
+                
+                {% if first_setup %}
+                    {{ ui.info_card(color='success', text='Two-factor authentication setup completed successfully. You will now be required to use your authenticator app to access your account. ', uicon='check_circle', in_card=true) }}
+                {% endif %}
+
+                {{ ui.info_card(type='warning', text='You can use the backup codes below to access your account if you lose your authenticator app. These backup codes are shown only once. Please save them in a secure location. Each code can only be used once. After using a code, it will be removed from your account.', uicon='warning', in_card=true) }}
+                
+                <div class="row">
+                    <div class="col-md-8">
+                        <h5>Your Backup Codes</h5>
+                                                
+                        <div class="backup-codes-container">
+                            {% for code in backup_codes %}
+                            <div class="backup-code-item">
+                                <code class="backup-code">{{ code }}</code>
+                                {{ ui.button(uicon='content_copy', tooltip='Copy Code', type='action-grey', action='copyToClipboard(\''+code+'\', \'Backup Code\')') }}
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-4 mt-3 pt-3">
+                        {{ ui.info_card(type='info', title='How to Use', text='- Save these codes in a secure location<br>- Use one code when you can\'t access your authenticator app<br>- Each code can only be used once<br>- Generate new codes if you run low', uicon='info', in_card=true) }}
+                        
+                    </div>
+                </div>
+                <div class="mt-3 row">
+                    {{ ui.button(uicon='print', label='Print Codes', type='action', action='printBackupCodes()', size=4, fit=true) }}
+                    {{ ui.button(uicon='download', label='Download as Text', type='action', action='downloadBackupCodes()', size=4, fit=true) }}
+                    {{ ui.button(uicon='check', label='I\'ve Saved My Codes', link=url_for('admin.user_settings'), size=4, fit=true, color='success') }}
+
+                </div>
+            </div {{ ui.card_end() }}>
+        {% else %}
+            <!-- Manage backup codes -->
+            <div {{ ui.card_start(title='Manage Backup Codes', uicon='security', icon_color='main') }}>
+                <div class="row">
+                    <div class="col-md-12">
+                        {{ ui.info_card(type='info', title='What are Backup Codes?', text='Backup codes are emergency access codes that you can use if you lose your authenticator app or device. Each code can only be used once and will be removed from your account after use.', uicon='info', in_card=true)    }}
+                        
+                        {% if user.two_factor_enabled %}
+                        {{ ui.info_card(color='success', title='Current Status', text='2FA is enabled - You can generate new backup codes. It will invalidate all of the existing ones. ', uicon='info', in_card=true)    }}
+                        {% else %}
+                        {{ ui.info_card(type='warning', title='Current Status', text='2FA is not enabled - Enable 2FA first to generate backup codes.', uicon='info', in_card=true)    }}
+                        {% endif %}
+                        
+                        {{ ui.button(label='Generate New Backup Codes', 
+                            uicon='refresh', 
+                            type='action', 
+                            size=6, 
+                            fit=true, 
+                            center=true,
+                            color='primary', link=url_for('two_factor.get_backup_codes', action='regenerate_backup_codes')) }}
+                    </div>
+                </div>
+            </div {{ ui.card_end() }}>
+        {% endif %}
+    </div>
+</div>
+
+
+<div {{ ui.card_start(title='Backup Code Best Practices', uicon='help', icon_color='main') }}>
+    <div class="row mt-4">
+        <div class="col-md-4">
+            {{ ui.info_card(color='secondary', uicon='lock', title='Secure Storage', text='Store backup codes in a password manager or secure location, not in plain text files.', in_card=true)    }}
+        </div>
+        <div class="col-md-4">
+            {{ ui.info_card(color='secondary', uicon='visibility', title='Don\'t Share', text='Never share your backup codes with anyone. They provide full access to your account.', in_card=true)    }}
+        </div>
+        <div class="col-md-4">
+            {{ ui.info_card(color='secondary',  uicon='refresh', title='Regenerate before running low', text='Generate new backup codes after using several codes to avoid running out as each code can be used only once.', in_card=true)    }}
+        </div>
+    </div>
+</div {{ ui.card_end() }}>
+
+{% endblock %}
+
+{% block styles %}
+<style>
+.backup-codes-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin: 1rem 0;
+}
+
+.backup-code-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 1rem;
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+}
+
+.backup-code {
+    font-size: 1.2rem;
+    font-weight: bold;
+    color: #495057;
+    background-color: #e9ecef;
+    padding: 0.5rem;
+    border-radius: 0.25rem;
+    flex-grow: 1;
+    text-align: center;
+}
+
+@media print {
+    .backup-codes-container {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .btn, .card-header, .alert {
+        display: none !important;
+    }
+
+    .printable {
+        display: block !important;
+    }
+}
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function printBackupCodes() {
+    window.print();
+}
+
+function downloadBackupCodes() {
+    const codes = Array.from(document.querySelectorAll('.backup-code')).map(el => el.textContent);
+    const content = `Backup Codes for ${document.title}\n\n${codes.join('\n')}\n\nGenerated on: ${new Date().toLocaleString()}\n\nKeep these codes secure and don't share them with anyone.`;
+    const blob = new Blob([content], { type: 'text/plain' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'backup-codes.txt';
+    a.click();
+    window.URL.revokeObjectURL(url);
+}
+</script>
+{% endblock %}

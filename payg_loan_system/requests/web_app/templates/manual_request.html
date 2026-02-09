@@ -1,0 +1,24 @@
+{% extends "macros/base.html" %}
+{% import 'macros/form_macros.html' as forms with context %}
+{% import 'macros/general_macros.html' as ui with context %}
+
+{% block title %}{{ ftext('Make Manual Request') }}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('User Requests', 'Manual Request') }}{% endblock %}
+
+{% block content %}
+    <div {{ ui.card_start() }}>
+        <form action="" method="post" class="row">
+            {{ forms.input('body', 'Request Content', uicon='message', size=6) }}
+            {{ ui.button('Send Request', uicon='send', size=6, fit=true, inline=true, type='action') }}
+        </form>
+    </div {{ ui.card_end() }}>
+
+    {% if Message|length > 0 %}
+        <div {{ ui.card_start(title='Request Response', uicon='message') }}>
+            {% for M in Message %}
+                <br>{{ ui.info_card(text=M, color='secondary') }}
+            {% endfor %}
+        </div {{ ui.card_end() }}>
+    {% endif %}
+{% endblock %}
