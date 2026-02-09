@@ -1,0 +1,10 @@
+{{ ftext('<p>
+    <b>Please note:</b><br>
+    - The file should have 2 columns: one column Serial Number and one column Product Sub-type<br>
+    - The first line might be the header (exactly as described above) or it can be removed, starting with the first serial number from the first line<br>
+    - <i>Serial number</i> must be a short text of maximum 20 characters as a general rule (but recommended to be below 10 for usability) and excluding the device type prefix<br>
+    - We recommend to avoid using "-" in the <i>Serial number</i> to avoid confusion with type. <br>
+    - Before uploading the CSV file, the Product Sub-type must be set up on the platform.<br/>
+    - A template can be downloaded <a href="{}?version={}">here</a> for some more examples.
+    </p>', 
+    url_for('device.static', filename='bulk_devices_example.csv'), COMMIT_SHA, novar=true) }}

@@ -1,0 +1,19 @@
+{{ ftext('
+<p>This page is to be used to manually upload a batch of Mobile Money payments with a CSV file, in case the integration does not exist or failed. <br><br>
+    It is different from the "collect payment" feature as it does not debit the amount from the agent wallet. </p>
+
+    <p>Please make sure to enter the information accurately, in particular the account name should be spelled
+    <strong>EXACTLY</strong> as provided by the Mobile Money provider (including lower and upper case). As well,
+    the Wallet Operator should be spelled EXACTLY as expected</p>
+
+    <p><strong>Any payment added here will be <a href="{}">logged</a> with your name, IP address and time. </strong></p>
+
+<p>The payment file should be a CSV file, using "," as a delimiter. It should include a first line of headers with the data in the following order: <br>
+<br>Reference, Payment Time, Amount, Wallet Name, Wallet MSISDN, Memo, Operator<br><br>
+    <strong>Please note:</strong>
+    <br> - The Wallet MSISDN, Memo and Operator are optional but the columns should still always be there (even if left empty).
+    <br> - The Payment Time should be in ISO 8601 format, that is YYYY-MM-DDTHH:MM:SS (e.g. 1991-02-21T13:45:23)
+    <br> - The Wallet MSISDN must be a valid phone number matching the length limits and starting with the extension: +{}
+    <br> - If the phone number making the payment is selected to send the payment confirmation messages (Payment settings), the Wallet MSISDN must be provided for the SMS to be sent.
+    <br> - A template can be downloaded <a href="{}?version={}">here</a> for some more examples. 
+</p>', url_for('payment.add_manual_payment_list'), GlobalSetting('PhoneExtension'), url_for('payment.static', filename='PaymentsBulkUploadTemplate.csv'), COMMIT_SHA, novar=true) }}
