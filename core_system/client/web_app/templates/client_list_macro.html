@@ -1,0 +1,40 @@
+{% macro client_table(Clients) -%}
+  {% import 'macros/general_macros.html' as ui with context %}
+  {% import 'macros/pagination.html' as pagination_nav with context %}
+  
+
+  <table {{ ui.table_start(pagination) }}>
+      <thead>
+      <tr>
+        {% if not is_custom_app %}
+          <th>
+            <input type="checkbox" id="select_all" class="form-check-input mt-0 me-2">
+          </th>
+          {{ui.sortable_header('id', "ID", class='ps-4', pagination=pagination)}}
+          {{ui.sortable_header('name', "Full Name", pagination=pagination, visible=(GlobalSetting('LeadInfoSettings')['first_name']['visible'] or GlobalSetting('LeadInfoSettings')['surname']['visible']))}}
+          {{ui.sortable_header('custom_id', GlobalSetting('CustomId') or 'Custom ID', pagination=pagination, visible=GlobalSetting('CustomIdEnabled'))}}
+          {{ui.sortable_header('village', GlobalSetting('OperationalEntities')[0].name, pagination=pagination)}}
+          {{ui.sortable_header('seniority', "Seniority", pagination=pagination)}}
+          {{ui.sortable_header('expires_in', uicon="expire", tooltip="Earliest payment due", pagination=pagination)}}
+          {{ui.sortable_header('payment', uicon="progression", tooltip="Avg. % paid", pagination=pagination, slow_sort=true)}}
+          {{ui.sortable_header('activation', uicon="activation_ratio", tooltip="Avg. Timeliness Ratio", pagination=pagination, slow_sort=true)}}
+          {{ ui.table_header(uicon='GPS', tooltip='GPS Coordinates', visible=GlobalSetting('LeadInfoSettings')['gps_coordinates']['visible']) }}
+          {{ ui.table_header(uicon='issue', tooltip='Current issue') }}
+          {{ ui.table_header(uicon='notes', tooltip='Notes') }}
+          {{ ui.table_header(uicon='status', tooltip='Status') }}
+          {{ ui.table_header(uicon='style', class='pe-4', tooltip='Tags') }}
+        {% else %}
+          {{ ui.sortable_header('id/client', "Id/Client", class='ps-4', pagination=pagination) }}
+          {{ ui.sortable_header('status', "Status", pagination=pagination) }}
+          {{ ui.table_header("Actions") }}
+        {% endif %}
+      </tr>
+      </thead>
+      <tbody>
+      {% for E in Clients %}
+        {% include "client_list_element.html" with context %}
+      {% else%}{{ui.no_results_row(13)}}
+      {% endfor %}
+      </tbody>
+  </table>
+{%- endmacro %}

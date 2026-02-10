@@ -1,0 +1,39 @@
+{% extends "macros/base.html" %}
+{% import 'macros/form_macros.html' as forms with context %}
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'addon_categories_macros.html' as addons_categories with context %}
+
+{% block title %}{{ ftext('Edit Add-on Category')}}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('Add-On Categories', 'View') }}{% endblock %}
+
+{% block content %}
+<div {{ ui.card_start() }}>
+    <form id="edit-category" class="row">
+        {{ forms.input('name', 'Name', required=true, size=6, value=category.name, disabled=category.is_system()) }}
+        {% if not category.is_system() %}
+            {{ addons_categories.addons_categories_navigation(category.parent, name='parent', tooltip='Parent Category: ', excluded=category.name, size=6, input=true) }}
+            {{ ui.button(uicon="save", label="Edit Add-On Category", type="action", size=6, fit=true, center=true, action='async_post', async_url='/addon_categories/'+category.id|string) }}
+        {% endif %}
+    </form>
+</div {{ ui.card_end() }}>
+
+<div {{ ui.collapsible_card_start(title='Add-On Offers in this category', uicon='offer', active=false) }}>
+    {% for offer in category.addon_offers %}
+    {{ ui.badge(ui.addon_offer_link(offer)) }}
+    {% else %}
+    None
+    {% endfor %}
+</div {{ ui.collapsible_card_end() }}>
+
+<div {{ ui.collapsible_card_start(title='Add-On Bundles in this category', uicon='bundle', active=false) }}>
+    {% for bundle in category.addon_bundles %}
+    {{ ui.badge(ui.addon_bundle_link(bundle)) }}
+    {% else %}
+    None
+    {% endfor %} 
+</div {{ ui.collapsible_card_end() }}>
+
+
+
+{% endblock %}

@@ -1,0 +1,21 @@
+{% extends 'bulk_upload_summaries/summary_base.html' %}
+{% set object_name = 'stock movements' %}
+{% set total_var = 'total_movements' %}
+{% set correct_var = 'correct_movements' %}
+
+{% block table %}
+<thead>
+    <tr>
+        <th>Destination type</th>
+        <th>Number of items</th>
+    </tr>
+</thead>
+<tbody>
+    {% for dest, count in analysis['status_counts'].items() %}
+    <tr>
+        <td>{{StockStatus.to_human(dest)}}</td>
+        <td>{{count}}</td>
+    </tr>
+    {% endfor %}
+</tbody>
+{% endblock %}

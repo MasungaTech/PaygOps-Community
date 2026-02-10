@@ -1,0 +1,86 @@
+{% import 'macros/general_macros.html' as ui with context %}
+    <tr>
+        {% if not is_custom_app %}
+            <td>
+                <input
+                    type="checkbox"
+                    class="form-check-input mt-0 me-2 tickable table-checkbox client-checkbox"
+                    name="ticker[{{ E.id }}]"
+                    value="true"
+                >
+            </td>
+            <td class="ps-4">
+                <a href="{{ url_for('client.view_client', client_id=E.id) }}">{{ E.id }}</a>
+            </td>
+            {% if GlobalSetting('LeadInfoSettings')['first_name']['visible'] or GlobalSetting('LeadInfoSettings')['surname']['visible'] %}
+            <td class="truncate-hoverable">
+                {{ E.person.full_name }}
+            </td>
+            {% endif %}
+            {% if GlobalSetting('CustomIdEnabled') %}<td class="truncate-hoverable">{{ E.person.custom_id or '-' }}</td>{% endif %}
+            <td class="truncate-hoverable">
+                <a href="{{ url_for('entities.view_entity', entity_id=E.person.village.id) }}">
+                {{ ui.isnotempty(E.person.village.name) }}</a>
+            </td>
+            <td>
+                {{ ui.time_since(E.RegistrationDate) }}
+            </td>
+            {% if E.contracts.count() == 1 and OfferType.usage_based in E.get_offer_types() %}
+                <td>-</td>
+            {% else %}
+                {% set due_date = E.get_earliest_payment_due() %}
+                <td>
+                    {{ ui.days_remaining(due_date, NOW, short=true, with_colours=true) }}
+                </td>
+            {% endif %}
+            
+            {% if E.contracts.count() == 1 and OfferType.usage_based in E.get_offer_types() %}
+                <td>-</td>
+                <td>-</td>
+            {% else %}
+                {% set progress = E.get_average_repayment_progression() %}
+                <td>{{ ui.isnone(progress, percent=true, decimals=1, suffix="%") }}</td>
+                {% set timeliness = E.get_average_timeliness_ratio() %}
+                <td>{{ ui.activation_ratio_badge((timeliness*100)|round|int) }}</td>
+            {% endif %}
+            
+            {% if GlobalSetting('LeadInfoSettings')['gps_coordinates']['visible'] %}
+            {% if E.person.GPSLon is not none %}
+                <td>
+                    <a href='{{ url_for("client.clients_map", client_id=E.id) }}'>{{ ui.table_icon('place', 'table-icon') }}</a>
+                </td>
+            {% else %}
+                <td>
+                    {{ ui.table_icon('place', 'table-icon', color='grey') }}
+                </td>
+            {% endif %}
+            {% endif %}
+            {% set open_issues = E.hasOpenIssues() %}
+            <td>
+                {% if open_issues %}{{ ui.table_icon('issue', 'table-icon') }}
+                {% else %}{{ ui.table_icon('issue', 'table-icon', color='grey') }}
+                {% endif %}
+            </td>
+            <td>
+                {% if E.Assets != '' %}{{ ui.table_icon('notes', 'table-icon', tooltip=E.Assets|notranslate) }}
+                {% else %}{{ ui.table_icon('notes', 'table-icon', color='grey') }}
+                {% endif %}
+            </td>
+            <td class="text-center">
+                {{ ui.contract_status_tag(E.get_overall_status(), tiny=true) }}
+            </td>
+            <td class="pe-4">
+                {% if E.tags %}{{ ui.table_icon('tags', 'table-icon', tooltip=(E.tags|map('tagsList')|join), translate_tooltip=false) }}{% else %}
+                {{ ui.table_icon('style', 'table-icon', color='grey') }}{% endif %}
+            </td>
+        {% else %}
+            <td class="truncate-hoverable">
+                <a href="{{ url_for('client.view_client', client_id=E.id) }}">({{ E.id }})</a>
+                <p>{{ E.person.full_name }}</p>
+            </td>
+            <td class="truncate-tag-cell pe-3">
+                {{ ui.contract_status_tag(E.get_overall_status(), tiny=false) }}
+            </td>
+            <td class="ps-4">{{ui.button(uicon='chevron_right', link=url_for('.view_client', client_id=E.id), type='tiny-action')}}</td>
+        {% endif %}
+    </tr>

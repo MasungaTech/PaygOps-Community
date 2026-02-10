@@ -1,0 +1,89 @@
+{% extends "macros/base.html" %}
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'macros/form_macros.html' as forms %}
+{% import 'macros/charts_macros.html' as charts with context %}
+{% import 'macros/filter_macros.html' as filter with context %}
+
+{% block title %}{{ ftext('Accounting Dashboard') }}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('Dashboards', 'Accounting') }}{% endblock %}
+
+{% block page_actions %}
+    {{ ui.custom_dashboard_link('accounting') }}
+{% endblock %}
+
+{% block content %}
+{% if GlobalSetting('StressMode') %}
+{{ ui.info_card('We are experiencing a high load on the server. Dashboards have been temporarily disabled.')}}
+{% else %}
+<div {{ ui.card_start(body_class='card-row') }}>
+    <form id="daterange" class="row" method="post">
+        {{ forms.input('begin_date', 'From', type='datepicker', icon='date', size='5', value=startDate) }}
+        {{ forms.input('end_date', 'To', type='datepicker', icon='date', size='5', value=finishDate) }}
+        <div class="{{ ui.col_size(2) }}">{{ filter.apply_filters_button() }}</div>
+    </form>
+</div {{ ui.card_end() }}>
+
+<div {{ ui.card_start(content_id='data', uicon='graph_up', title='Key Numbers', body_class='row') }}>
+    {{ ui.report_field('Total Turnover', '<span id="turnover-value"></span>', size=6)}}
+    {{ ui.report_field('Average Turnover', '<span id="average-turnover"></span>', size=6)}}
+    {{ ui.report_field('Account Receivable', '<span id="account-receivable"></span>', size=6)}}
+    {{ ui.report_field('Avg. Account Receivable per Client', '<span id="average-account-receivable"></span>', size=6)}}
+</div {{ ui.card_end() }}>
+
+<div {{ ui.card_start(uicon='money', title='Turnover') }}>
+    <figure>
+        {{ ui.preloader_macro() }}
+    </figure>
+    <canvas id="Turnover"></canvas>
+</div {{ ui.card_end() }}>
+
+<div {{ ui.card_start(uicon='payment', title='Account Receivable Generated') }}>
+    <figure>
+        {{ ui.preloader_macro() }}
+    </figure>
+    <canvas id="Revenue"></canvas>
+</div {{ ui.card_end() }}>
+
+<div {{ ui.card_start(uicon='expense', title='Expenses') }}>
+    <figure>
+        {{ ui.preloader_macro() }}
+    </figure>
+    <canvas id="Expenses"></canvas>
+</div {{ ui.card_end() }}>
+
+<div {{ ui.card_start(uicon='payment', title='Operating Income') }}>
+    <figure>
+        {{ ui.preloader_macro() }}
+    </figure>
+    <canvas id="Income"></canvas>
+</div {{ ui.card_end() }}>
+
+<div {{ ui.card_start(uicon='money', title='Turnover per Client') }}>
+    <figure>
+        {{ ui.preloader_macro() }}
+    </figure>
+    <canvas id="RevenuePerCustomer"></canvas>
+</div {{ ui.card_end() }}>
+{% endif %}
+{% endblock %}
+
+
+{% block scripts %}
+{% if not GlobalSetting('StressMode') %}
+<script src="/static/js/chart.min.js"></script>
+<script src="{{ url_for('account.static', filename='js/account_dashboard.js') }}?version={{ COMMIT_SHA }}"></script>
+<script>
+    $(document).ready(function() {
+        loadCharts();
+    });
+
+    function loadCharts(){
+        var startDate = $("#begin_date").val();
+        var endDate = $("#end_date").val();
+        AccountDashboard.buildData(startDate, endDate);
+        AccountDashboard.buildAllCharts(ChartConfig, startDate, endDate);
+    }
+</script>
+{% endif %}
+{% endblock %}

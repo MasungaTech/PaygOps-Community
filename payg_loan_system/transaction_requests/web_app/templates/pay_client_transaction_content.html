@@ -1,0 +1,116 @@
+{% set card_uicon='payment' %}
+{% if not lead is defined %}{% extends 'transaction_base.html' %}{% else %}{% extends 'transaction_base_card.html' %}{% endif %}
+
+{% block title %}{{ ftext('Pay Client') }}{% endblock %}
+
+{% block form %}
+    {{ ui.info_card(color='info', uicon='info', text='The money will be taken from the amount overpaid on the contract and given to the client in the chosen destination.', in_card=true) }}
+
+    {{ transaction.device_selector_macro() }}
+
+    {{ forms.select('destination', {
+        'cash_to_client': "Cash given to the client by me",
+        'cash_wallet': "Client's cash wallet (can be used later)",
+        'mobile_money_account': "Client's mobile money account",
+        'contract': "To pay another Contract ",
+        'lead': "To pay a Lead's downpayment"
+    }, required=true, labeltag="Payment Destination",
+    onchange="selectToggleFormsMap(this, 'value', {'mobile_money_account': '.wallet_select', 'contract': '.contract_select', 'lead': '.lead_select'})") }}
+    {{ forms.select('wallet_id:number', wallets, labeltag="Mobile Money Wallet", translate=false, required=true, selector_class='wallet_select hiddenform', source='wallets',
+        onchange="selectToggleFormsMap(this, 'status', {'inactive': '.wallet_operator_select', 'unavailable': '.mobile_money_integration_message'})"
+    )}}
+    {{ forms.select('contract_to_pay_reference:string', contract_reference, errormsg="Please, choose a Contract to reconcile with.",
+            labeltag='Destination Contract', source='contract_reference', required=true, selector_class='contract_select hiddenform') }}
+    {{ forms.select('downpayment_lead_id:number', leads, errormsg="Please, choose a Lead to reconcile with.",
+        labeltag='Destination Lead', source='lead_id', required=true, selector_class='lead_select hiddenform') }}
+    {{ forms.select('wallet_operator', wallet_operators, labeltag="Mobile Money Operator", selector_class='wallet_operator_select hiddenform') }}
+
+    {{ ui.info_card(type='error', text='There is no mobile money integration available that supports sending payment to clients.', class='mobile_money_integration_message hiddenform mt-3') }}
+
+    {{ forms.input('amount:number', 'Amount', type='number', value=amount if amount is defined else none, required=true, id="amount", size=12) }}
+    {{ forms.input('memo', 'Payment Memo', type='textarea', value='', required=false, id="memo", size=12, max_val=100, min_val=0) }}
+{% endblock %}
+
+{% block button %}
+    {{ ui.button('Pay Client', color='danger', class='transaction_action', action="validateAndSubmit('/api/v1/transaction_requests/pay_client/');") }}
+{% endblock %}
+
+{% block transaction_script %}
+<script>
+
+    function formatWalletOption(option) {
+        if (!option.id || !option.element) return option.text;
+    
+        const status = $(option.element).data('status');
+        const colorMap = {
+            active: '#28a745',      // green
+            inactive: '#6c757d',    // grey
+            unavailable: '#dc3545'  // red
+        };
+    
+        const dot = $('<span>', {
+            css: {
+                display: 'inline-block',
+                width: '8px',
+                height: '8px',
+                'border-radius': '50%',
+                'background-color': colorMap[status] || 'transparent',
+                'margin-right': '8px'
+            }
+        });
+    
+        const container = $('<span>').append(dot).append(document.createTextNode(option.text));
+        return container;
+    }
+    
+    function enhanceWalletSelect($walletSelect) {
+        if ($walletSelect.hasClass("select2-hidden-accessible")) {
+            $walletSelect.select2('destroy');
+        }
+    
+        $walletSelect.select2({
+            templateResult: formatWalletOption,
+            templateSelection: formatWalletOption,
+            width: '100%',
+            dropdownParent: $walletSelect.closest('.modal') // Ensures dropdown stays inside modal
+        });
+    }
+
+    // Re-enhance #wallet when destination is changed to mobile_money_account
+    $(document).on('change', '#destination', function () {
+        const value = $(this).val();
+        const $errorMessage = $('.mobile_money_integration_message');
+        if (value === 'mobile_money_account') {
+            const $walletSelect = $('#wallet_id');
+            if ($walletSelect.length) {
+                setTimeout(() => {
+                    enhanceWalletSelect($walletSelect);
+                    const status = $walletSelect.find('option:selected').data('status');
+                    if (status === 'unavailable') {
+                        $errorMessage.removeClass('hiddenform');
+                    } else {
+                        $errorMessage.addClass('hiddenform');
+                    }
+                }, 100); // small delay in case of UI lag
+            }
+        }else{
+            if (!$errorMessage.hasClass('hiddenform') ) {
+                $errorMessage.addClass('hiddenform');
+            }
+        }
+    });
+    
+    // Attach to modal when shown
+    $(document).on('shown.bs.modal', function (e) {
+        const $modal = $(e.target);
+        const $walletSelect = $modal.find('#wallet');
+    
+        if ($walletSelect.length) {
+            enhanceWalletSelect($walletSelect);
+        }
+    });
+
+</script>
+
+{% endblock %}
+
