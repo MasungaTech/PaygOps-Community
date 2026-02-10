@@ -1,0 +1,7 @@
+from payg_loan_system.transaction_requests.services.expected_paid_change_service import ExpectedPaidChangeTransactionService
+from payg_loan_system.transaction_requests.api_views.transaction_resource import TransactionResource
+
+
+class ExpectedPaidChangeTransactionResource(TransactionResource):
+
+    service = ExpectedPaidChangeTransactionService

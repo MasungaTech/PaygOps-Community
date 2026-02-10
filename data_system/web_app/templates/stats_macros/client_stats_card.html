@@ -1,0 +1,228 @@
+{% import 'macros/charts_macros.html' as charts with context %}
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'stats_macros/stats_helper_macros.html' as sh with context %}
+
+
+{% macro basic_location_stats(Entity, monthly=false, cached=True) -%}
+    {% if cached %}
+        {% cache 6 * 3600, cache_key_base + "_pie_new" %}
+            {{ client_status_pie(Entity) }}
+        {% endcache %}
+        {% cache 2 * 3600, cache_key_base + "_client_lead_new" %}
+            {{ client_stats_card(Entity, monthly=monthly) }}
+            {{ lead_stats_card(Entity, monthly=monthly) }}
+        {% endcache %}
+    {% else %}
+        {{ client_status_pie(Entity) }}
+        {{ client_stats_card(Entity, monthly=monthly) }}
+        {{ lead_stats_card(Entity, monthly=monthly) }}
+    {% endif %}
+
+    {% if cached %}
+        {% cache 2 * 3600, cache_key_base + "_turnover_service_new" %}
+            {{ turnover_stats_card(Entity, monthly=monthly) }}
+            {{ service_stats_card(Entity, monthly=monthly) }}
+        {% endcache %}
+    {% else %}
+        {{ turnover_stats_card(Entity, monthly=monthly) }}
+        {{ service_stats_card(Entity, monthly=monthly) }}
+    {% endif %}
+{%- endmacro %}
+
+
+{% macro client_status_pie(Entity) -%}
+    {% set par_data = Entity.get_PAR_data() %}
+    {% if platform_type == 'freemium-demo' %}
+        {% set total = par_data['total'] %}
+        {% set par_data =  {
+            'active': (total*0.743)|round,
+            'par': (total*0.107)|round,
+            'par7': (total*0.04)|round,
+            'par30': (total*0.085)|round,
+            'par90': (total*0.075)|round,
+            'total': total
+        } %}
+    {% endif %}
+    {% set total = par_data['total'] %}
+    {% set active_clients = par_data['active'] %}
+    {% set inactive_clients = total - active_clients %}
+    {% if total == 0 %}{% set inactive_ratio = 0 %}{% else %}{% set inactive_ratio = inactive_clients/total %}{% endif %}
+    
+    <div {{ ui.card_start(4, match_height=true) }}>
+        {{ ui.stat_card_header(uicon='contract', color='main', title='Portfolio at Risk') }}
+        
+        <canvas id="ClientStatusChart" height="120px" width="150px"></canvas>
+    </div {{ ui.card_end() }}>
+
+    <script>
+        {% set clientStatusChartColors = ['basecolor', 'colorred', 'colorred2', 'colorred3', 'colorGrey'] %}
+        {% set clientStatusChartData = [('Loans on time', active_clients),
+                                        ('Late in payment for 0 to 7 days (PAR0)', par_data['par']),
+                                        ('Late in payment for 8 to 30 days (PAR7)', par_data['par7']),
+                                        ('Late in payment for 31 to 90 days (PAR30)', par_data['par30']),
+                                        ('Late for more than 90 days (PAR90)', par_data['par90'])] %}
+        function createCharts () {                                
+            {{ charts.pieJS('doughnut', 'ClientStatusChart', clientStatusChartData, cutout=70,
+                            backgroundColors=clientStatusChartColors, hoverBackgroundColors=clientStatusChartColors) }}
+        }
+    </script>
+{%- endmacro %}
+
+
+{% macro client_stats_card(Entity, monthly) -%}
+    {% if not monthly %}
+        {% set d0=getWeekDate(0) %}
+        {% set d1=getWeekDate(1) %}
+        {% set d2=getWeekDate(2) %}
+        {% set d3=getWeekDate(3) %}
+        {% set week='week' %}
+        {% set Weekly='Weekly' %}
+    {% else %}
+        {% set d0=getMonthDate(0) %}
+        {% set d1=getMonthDate(1) %}
+        {% set d2=getMonthDate(2) %}
+        {% set d3=getMonthDate(3) %}
+        {% set week='month' %}
+        {% set Weekly='Monthly' %}
+    {% endif %}
+    {% set clientCount = Entity.getCurrentClientCount() %}
+    {% set newClientThisWeek = Entity.getClientsRegisteredInPeriodCount(d1, d0) %}
+    {% set newClientLastWeek = Entity.getClientsRegisteredInPeriodCount(d2, d1) %}
+    {% set lostClientThisWeek = Entity.getClientsDroppedInPeriodCount(d1, d0) %}
+    {% set lostClientLastWeek = Entity.getClientsDroppedInPeriodCount(d2, d1) %}
+    {% set lostClientLastLastWeek = Entity.getClientsDroppedInPeriodCount(d3, d2) %}
+    {% set clientWithPausedContractsCount = Entity.getClientWithPausedContractsCount() %}
+
+    <div {{ ui.card_start(4, match_height=true) }}>
+        {{ ui.stat_card_header(uicon='client', color='red', tooltip='Clients that have at least one active contract or late contract', title='Clients', number=clientCount, number_text='Active Clients') }}
+
+        <div class="card-content">
+            {{ sh.stat_card_value(title=Weekly+' growth', number=newClientThisWeek+clientCount, number_last=clientCount, hide_number=true) }}
+            {{ sh.stat_card_value(title='New this '+week, number=newClientThisWeek, number_last=newClientLastWeek) }}
+            {% cache 31 * 24 * 3600, cache_key_base + "new_clients_last_new_"+d3|string %}{{ sh.stat_card_value(title='New last '+week, number=newClientLastWeek, number_last=Entity.getClientsRegisteredInPeriodCount(d3, d2)) }}{% endcache %}
+            {{ sh.stat_card_value(title='Lost this '+week, number=lostClientThisWeek, number_last=lostClientLastWeek) }}
+            {% cache 31 * 24 * 3600, cache_key_base + "lost_clients_last_new_"+d3|string %}{{ sh.stat_card_value(title='Lost last '+week, number=lostClientLastWeek, number_last=Entity.getClientsDroppedInPeriodCount(d3, d2)) }}{% endcache %}
+            <br/>
+            <div class="d-flex justify-content-between"><div class="smallCardTitle">{{ftext('Clients With Paused Contracts')}}</div><div><span class="me-2">{{ clientWithPausedContractsCount }}</span></div></div>
+        </div>
+    </div {{ ui.card_end() }}>
+{%- endmacro %}
+
+
+{% macro lead_stats_card(Entity, monthly) -%}
+    {% if not monthly %}
+        {% set d0=getWeekDate(0) %}
+        {% set d1=getWeekDate(1) %}
+        {% set d2=getWeekDate(2) %}
+        {% set d3=getWeekDate(3) %}
+        {% set week='week' %}
+        {% set Weekly='Weekly' %}
+    {% else %}
+        {% set d0=getMonthDate(0) %}
+        {% set d1=getMonthDate(1) %}
+        {% set d2=getMonthDate(2) %}
+        {% set d3=getMonthDate(3) %}
+        {% set week='month' %}
+        {% set Weekly='Monthly' %}
+    {% endif %}
+    {% set leadCount = Entity.getCurrentLeadCount() %}
+    {% set newLeadThisWeek = Entity.getNewLeadInPeriodCount(d1, d0) %}
+    {% set newLeadLastWeek = Entity.getNewLeadInPeriodCount(d2, d1) %}
+
+<div {{ ui.card_start(4, match_height=true) }}>
+    {{ ui.stat_card_header(uicon='lead', color='blue', title='Leads', number=leadCount, number_text='Active Leads') }}
+
+    <div class="card-content">
+        {{ sh.stat_card_value(title=Weekly+' growth', number=newLeadThisWeek+leadCount, number_last=leadCount, hide_number=true) }}
+        {{ sh.stat_card_value(title='New this '+week, number=newLeadThisWeek, number_last=newLeadLastWeek) }}
+        {% cache 31 * 24 * 3600, cache_key_base + "new_leads_last_new_"+d3|string %}{{ sh.stat_card_value(title='New last '+week, number=newLeadLastWeek, number_last=Entity.getNewLeadInPeriodCount(d3, d2)) }}{% endcache %}
+    </div>
+</div {{ ui.card_end() }}>
+{%- endmacro %}
+
+
+{% macro turnover_stats_card(Entity, monthly) -%}
+    {% if not monthly %}
+        {% set d0=getWeekDate(0) %}
+        {% set d1=getWeekDate(1) %}
+        {% set d2=getWeekDate(2) %}
+        {% set d3=getWeekDate(3) %}
+        {% set week='week' %}
+        {% set Weekly='Weekly' %}
+    {% else %}
+        {% set d0=getMonthDate(0) %}
+        {% set d1=getMonthDate(1) %}
+        {% set d2=getMonthDate(2) %}
+        {% set d3=getMonthDate(3) %}
+        {% set week='month' %}
+        {% set Weekly='Monthly' %}
+    {% endif %}
+
+<div {{ ui.card_start(6, match_height=true) }}>
+    {{ ui.stat_card_header(uicon='money', color='teal', title='Turnover', tooltip='Based on reconciled payments (ignoring orphaned)') }}
+    <div class="card-content">
+        {% set turnoverLastWeek = Entity.getTurnoverInPeriod(d2, d1) %}
+        {% set turnoverThisWeek = Entity.getTurnoverInPeriod(d1, d0) %}
+        {{ sh.stat_card_value(title='Turnover this '+week, number=turnoverThisWeek, number_last=turnoverLastWeek) }}
+        {{ sh.stat_card_value(title='Payments this '+week, number=Entity.getPaymentsInPeriodCount(d1, d0), number_last=Entity.getPaymentsInPeriodCount(d2, d1)) }}
+
+        {% cache 31 * 24 * 3600, cache_key_base + "turnover_partial_last_new_"+d3|string %}
+        {% if turnoverLastWeek is not defined %}{% set turnoverLastWeek = Entity.getTurnoverInPeriod(d2, d1) %}{% endif %}
+        {% set turnoverLastLastWeek = Entity.getTurnoverInPeriod(d3, d2) %}
+        {{ sh.stat_card_value(title='Turnover last '+week, number=turnoverLastWeek, number_last=turnoverLastLastWeek) }}
+        {{ sh.stat_card_value(title='Payments last '+week, number=Entity.getPaymentsInPeriodCount(d2, d1), number_last=Entity.getPaymentsInPeriodCount(d2, d1)) }}
+        {% endcache %}
+    </div>
+</div {{ ui.card_end() }}>
+{%- endmacro %}
+
+
+{% macro service_stats_card(Entity, monthly) -%}
+    {% if not monthly %}
+        {% set d0=getWeekDate(0) %}
+        {% set d1=getWeekDate(1) %}
+        {% set d2=getWeekDate(2) %}
+        {% set d3=getWeekDate(3) %}
+        {% set week='week' %}
+        {% set Weekly='Weekly' %}
+    {% else %}
+        {% set d0=getMonthDate(0) %}
+        {% set d1=getMonthDate(1) %}
+        {% set d2=getMonthDate(2) %}
+        {% set d3=getMonthDate(3) %}
+        {% set week='month' %}
+        {% set Weekly='Monthly' %}
+    {% endif %}
+
+    <div {{ ui.card_start(6, match_height=true) }}>
+        {{ ui.stat_card_header(uicon='service', color='amber', title='After-Sales', number=Entity.getOpenIssueCount(), number_text='Open Issues') }}
+    
+        <div class="card-content">
+            {% set visitLastWeek = Entity.getPhysicalVisitsInPeriodCount(d2, d1) %}
+            {% set callsLastWeek = Entity.getPhoneCallsInPeriodCount(d2, d1) %}
+            {% set issueLastWeek = Entity.getNewIssueInPeriodCount(d2, d1) %}
+            {% set visitThisWeek = Entity.getPhysicalVisitsInPeriodCount(d1, d0) %}
+            {% set callsThisWeek = Entity.getPhoneCallsInPeriodCount(d1, d0) %}
+            {% set issueThisWeek = Entity.getNewIssueInPeriodCount(d1, d0) %}
+
+            {{ sh.stat_card_value(title='Visits this '+week, number=visitThisWeek, number_last=visitLastWeek) }}
+            {{ sh.stat_card_value(title='Calls this '+week, number=callsThisWeek, number_last=callsLastWeek) }}
+            {{ sh.stat_card_value(title='Issues this '+week, number=issueThisWeek, number_last=issueLastWeek) }}
+
+            {% cache 31 * 24 * 3600, cache_key_base + "service_partial_last_new_"+d3|string %}
+            {% if visitLastWeek is not defined %}
+            {% set visitLastWeek = Entity.getPhysicalVisitsInPeriodCount(d2, d1) %}
+            {% set callsLastWeek = Entity.getPhoneCallsInPeriodCount(d2, d1) %}
+            {% set issueLastWeek = Entity.getNewIssueInPeriodCount(d2, d1) %}
+            {% endif %}
+            {% set callsLastLastWeek = Entity.getPhoneCallsInPeriodCount(d3, d2) %}
+            {% set issueLastLastWeek = Entity.getNewIssueInPeriodCount(d3, d2) %}
+            {% set visitLastLastWeek = Entity.getPhysicalVisitsInPeriodCount(d3, d2) %}
+
+            {{ sh.stat_card_value(title='Visits last '+week, number=visitLastWeek, number_last=visitLastLastWeek) }}
+            {{ sh.stat_card_value(title='Calls last '+week, number=callsLastWeek, number_last=callsLastLastWeek) }}
+            {{ sh.stat_card_value(title='Issues last '+week, number=issueLastWeek, number_last=issueLastLastWeek) }}
+            {% endcache %}
+        </div>
+    </div {{ ui.card_end() }}>
+{%- endmacro %}

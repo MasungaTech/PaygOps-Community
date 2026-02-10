@@ -1,0 +1,124 @@
+{% extends "macros/base.html" %}
+{% import 'macros/form_macros.html' as forms with context %}
+{% import 'macros/general_macros.html' as ui with context %}
+
+{% import 'lead_entry_info_macro.html' as lead_entry_info_macro with context %}
+{% import 'lead_status_macro.html' as status_macro with context %}
+{% import 'lead_general_info_macro.html' as general_info_macro with context %}
+{% import 'offer_and_device_macros.html' as offer_device_macro with context %}
+
+{% block title %}{{ ftext('Add Lead') }}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('Leads', 'Add') }}{% endblock %}
+
+{% block content %}
+<form class="row">
+    {% if contract %}<input type=hidden name='contract_reference' value="{{contract.reference}}">{% endif %}
+
+    {{ lead_entry_info_macro.lead_entry_info_form() }}
+
+    {{ general_info_macro.general_info_form() }}
+
+    {{ offer_device_macro.offer_and_device_form() }}
+
+    {{ status_macro.lead_status_form() }}
+
+    {{ ui.button(uicon='save', label='Add Lead', type='action', fit=true, size=6, center=true, 
+        action='async_post', async_url='/leads', success_message='Lead Added',
+        redirect_url='/leads/', redirect_append='id') }}
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  $(document).ready(function() {
+    // --- your existing handlers ---
+    $('#l0_entity_id').change(function() {
+      $('#offer_field').data(
+        'ajax--url',
+        '{{ url_for("offers.list_offers_select2") }}?for_lead_entity_id=' + $('#l0_entity_id').val()
+      );
+      enableElement($('#offer_field'));
+      syncAllocatedDeviceVisibility(); // refresh after data source changes
+    });
+
+    $('#client').change(function () {
+      $('#offer_field').data(
+        'ajax--url',
+        '{{ url_for("offers.list_offers_select2") }}?for_lead_from_client_id=' + $('#client').val()
+      );
+      enableElement($('#offer_field'));
+      syncAllocatedDeviceVisibility(); // refresh after data source changes
+    });
+    if ($('#client').val()) {
+      $('#client').trigger('change');
+    }
+
+    // fallback if your project doesn't define it elsewhere
+    function enableElement($el) { $el.prop('disabled', false).removeAttr('disabled'); }
+
+    // --- simple helpers ---
+    function $selectedOfferOption() {
+      return $('#offer_field').find('option:selected');
+    }
+
+    function getLinkedToProduct($opt) {
+      if (!$opt || !$opt.length) return false;
+
+      // Prefer native dataset (maps data-linked-to-product -> linkedToProduct)
+      var el = $opt.get(0);
+      if (el && el.dataset && (el.dataset.linkedToProduct !== undefined)) {
+        return String(el.dataset.linkedToProduct).toLowerCase() === 'true';
+      }
+
+      // Attribute fallbacks (support both hyphen & underscore just in case)
+      var attr = $opt.attr('data-linked-to-product') ||
+                 $opt.attr('data-linked_to_product');
+      if (typeof attr === 'string') return attr.toLowerCase() === 'true';
+
+      // jQuery .data fallbacks (also support camelCase)
+      var jdata = $opt.data('linked-to-product') ||
+                  $opt.data('linked_to_product') ||
+                  $opt.data('linkedToProduct');
+      if (typeof jdata !== 'undefined') return String(jdata).toLowerCase() === 'true';
+
+      return false;
+    }
+
+    function showDevice() {
+      $('#allocated_device_wrap').removeAttr('style'); // removes display:none
+    }
+
+    function hideDevice() {
+      $('#allocated_device_wrap').attr('style', 'display:none');
+      var $dev = $('#allocated_device_field');
+      if ($dev.length) {
+        if ($.fn.select2 && $dev.data('select2')) {
+          $dev.val(null).trigger('change');
+        } else {
+          $dev.val('');
+        }
+      }
+    }
+
+    function syncAllocatedDeviceVisibility() {
+      var $wrap = $('#allocated_device_wrap');
+      if (!$wrap.length) return; // wrapper not rendered for require/no_device policies
+
+      var $opt = $selectedOfferOption();
+      var needs = getLinkedToProduct($opt);
+      if (needs) showDevice(); else hideDevice();
+    }
+
+    // --- initial sync (after Select2 has mounted/rendered) ---
+    // do a small defer to ensure Select2 has written the selection markup
+    setTimeout(syncAllocatedDeviceVisibility, 0);
+
+    // --- listen for both native & Select2 events ---
+    $('#offer_field')
+      .on('change', syncAllocatedDeviceVisibility)
+      .on('select2:select', syncAllocatedDeviceVisibility)
+      .on('select2:clear', syncAllocatedDeviceVisibility);
+  });
+</script>
+{% endblock %}
