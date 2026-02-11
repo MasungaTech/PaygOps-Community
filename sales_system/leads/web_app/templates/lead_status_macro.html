@@ -1,0 +1,101 @@
+
+{% macro lead_status_form(Lead, edit=False) -%}
+{% set leadconfig = GlobalSetting('LeadInfoSettings') %}
+{% if Lead is defined %}
+    {% set status=Lead.status.id %}
+    {% set lead_reasons=[Lead.reasons_for_not_buying, 'id']|dictListMapper %}
+{% else %}
+    {% set status=leadconfig['status']['default'] %}
+    {% set lead_reasons=leadconfig['reasons_for_not_buying'].get('default') %}
+{% endif %}
+
+<div {{ ui.card_start(uicon='label', title='Status') }}>
+    {% if Lead is not defined %}{% set Lead = EmptyObject %}{% endif %}
+    {% if edit %}<form class="row">{% else %}<div class='row'>{% endif %}
+
+        {{ forms.select('status', labeltag='Status', choices=[lead_statuses, 'id', 'name']|dictMapper, value=status, 
+            type='number', uicon='label', required=true, size=6, translate=false) }}
+        {% if GlobalSetting('FeatureToggles').get('SalesFeatures') %}
+            {{ forms.input('status_comment', 'Comment on status', value=Lead.status_comment if Lead else '', type='text', uicon='description', size=6,
+                required=leadconfig['comment_on_status']['required'], style=ui.is_visible(leadconfig['comment_on_status']['visible'])) }}
+
+            {{ forms.select(name='reasons_for_not_buying', labeltag='Reasons for Not Buying', uicon='label', type='number',
+                choices=reasons_for_not_buying, values=lead_reasons or [], max_answers=reasons_for_not_buying|length, required=leadconfig['reasons_for_not_buying'].get('required'), size=6) }}
+
+            {{ forms.input('next_contact', 'Next planned contact', value=Lead.nextContact if Lead else none, type='datepicker', uicon='date', size=6,
+                required=leadconfig['next_planned_contact']['required'], style=ui.is_visible(leadconfig['next_planned_contact']['visible'])) }}
+        {% endif %}
+
+        {{ ui.button(uicon='save', label='Edit Lead', type='action', fit=true, size=6, center=true, visible=edit,
+            action='async_post', async_url='/leads/'+Lead.id|string, success_message='Lead Edited') }}
+
+    {% if edit %}</form>{% else %}</div>{% endif %}
+</div {{ ui.card_end() }}>
+{%- endmacro %}
+
+
+{% macro lead_status_display(Lead, locked, active) -%}
+{% set can_edit_lead = (not Lead.installed and not Lead.cancelled and current_user.can_access('EditLeads', person=Lead.person)) %}
+{% if can_edit_lead and locked %}
+    {% set action_button = ui.button(tooltip='You need to save and lock the offer to be able to edit this lead', type='card-action-grey', uicon='info', action="document.getElementById('future-contract-info').scrollIntoView();") %}
+{% elif can_edit_lead %}
+    {% set action_button = ui.button(tooltip='Edit Status', uicon='edit', type='card-action', action="loadRemoteHTMLInElement('"+url_for('leads.edit_lead_status', lead_id=Lead.id)+"', $('.status-info'), true, true);") %}
+{% else %}
+    {% set action_button = '' %}
+{% endif %}
+{% set action_button = action_button + ui.button(tooltip='View Status Change History', uicon='history', type='card-action-grey', modal='status-history-modal') %}
+
+<div {{ ui.collapsible_card_start(uicon='label', title='Status', class='locked-card' if locked else '', actions=action_button, body_class='row', active=active) }}>
+    {% set leadconfig = GlobalSetting('LeadInfoSettings') %}
+
+    {% set aimsg = '' %}
+    {% if Lead.status.category == 'Awaiting Information' %}
+        {% if not Lead.offer %}{% set aimsg = "The lead is missing the contract offer" %}
+        {% elif not Lead.offer.in_use %}{% set aimsg = "The lead's offer is not available for registration" %}
+        {% elif not Lead.info_completed %}{% set aimsg = "The lead is missing some required forms" %}
+        {% elif Lead.future_contract_value %}{% set aimsg = "The future contract has a total value of 0, change the offer or the add-ons so it has a positive value." %}
+        {% elif Lead.reference_price == 0 %}{% set aimsg = "The lead has a total reference price of 0, change the offer or the add-ons so it has a higher reference price" %}{% endif %}
+    {% endif %}
+    {% if aimsg %}{% set lead_status_content = Lead.status.name + ui.icon('info', 'inline-icon tiny ms-1', tooltip=aimsg) %}{% else %}{% set lead_status_content = Lead.status.name %}{% endif %}
+
+    {{ ui.report_field('Status', lead_status_content, 'label', size=6) }}
+    {{ ui.report_field('Next Contact', ui.datetime(Lead.nextContact), 'event', visible=leadconfig['next_planned_contact']['visible'], size=6) }}
+
+    {{ ui.report_field('Comment', Lead.status_comment, 'description', translatable=true, nospace=true, visible=leadconfig['comment_on_status']['visible'], size=6) }}
+    {{ ui.report_field('Reasons for not buying', Lead.reasons_for_not_buying|join(', ', attribute="name"), 'label', visible=leadconfig['reasons_for_not_buying'].get('visible'), size=6, nospace=true) }}
+
+</div {{ ui.collapsible_card_end() }}>
+
+{{ lead_status_history_modal(Lead) }}
+
+{%- endmacro %}
+
+
+{% macro lead_status_history_modal(Lead) -%}
+<div {{ ui.modal_start('status-history-modal', 'Status Change History', large=true) }}>
+    <form>
+        <div class="modal-body row">
+            <table {{ ui.table_start() }}>
+                <thead>
+                    <tr>
+                        {{ ui.table_header('Date') }}
+                        {{ ui.table_header('New Status') }}
+                        {{ ui.table_header('Comment') }}
+                    </tr>
+                    </thead>
+                <tbody>
+                {% for status in Lead.get_filtered_status_change_history()|sort(attribute='date', reverse=true) %}
+                    <tr>
+                        <td>{{ ui.datetime(status.date) }}</td>
+                        <td>{{ status.status }}</td>
+                        <td>{{ status.status_comment }}</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="modal-footer">
+        </div>
+    </form>
+</div {{ ui.modal_end() }}>
+{%- endmacro %}

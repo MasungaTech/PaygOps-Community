@@ -1,0 +1,127 @@
+{% import 'offer_macros.html' as offer_macros with context %}
+
+{% macro offer_and_device_display(Lead, locked=false, active=true) -%}
+{% set can_edit_lead = not Lead.installed and not Lead.cancelled and current_user.can_access('EditLeads', person=Lead.person) %}
+{% if can_edit_lead and not Lead.can_edit_offer %}
+    {% set offer_action_button = ui.button(tooltip='You need to unlock the offer and add-ons editing below to be able to change the offer', type='tiny-action-grey', uicon='info', action="document.getElementById('future-contract-info').scrollIntoView();") %}
+    {% set device_action_button = ui.button(tooltip='Edit Allocated Device', uicon='edit', type='tiny-action', action="loadRemoteHTMLInElement('"+url_for('leads.edit_device', lead_id=Lead.id)+"', $('.offer-info'), true, true);") %}
+{% elif can_edit_lead %}
+    {% set offer_action_button = ui.button(tooltip='Edit Lead Offer', uicon='edit', type='tiny-action', action="loadRemoteHTMLInElement('"+url_for('leads.edit_offer', lead_id=Lead.id)+"', $('.offer-info'), true, true);") %}
+    {% if Lead.offer_editing_locked %}
+    {% set device_action_button = ui.button(tooltip='Edit Allocated Device', uicon='edit', type='tiny-action', action="loadRemoteHTMLInElement('"+url_for('leads.edit_device', lead_id=Lead.id)+"', $('.offer-info'), true, true);") %}
+    {% else %}
+    {% set device_action_button = ui.button(tooltip='You need to save the offer and add-ons to be able to edit the allocated device', type='tiny-action-grey', uicon='info', action="document.getElementById('future-contract-info').scrollIntoView();") %}
+    {% endif %}
+{% else %}
+    {% set offer_action_button = '' %}
+    {% set device_action_button = '' %}
+{% endif %}
+
+{% if not Lead.offer %}
+    {{ offer_form(Lead, true) }}
+{% else %}
+    <div {{ ui.collapsible_card_start(uicon='contract', title='Contract Characteristics', class='locked-card' if locked else '', body_class='row', active=active) }}>
+        {{ ui.report_field('Offer', ui.offer_link_full(Lead.offer)+(ui.icon('warning', 'tiny', color='orange', tooltip='The offer is not available for registration') if not Lead.offer.in_use else '')+offer_action_button, size=6) }}
+        {% if not GlobalSetting('ContractDeviceRestrictions') == 'no_device' and Lead.offer.linked_to_product %}
+            {{ ui.report_field('Allocated Device', ui.device_link(Lead.allocated_device)+device_action_button, size=6) }}
+        {% else %}
+            {{ ui.report_field('Allocated Device', '_', size=6) }}
+        {% endif %}
+        {{ ui.report_field('Future Reference', Lead.future_contract_reference, size=6) }}
+        <div class="{{ui.col_size(6)}}"></div>
+
+        {% if Lead.offer.type == OfferType.loan %}
+            {{ ui.report_field('Total value', ui.amount(Lead.future_contract_value, include_currency=true), size=6) }}
+            {{ ui.report_field('Total downpayment', ui.amount(Lead.downpayment, include_currency=true), size=6) }}
+            {{ ui.report_field('Balance after downpayment', ui.amount(Lead.future_contract_value-Lead.offer.registration_fee-Lead.loan_addons_downpayments, include_currency=true), size=6) }}
+            {{ ui.report_field('Total duration', ftext('{} days', Lead.future_contract_duration|int), size=6) }}
+            {{ ui.report_field('Initial grace period', ftext('{} days', Lead.offer.free_credit_at_start|int), size=6) }}
+            {{ ui.report_field('Duration after grace period', ftext('{} days', ui.amount_normalize(Lead.future_contract_duration-Lead.offer.free_credit_at_start)|int), size=6) }}
+            {{ ui.report_field('Reference frequency', ftext('{} {}', ui.amount_normalize(Lead.offer.base_price_credit), offer_macros.get_days_or_months(Lead.offer.payment_frequency)), size=6) }}
+            {{ ui.report_field('Reference pricing', ui.amount(Lead.reference_price, include_currency=true), tooltip='Calculation: Balance after downpayment / (Duration after grace period / Reference frequency)', size=6) }}
+        {% elif Lead.offer.type == OfferType.time_based or Lead.offer.type == OfferType.usage_based %}
+            {{ ui.report_field('Total downpayment', ui.amount(Lead.offer.registration_fee, include_currency=true), size=6) }}
+            {{ ui.report_field('Initial Asset Value', ui.amount(Lead.offer.unit_cost, include_currency=true), size=6) }}
+            {% if Lead.offer.type == OfferType.time_based %}
+                {{ ui.report_field('Yearly expected amount', ui.amount(Lead.offer.get_yearly_value(), include_currency=true), size=6) }}
+                {{ ui.report_field('Initial Term (duration)', 'Unlimited', size=6, translatable=true) }}
+                {{ ui.report_field('Reference frequency', ftext('{} {}', ui.amount_normalize(Lead.offer.base_price_credit), offer_macros.get_days_or_months(Lead.offer.payment_frequency)), size=6) }}
+                {{ ui.report_field('Reference pricing', ui.amount(Lead.reference_price, true), size=6) }}
+            {% else %}
+                {{ ui.report_field('Initial Term (duration)', 'Unlimited', size=6, translatable=true) }}
+                {{ ui.report_field('Reference pricing', ftext('{}{} for {}', ui.amount(Lead.offer.base_price_credit), Lead.offer.credit_unit, ui.amount(Lead.reference_price, true)), size=6) }}
+            {% endif %}
+        {% elif Lead.offer.type == OfferType.lump_sum %}
+            {{ ui.report_field('Total value without add-ons value', ui.amount(Lead.future_contract_value, include_currency=true), size=6) }}
+            {{ ui.report_field('Total lump-sum add-ons value', ui.amount(Lead.lump_sum_addons_value, include_currency=true), size=6) }}
+            {{ ui.report_field('Total value with add-ons', ui.amount(Lead.future_contract_value+Lead.lump_sum_addons_value, include_currency=true), size=6) }}
+        {% endif %}
+    </div {{ ui.collapsible_card_end() }}>
+{% endif %}
+{%- endmacro %}
+
+{% macro offer_and_device_form(Lead, edit=false) -%}
+<div {{ ui.card_start(uicon='device', title='Offer and Device') }}>
+    {% if Lead is not defined %}{% set Lead = EmptyObject %}{% endif %}
+    {% if edit %}<form class="row">{% else %}<div class='row'>{% endif %}
+
+        
+        {% if not GlobalSetting('FeatureToggles').get('LumpSumContracts') and not GlobalSetting('FeatureToggles').get('LoanAndSubscriptionContracts')%}
+            {{ forms.select('offer', uicon='offer', labeltag='Contract offer', size=6, disabled=true, choices=[(default_offer.id, default_offer.name)], value=default_offer.id)}}
+        {%else%}
+            {{ forms.select('offer', id="offer_field", uicon='offer', labeltag='Contract offer', size=6, disabled=not edit, ajax_url=url_for('offers.list_offers_select2'))}}
+        {%endif%}
+        {% if GlobalSetting('ContractDeviceRestrictions') == 'no_device'%}
+            {# {{ forms.select('allocated_device', [], size=6, uicon='device', labeltag='Allocated Device', value=none, clearable=true, source="devices") }} #}
+        {%else%}
+            {% if GlobalSetting('ContractDeviceRestrictions') == 'require_device'  %}
+                {{ forms.select('allocated_device', [], size=6, uicon='device', labeltag='Allocated Device', value=none, clearable=true, source="devices") }}
+            {%else%}
+            <div class="col-12 col-md-6 parent-div" id="allocated_device_wrap" style="display:none">
+                {{ forms.select('allocated_device', [], size=6, uicon='device',
+                                id="allocated_device_field",
+                                labeltag='Allocated Device', value=none,
+                                clearable=true, source="devices", selector_class="child-div w-100") }}
+            </div>
+            {%endif%}
+        {%endif%}
+
+        {{ ui.button(uicon='save', label='Edit Lead', type='action', fit=true, size=6, center=true, visible=edit, 
+            action='async_post', async_url='/leads/'+Lead.id|string if Lead else none, success_message='Lead Edited') }}
+
+    {% if edit %}</form>{% else %}</div>{% endif %}
+</div {{ ui.card_end() }}>
+{%- endmacro %}
+
+{% macro offer_form(Lead, edit=false) -%}
+<div {{ ui.card_start(uicon='offer', title='Lead Offer') if not  is_custom_app else  ui.collapsible_card_start(uicon='offer', title='Lead Offer')}}>
+    {% if Lead is not defined %}{% set Lead = EmptyObject %}{% endif %}
+    {% if edit %}<form class="row">{% else %}<div class='row'>{% endif %}
+        {% if edit and not Lead.offer %}
+            {{ ui.report_field('Future Reference', Lead.future_contract_reference, size=6) }}
+            {{ ui.divider() }}
+        {% endif %}
+
+        {{ forms.select('offer', id="offer_field", uicon='offer', labeltag='Lead offer', size=6, disabled=not edit, clearable=Lead.awaiting_information or Lead.to_be_convinced, 
+            choices=[(Lead.offer.id, Lead.offer.name)] if Lead and Lead.offer else [], 
+            value=Lead.offer.id if Lead and Lead.offer else none, ajax_url=url_for('offers.list_offers_select2')+'?for_lead_entity_id='+Lead.person.village.id|string) }}
+
+        {{ ui.button(uicon='save', label='Edit Lead', type='action', fit=true, size=6, center=true, visible=edit, disabled=false,
+            action='async_post', async_url='/leads/'+Lead.id|string if Lead else none, success_message='Lead Edited') }}
+
+    {% if edit %}</form>{% else %}</div>{% endif %}
+</div {{ ui.card_end() if not is_custom_app else ui.collapsible_card_end() }}>
+{%- endmacro %}
+
+{% macro device_form(Lead, edit=false) -%}
+<div {{ ui.card_start(uicon='device', title='Allocated Device') }}>
+    {%  set device = Lead.allocated_device if Lead is defined else none %}
+    {% if Lead is not defined %}{% set Lead = EmptyObject %}{% endif %}
+    {% if edit %}<form class="row">{% else %}<div class='row'>{% endif %}
+        {{ forms.select('allocated_device', size=6, uicon='device', labeltag='Allocated Device', value=device.composed_serial if device else none, choices=[(device.composed_serial, device.composed_serial)] if device else [], clearable=true, source="devices") }}
+        {{ ui.button(uicon='save', label='Edit Lead', type='action', fit=true, size=6, center=true, visible=edit, disabled=false,
+            action='async_post', async_url='/leads/'+Lead.id|string if Lead else none, success_message='Lead Edited') }}
+
+    {% if edit %}</form>{% else %}</div>{% endif %}
+</div {{ ui.card_end() }}>
+{%- endmacro %}

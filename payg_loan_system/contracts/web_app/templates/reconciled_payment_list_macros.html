@@ -1,0 +1,59 @@
+{% import 'payment_macros.html' as payment_macros with context %}
+{% import 'macros/pagination.html' as pagination_nav with context %}
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'reversal_flow_modals.html' as reversal with context %}
+
+{% macro reconciled_payment_table(pagination) -%}
+<table {{ ui.table_start(pagination) }}>
+  <thead>
+      <tr>
+        {{ ui.sortable_header('id', "ID", class='ps-4', pagination=pagination) }}
+        {{ ui.sortable_header('date', "Date", pagination=pagination) }}
+        {{ ui.sortable_header('amount', "Amount", pagination=pagination) }}
+        {{ ui.table_header('Source') }}
+        {{ ui.table_header('Destination') }}
+        {{ ui.sortable_header('type', "Type", pagination=pagination) }}
+        {{ ui.table_header(uicon='note', tooltip='Note') }}
+        <th></th>
+      </tr>
+  </thead>
+  <tbody>
+      {% for payment in pagination.objects %}
+      <tr>
+        <th>{{ payment.id }}</th>
+        <td class="truncate-hoverable">{{ ui.datetime(payment.time) }}</td>
+        <td>{{ ui.amount(-payment.amount) }}</td>
+        <td>
+          {% if payment.type == 'Repayment reversal' %}
+            {% set p = payment.converse.linked_payment %}
+          {% elif payment.type == 'Payment reversal' %}
+            {% set p = payment.reversed_payment.payment %}
+          {% else %}
+            {% set p = payment.linked_payment %}
+          {% endif %}
+          {% if p %}{{ ui.icon('payment', 'tiny', tooltip='Payment') }} {{ p.Reference }}
+          {% elif payment.type == 'Payout' %}
+            {{ ui.contract_link(payment.repayment.contract) }}
+          {% else %}
+            {{ftext('Balance')}}
+          {% endif %}
+        </td>
+        <td>{{payment_macros.reconciled_payment_destination(payment) if payment.type != 'Payout' else ftext('Balance') }}{% if payment.repayment %} {{ ui.icon('info', 'tiny', color='lightgrey', tooltip=ftext('(Contract payment #{})', payment.repayment.id)) }}{% endif %}</td>
+        <td>{{ ftext(payment.type) }}</td>
+        <td>{% if payment.note %}{{ ui.table_icon('notes', tooltip=payment.note, translate_tooltip=false) }}{% else %}{{ ui.table_icon('notes', color="grey") }}{% endif %}</td>
+        <td>
+          {% if not payment.converse and payment.can_be_manually_reversed %}
+            {{ ui.button(uicon='undo', tooltip='Undo reconciliation', modal='confirm_pending_reconciled_reversal', type='tiny-action', action="$('#confirm_pending_reconciled_reversal .reconciled_id').text('"+payment.id|string+"')") }}
+          {%endif%}
+        </td>  
+      </tr>
+      {% else %}{{ui.no_results_row(7, 'No reconciled payments')}}
+      {% endfor %}
+  </tbody>
+</table>
+<hr class="mt-0">
+<div class="row mx-2 mt-2">
+  {{ pagination_nav.render_pagination(pagination, 'reconciliations') }}
+</div>
+{{ reversal.reverse_pending_reconciled_confirmation('reconciliation') }}
+{%- endmacro %}

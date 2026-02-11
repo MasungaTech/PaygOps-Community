@@ -1,0 +1,208 @@
+{% import 'addon_categories_macros.html' as addons_categories with context %}
+{% import 'list_addons_macros.html' as fields_macros with context %}
+
+
+{% macro lead_addon_note_edit_modal(addon, form) %}
+<div {{ ui.modal_start('edit-note-modal-'+addon.reference, 'Edit Add-On Note') }}>
+    <form>
+        <div class="modal-body">
+            {{ forms.input('note', 'Notes', type='textarea', value=addon.note, form=form) }}
+        </div>
+        <div class="modal-footer">
+            {{ ui.modal_close_button() }}
+        </div>
+    </form>
+</div {{ ui.modal_end() }}>
+{% endmacro %}
+
+
+{% macro lead_addons_macro(Lead=none, bundle=none) %}
+<div id="addons-table-wrapper">
+    {% if platform_type == 'freemium' and not current_user.is_super_admin() %}
+        {{ ui.info_card(type='error', text='This feature is only available with the premium version.')}}
+    {% elif Lead and not Lead.offer %}
+        {{ ui.info_card(type='info', text='Please select an offer to add add-ons')}}
+    {% else %}
+        <table {{ ui.table_start(class='addons-table responsive-table') }}>
+        <thead>
+            <tr>
+                {{ ui.table_header(width='3%', visible=Lead) }}
+                {{ ui.table_header('Offer', width='20%') }}
+                {{ ui.table_header('Quantity/Product', width='5%') }}
+                {{ ui.table_header('Type', width='20%') }}
+                {{ ui.table_header(ftext('Total value added ({})', Currency), width='15%') }}
+                {{ ui.table_header('Extension', width='15%', visible=(Lead and Lead.offer.allow_loan_addons)) }}
+                {{ ui.table_header(ftext('Downpayment ({})', Currency), width='15%') }}
+                {{ ui.table_header(uicon='notes', width='3%', visible=Lead, tooltip='Add-On Notes') }}
+                {{ ui.table_header(width='4%') }}
+            </tr>
+        </thead>
+        {% set addons_list = Lead.addons|sort(attribute="time_created") if Lead else bundle.items|sort(attribute="id") %}
+        <tbody>
+            {% for addon in addons_list %}
+            {% set form = "edit_addon_form_"+(addon.reference if Lead else addon.id|string) %}
+            <form id="{{form}}"></form>
+            {% set available_for_register = check_availability is defined and check_availability(addon.offer_version, lead=Lead, for_registering=true) %} {# to fix #}
+            <tr {% if check_availability is defined and not available_for_register %}style="background-color: #eee;"{% endif %}>
+                {% if Lead %}
+                <td>
+                    {% if not available_for_register %}
+                    {{ui.icon('warning', 'tiny', tooltip='This add-on is not available for registration')}}
+                    {% else %}
+                    <a href="javascript:void()" onclick="copyToClipboard('{{addon.reference}}', 'Add-On Reference');">
+                        {{ui.table_icon('receipt', tooltip=addon.reference|notranslate)}}
+                    </a>
+                    {%endif%}
+                </td>
+                {% endif %}
+                <td sorttable_customkey="{{ addon.offer_version.offer.name }}" class="truncate-hoverable">
+                    {% if not Lead or Lead.can_edit_offer %}
+                    {% set extra = {addon.offer_version.id: addon.offer_version.offer.name_and_version_for_sales} if not addon.offer_version.id in addon_offers else {} %}
+                    {{ forms.select('offer_version_id' if Lead else 'offer_id', addon_offers, 'Choose add-on offer', required=true, size="slim", value=addon.offer_version.id if Lead else addon.offer_version.offer.id, id=addon.id|string+'_offer_version', form=form, extra_choices=extra, class='offer_selector', translate=false, disabled=true) }}
+                    {% else %}
+                    {{ui.addon_offer_version_link(addon.offer_version)}}
+                    {% endif %}
+                </td>
+                <td sorttable_customkey="{{ addon.quantity_sold }}">
+                {% if not bundle and addon.device %}
+                    {% if not Lead or Lead.can_edit_offer %}
+                    {% set extra = {addon.device.composed_serial: addon.device.composed_serial} %}
+                    {{ forms.select('device_serial', [], required=true, size="slim", value=addon.device.composed_serial, id=addon.id|string+'_device_serial', extra_choices=extra, form=form, ajax=true, source="add_on_devices", data_attrs={'add_on_offer': addon.offer_version.offer.id}) }}
+                    {% else %}
+                    {{ui.device_link(addon.device)}}
+                    {% endif %}
+                {% else %}
+                    {% if not Lead or Lead.can_edit_offer %}
+                    {{ forms.input('quantity_sold', '', required=true, numeric=true, not_zero=true, size="slim", value=addon.quantity_sold|round(2), style="width: 75px;", id="", form=form) }}
+                    {% else %}
+                    {{ui.amount(addon.quantity_sold)}}
+                    {% endif %}
+                {% endif %}
+                </td>
+                {% set disabled = "" if addon.offer_version.offer.type in [AddOnType.loan, AddOnType.deposit_change] else " hiddenform" %}
+                <td sorttable_customkey="{{addon.offer_version.offer.type + addon.loan_mode}}">
+                    <var class="type">{{ftext(AddOnType.to_human(addon.offer_version.offer.type))}}</var>
+                    {% if (not Lead or Lead.can_edit_offer) and not addon.offer_version.offer.loan_mode %}
+                    {{ forms.select('loan_mode', loan_modes, required=true, size='slim'+disabled, label='Choose one', value=addon.loan_mode, form=form, id=addon.id|string+'_loan_mode') }}
+                    {% else %}
+                    {% if addon.offer_version.offer.is_loan %}({{ ftext(AddOnLoanExtensionMode.to_human(addon.loan_mode) if addon.loan_mode else AddOnLoanExtensionMode.to_human(addon.offer_version.offer.loan_mode)) }}){% endif %}
+                    {% endif %}
+                </td>
+                <td class="total_price">{{ ui.amount(addon.total_amount) }}{{ ui.icon('info', 'tiny', 'lightgrey', tooltip=addon.quantity_sold|string+' x '+ui.amount(addon.offer_version.price)) }}</td>
+                {% if Lead and Lead.offer.allow_loan_addons %}
+                {{fields_macros.get_field('extension', addon=addon, class='extension-info')}}
+                {% endif %}
+                {{fields_macros.get_field('downpayment', addon=addon, class="downpayment")}}
+                {% if Lead %}
+                <td>
+                    {{ ui.icon('notes', tooltip=addon.note|replace('&', '&amp;')|replace('\n', '<br>'), translate_tooltip=false, attributes='icon-badge-sm mx-1 mb-1 '+('main-badge' if addon.note else 'gray-badge')) }}
+                    {{ ui.button(uicon='edit', type='card-action', tooltip='Edit Note', modal='edit-note-modal-'+addon.reference) }}
+                    {{ lead_addon_note_edit_modal(addon, form) }}
+                </td>
+                {% endif %}
+                <td>
+                    {% if not Lead or Lead.can_edit_offer %}
+                        {{ ui.button(uicon='save', type='card-action', class='save-addon mb-1', action='save_addon(this)', disabled=true, data_attributes={'addon': addon.reference if Lead else addon.id, 'method': 'PATCH' if Lead else 'POST', 'endpoint': 'addons' if Lead else 'addon_bundles/items'}, form=form)}}
+                        {{ ui.button(uicon='delete', type='card-action-grey', disabled=false, class='remove-addon', data_attributes={'addon': addon.reference if Lead else addon.id, 'endpoint': 'addons' if Lead else 'addon_bundles/items'})}}
+                    {% endif %}
+                </td>
+            </tr>
+            {% else %}{{ui.no_results_row(9, 'No add-ons on this ' + ('lead' if Lead else 'bundle'))}}
+            {% endfor %}
+        </tbody>
+        </table>
+        {% if addons_list %}
+            <div class="row">
+                <div class="{{ui.col_size(3)}}"></div>
+                {{ ui.report_field('Total value of add-ons', ui.amount(Lead.addons_value if Lead else bundle.total_value, true), size=6, class='mt-3 total_addons_value') }}
+            </div>
+        {% endif %}
+        {% if not Lead or Lead.can_edit_offer %}
+        {{ ui.divider('Add Add-On', small=true) }}
+        <div class="row">
+            {% if Lead and bundles_available %}
+                {{forms.select('addons_or_bundles', {'addons': 'Add-ons', 'bundles': 'Bundles'}, value='addons', size=6, labeltag='Offer Type Filter', uicon='filter')}}
+            {%endif%}
+            {% if categories_available %}
+                {{ addons_categories.addons_categories_navigation(none, callback="updateCategoryFilter", with_results="offers", size=6, tooltip='Category Filter: ', placeholder='Filter offer by category') }}
+            {%endif%}
+        </div>
+        <form id="add_addon_form" action="{{ '/addons' if Lead else '/addon_bundles/items' }}" class="row">
+            {% if Lead %}
+                <input type="hidden" name="lead" value="{{Lead.id}}" />
+            {% else %}
+                <input type="hidden" name="bundle_id:number" value="{{bundle.id}}" />
+            {% endif %}
+            {{ forms.select('offer_version_id' if Lead else 'offer_id', [], 'Choose add-on offer', required=true, labeltag='Add-on offer', size=6, id="offer_id_selector", ajax=config.AJAX_SELECT_CLASS, min_chars="0", uicon='offer')}}
+            {{ forms.select('loan_mode', loan_modes, required=true, size='6', label='Choose one',
+                labeltag="Loan extension option", errormsg="Loan extension mode is required", selector_class='loan-mode hiddenform') }}
+            {{ forms.input('quantity_sold', 'Quantity added', required=true, numeric=true, not_zero=true, size=6, class="quantity_sold", id="", selector_class="hiddenform not-linked-to-product", value=1) }}
+            {{forms.searchable_select('device_serial', [], 'Choose device', labeltag="Select Device", required=false, uicon='device',
+                size=6, source="add_on_devices", selector_class="hiddenform linked-to-product", ajax=true)}}
+            {{ forms.button(label='Add add-on', uicon='add', type='action', fit=true, size=6, action='sendAddonForm(this)', center=true) }}
+            <div id="allow_decimal_quantities" class="col s10 m4 hide">
+                <div style="color:red;"><p>{{ftext('Only whole numbers allowed')}}</p></div>
+            </div>
+        </form>
+        <div class="hide row">
+            {{ ui.divider('Details', small=true) }}
+            {{ ui.report_field('Total days added', ftext('<var>{}</var> days', '-', novar=true), class='hide total_days_display', size=6) }}
+            {{ ui.report_field('Unit Price', ftext('<var>{}</var> {}/unit', '-', Currency, novar=true), class='hide offer_price_display', size=6) }}
+            {{ ui.report_field('Total Price', ftext('<var>{}</var> {}', '-', Currency, novar=true), class='hide total_price_display', size=6) }}
+            {{ ui.report_field('As downpayment', ftext('<var>{}</var> {}', '-', Currency, novar=true), class='hide downpayment_display', size=6) }}
+            {{ ui.report_field('Deposit change', ftext('<var>{}</var> {}/unit', '-', Currency, novar=true), class='hide unit_downpayment_no_value_display', size=6) }}
+            {{ ui.report_field('Total deposit change', ftext('<var>{}</var> {} (as loan extension, no value added to contract)', '-', Currency, novar=true), class='hide downpayment_no_value_display', size=6) }}
+        </div>
+        {% if Lead %}
+        <form id="add_bundle_form" class="hide row">
+            <input type="hidden" name="lead_id" value="{{Lead.id}}" />
+            {{ forms.searchable_select('bundle_id', [], 'Choose addon bundle', required=true, labeltag='Add-on bundle', size="6", id="bundle_id_selector", ajax=config.AJAX_SELECT_CLASS, min_chars="0")}}
+            {{ ui.button(uicon='add', tooltip='Add add-on', inline=true, size=1, type='action', action='sendBundleForm()') }}
+        </form>
+        {%endif%}
+        <script>
+            var offers = {{offers_data|safe}};
+                
+            function updateCategoryFilter(data) {
+                $('#offer_id_selector').attr('data-category', data["id"])
+                $('#bundle_id_selector').attr('data-category', data["id"])
+            }
+
+            $('#addons_or_bundles').change(function () {
+                if ($(this).val() == 'addons') {
+                    $('#add_addon_form').removeClass('hide');
+                    $('#add_bundle_form').addClass('hide');
+                    $('#category_navigation').attr('data-with_results', "offers")
+                } else {
+                    $('#add_addon_form').addClass('hide');
+                    $('#add_bundle_form').removeClass('hide');
+                    $('#category_navigation').attr('data-with_results', "bundles")
+                }
+            })
+
+        </script>        
+        {% endif %}
+    {%endif%}
+    {% if Lead and (Lead.already_paid != 0 or not Lead.offer_editing_locked) %}
+        {% if not Lead.installed %}{{forms.button(('Edit' if Lead.offer_editing_locked else 'Save and lock')+' offer and add-ons', uicon='edit' if Lead.offer_editing_locked else 'save', size=5, fit=true, type='action', center=true, action="toggle_lock_addons()") }}{% endif %}
+        <script>
+            var newAddon = false;
+            $('.quantity_sold').keyup(function() {
+                newAddon = true;
+            })
+            function toggle_lock_addons(check=true) {
+                if({{ 'false' if Lead.offer_editing_locked else 'true' }} && newAddon && check){
+                    toast(PaygOps_LNG["ADDON_NOT_SAVED"]+'<br><a href="#" onclick="toggle_lock_addons(false)"> <strong> '+PaygOps_LNG["LOCK"]+'</strong></a>')
+                } else {
+                    sendDataToAPI({offer_editing_locked: {{ 'false' if Lead.offer_editing_locked else 'true' }} }, 
+                        '/leads/{{ Lead.id }}', {
+                            'bypassPrevention': true,
+                            'success_message': "{{ 'Unlocking...' if Lead.offer_editing_locked else 'Saving...' }}"
+                        }
+                    )
+                }
+            }
+        </script>
+    {% endif %}
+</div>
+{% endmacro %}

@@ -1,0 +1,196 @@
+{% extends "macros/list_base.html" %}
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'macros/form_macros.html' as forms with context %}
+{% import 'client_list_macro.html' as client_list with context %}
+{% import 'macros/filter_macros.html' as filter with context %}
+{% import 'macros/edit_task_macros.html' as edit_task with context%}
+
+{% block title %}{{ ftext('Clients List') }}{% endblock %}
+{% block page_title %}{{ ui.page_title('Clients','List') }} {% endblock %}
+
+{% block page_actions %}
+    {{ ui.badge('Selected', 'black', tooltip='Number of selected clients', class='d-none', id='selected-badge') }}
+    {% if not is_custom_app %}
+        {{ ui.button(link=url_for('admin.bulk_upload_task_view', entity="edit_clients"), uicon="edit_note", tooltip="Bulk Edit Clients", permission="EditClients", type='header-action') }}
+        {{ ui.button(uicon='map', tooltip='Open Client Map', link=url_for('client.clients_map', entity_id=entity.id if entity else none), type='header-action') }}
+        {{ ui.button(uicon='add', tooltip='Add Plan', modal="add-plan-modal", label='New Task', type='header-action') }}
+    {% endif %}
+    {{ filter.special_views_filter(views, view) }}
+{% endblock %}
+
+{% block header %}
+    {{ filter.entities_navigation_filter(entity) }}
+
+    <div {{ ui.collapsible_card_start(title='Filters', uicon='filter', icon_color='', active=any_filter([search, status, portfolio, client_group, tags])) }}>
+    <form id="filter_form_v2" action="" method="get" class="row">
+        {{ forms.input('tags', type='tags', label='Filter by Tags', placeholder='+Tags', size="5", value=tags, icon='tags') }} 
+        {{ forms.input('search', 'Search Clients', value=search, size="7", tooltip=ftext("You can search by ID, name, phone number")+(ftext(" or {}", GlobalSetting('CustomId')) if GlobalSetting('CustomIdEnabled') else "")) }}
+        {{ forms.select('status', valid_statuses, size="4", value=status, labeltag="Filter by status") }}
+        {{ forms.select('portfolio_id', portfolios, 'All', labeltag="Filter by portfolio", size="3", value=portfolio.id if portfolio else none, source="portfolios") }}
+        {{ forms.select('client_group_id', client_groups, 'All', icon='group', labeltag="Filter by client group", size="3", value=client_group.id if client_group else none, source="client_groups") }}
+        {{ filter.filter_buttons() }}
+    </form>
+    </div {{ ui.collapsible_card_end() }}>
+{% endblock %}
+
+{% block table %}
+    {{ client_list.client_table(pagination.objects) }}
+
+    <div {{ ui.modal_start('add-plan-modal','New Task') }}>
+        <form id="tag_new" action="" method="POST">
+            <div class="modal-body">
+                <div class="row">
+                    {{ edit_task.edit_task_form(task=none, force_assign_task=False, selected_clients=True) }}
+                </div>
+            </div>
+            <div class="modal-footer">
+                {{ forms.button(uicon='save', label='Save', color='danger', tooltip='Add Plan', action='async_post', async_url='/tasks', id='save-task-button', disabled=True) }}
+                {{ ui.modal_close_button() }}
+            </div>
+        </form>
+    </div {{ ui.modal_end() }}>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const badge = document.getElementById('selected-badge');
+    const selectAll = document.getElementById('select_all');
+    const saveButton = document.getElementById('save-task-button');
+    const modalTrigger = document.querySelector('[data-bs-target="#add-plan-modal"]');
+    const label = document.getElementById('assigned-clients-label');
+    const inputs = document.getElementById('client-id-hidden-inputs');
+    const selectableClientFormGroup = document.getElementById('selectable-client-form-group');
+    const selectableClientSelectWrapper = document.getElementById('selectable-client-select-wrapper');
+    const clientSelector = $('#client-selector');
+
+document.addEventListener('DOMContentLoaded', function () {
+
+    function getSelectedClients() {
+        return [...document.querySelectorAll('.client-checkbox:checked')];
+    }
+
+    function updateSelectedCount() {
+        const selected = getSelectedClients();
+
+        badge.innerText = `Selected ${selected.length}`;
+        badge.classList.toggle('d-none', selected.length === 0);
+    }
+
+    function handleClientSelectionChange() {
+        updateSelectedCount();
+        if (modalTrigger?.getAttribute('aria-expanded') === 'true') {
+            updateModalClientData();
+        }
+    }
+
+    function updateModalClientData() {
+        const selected = getSelectedClients();
+        inputs.innerHTML = '';
+
+        if (selected.length === 0) {
+            label.innerText = "No clients selected";
+
+            selectableClientFormGroup.querySelector('.form-label').hidden = true;
+            selectableClientSelectWrapper.querySelector('select').hidden = false;
+            selectableClientSelectWrapper.hidden = false;
+
+            return;
+        }
+
+        selectableClientFormGroup.hidden = false;
+        selectableClientSelectWrapper.querySelector('select').hidden = true;
+        selectableClientSelectWrapper.hidden = true;
+
+        const selected_clients = selected.map(cb => ({
+            id: cb.closest('tr').querySelector('td:nth-child(2)')?.innerText?.trim(),
+            name: cb.closest('tr').querySelector('td:nth-child(3)')?.innerText?.trim()
+        }));
+        
+        createClientArrayInput(selected_clients);
+    }
+
+    if (selectAll) {
+        selectAll.addEventListener('change', function () {
+            document.querySelectorAll('.client-checkbox').forEach(cb => cb.checked = this.checked);
+            handleClientSelectionChange();
+        });
+    }
+
+    document.querySelector('tbody')?.addEventListener('change', function (e) {
+        if (e.target.classList.contains('client-checkbox')) {
+            handleClientSelectionChange();
+        }
+    });
+
+    modalTrigger?.addEventListener('click', function () {
+        updateModalClientData();
+    });
+
+    updateSelectedCount();
+});
+
+function createClientArrayInput(selected_clients) {
+    // Clear any existing inputs to avoid duplicates
+    const inputsElements = inputs.querySelectorAll("input");
+    inputsElements.forEach(input => input.remove());
+
+    // Update hidden input with selected client value
+    const hidden = document.createElement('input');
+    const ids = selected_clients.map(client => Number(client.id));
+    const client_names = selected_clients.map(client => ` ${client.name} (ID: ${client.id}) `);
+
+    hidden.type = 'hidden';
+    hidden.name = 'client:array';
+    hidden.value = JSON.stringify(ids);
+    hidden.setAttribute('client_names', client_names);
+    hidden.setAttribute('selected_clients', JSON.stringify(selected_clients));
+    hidden.required = true;
+
+    // Update label displaying selected clients
+    label.innerText = selected_clients.length === 1
+            ? selected_clients[0].name
+            : `${selected_clients.length} Clients Selected`;
+    label.setAttribute("data-toggle", "tooltip");
+    label.setAttribute("data-placement", "bottom");
+    label.setAttribute("title", client_names);
+
+    inputs.appendChild(hidden);
+
+    saveButton.disabled = false;
+}
+  
+function selectClient(action) {  
+    const selectionRendered = selectableClientSelectWrapper.querySelector(".select2-selection__rendered");  
+    const selectedValue = clientSelector.val();
+    const selectionRenderedTitle = selectionRendered.getAttribute("title");
+    const inputElement = inputs.querySelector("input");
+    const previousSelectedClients = inputElement ? JSON.parse(inputElement.getAttribute("selected_clients")) : [];
+
+    if(selectedValue && selectionRenderedTitle && action == 'add') {
+        const newSelectedClients = [
+            {   id : selectedValue,
+                name : selectionRenderedTitle.split(" (ID")[0]
+            }
+        ]
+        
+        selectedClients = [...newSelectedClients, ...previousSelectedClients];
+        uniqueSelectedClients = [...new Map(selectedClients.map(item => [item.id, item])).values()]
+        
+        createClientArrayInput(uniqueSelectedClients);
+    } else if (selectedValue && action == 'remove') {
+        selectedClients = previousSelectedClients.filter(
+            item => {
+                return item.id !== selectedValue
+            }
+        )
+
+        createClientArrayInput(selectedClients);
+
+        // Clear select value if item is removed
+        clientSelector.val(null).trigger('change');
+    }
+}
+
+</script>
+{{ edit_task.edit_task_script() }}
+{% endblock %}

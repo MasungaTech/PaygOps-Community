@@ -1,0 +1,26 @@
+{% extends 'transaction_base.html' %}
+
+{% block title %}{{ ftext('Cancel Contract') }}{% endblock %}
+
+{% block form %}
+    {{ transaction.device_selector_macro(request_code=true) }}
+    {{ forms.checkbox(
+        name='duplicate_lead:boolean', 
+        label="Create a duplicate of this contract's lead and transfer status, payments and generation date information to the new lead", 
+        uicon="info", 
+        icon_tooltip="This is helpful if the contract was registered by mistake but the lead still wants to continue the process.<br> If the lead does not want to continue, leave it unchecked", 
+        checked=false
+    )}}
+    {{ forms.checkbox(
+        name='send_sms:boolean', 
+        label="After being cancelled, send an SMS message to the client", 
+        uicon="info", 
+        icon_tooltip="This is helpful if you need to inform the client about the cancellation.<br> If you don't want an SMS to be sent, leave it unchecked", 
+        checked=false
+    )}}
+    {{ forms.input('note', 'Note', type="textarea", size=6 if lead is defined else 12, max=40) }}
+{% endblock %}
+
+{% block button %}
+    {{ ui.button('Cancel Contract', color='danger', class='transaction_action', action="validateAndSubmit('/api/v1/transaction_requests/cancel/');") }}
+{% endblock %}

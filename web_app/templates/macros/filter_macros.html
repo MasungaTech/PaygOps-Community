@@ -1,0 +1,156 @@
+{% import 'macros/form_macros.html' as forms with context %}
+
+{% macro special_views_filter(views, selected_view, param='view', translate=true) %}
+<button class="btn btn-danger dropdown-toggle ms-2" type="button" id="special-views-dropdown" data-trigger="hover" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+    {{ ui.icon(views[selected_view][0], 'dropdown-button-icon') }} {{ftext(views[selected_view][1]) if translate else views[selected_view][1] }}
+</button>
+<ul class="dropdown-menu dropdown-menu-end" aria-labelledby="special-views-dropdown">
+    {% for view in views %}
+    <li>
+        <a class="dropdown-item d-flex align-items-center {%if view == selected_view%}active{%endif%}" href="javascript:void(0);" onclick="changeQueryParameters({'{{param}}': '{{view}}'})">
+            {{ ui.icon(views[view][0], 'dropdown-list-icon') }} {{ftext(views[view][1]) if translate else ftext(views[view][1])}}
+        </a>
+    </li>
+    {% endfor %}
+</ul>
+{% endmacro %}
+
+
+{% macro entities_navigation_filter(selected_entity, card=true, show_user=false) %}
+<div class="card mb-4">
+<form class="row mx-2 mt-2 mb-4 entities-filter-wrapper">
+    {{ entities_navigation_filter_element(4, selected_entity) }}
+    {{ entities_navigation_filter_element(3, selected_entity) }}
+    {{ entities_navigation_filter_element(2, selected_entity) }}
+    {{ entities_navigation_filter_element(1, selected_entity) }}
+    {{ entities_navigation_filter_element(0, selected_entity) }}
+    {% if show_user %}
+    {{ 
+        forms.select(
+            name='user_id', labeltag='User', uicon='user', onchange='updateUserFilter(this)',
+            choices=users, value=user.id if user else none, size=4, source='users',
+            class='nochangeonload'
+        ) 
+    }}
+    {%endif%}
+</form>
+</div>
+<script>
+    
+    
+    function updateEntityFilter(filter) {
+        var entity_id = $(filter).val();
+        if (!entity_id) {
+            entity_id = $(filter).parents('.entity-level-wrapper').prev().find('.entity-level-filter select').val();
+        }
+        changeQueryParameters({
+            "entity_id": entity_id || ''
+        });
+    }
+    function updateUserFilter(filter) {
+        var user_id = $(filter).val();
+        changeQueryParameters({"user_id": user_id || ''});
+    }
+</script>
+{% endmacro %}
+
+{% macro entities_navigation_filter_element(level, selected_entity) %}
+{% set max_level = current_user.get_max_visible_level() %}
+{% if level <= max_level %}
+{% set hide_class = 'hide' if max_level != level and (not selected_entity or selected_entity.level > level+1) else '' %}
+{% set parent_id = selected_entity.id if selected_entity and level == selected_entity.level-1 else none %}
+{% set data_attrs = {"parent_id": parent_id} if parent_id else {} %}
+{% set selected = selected_entity.get_ancestor_of_level(level) if selected_entity else none %}
+<div class="entity-level-wrapper{% if not is_custom_app %} col {% else %} col-12 col-md-6 {% endif %}">
+
+    {% set level_name = OperationalEntitiesHelper.get_level_name(level) %}
+    {{ forms.select(
+        name=level_name,
+        label="All",
+        icon='subdirectory_arrow_right',
+        labeltag=ftext('Filter by {}', GlobalSetting('OperationalEntities')[level].name|notranslate),
+        source="entity",
+        ajax_url=url_for('entities.list_entities_for_select', level=level_name),
+        ajax=config.AJAX_SELECT_CLASS,
+        choices=[(selected.id, selected.name)] if selected else [],
+        value=selected.id if selected else none,
+        size="entity-level-filter "+hide_class,
+        class='nochangeonload',
+        placeholder="All",
+        clearable=true,
+        min_chars=0,
+        data_attrs=data_attrs,
+        onchange='updateEntityFilter(this)',
+    ) }}
+</div>
+{%endif%}
+{% endmacro %}
+
+{% macro apply_filters_button(filter_action='') %}
+{{ forms.button(uicon='filter', tooltip='Apply filters', color='danger', inline=false, class='filter-button ms-2 float-end', action=filter_action) }}
+{% endmacro %}
+
+{% macro clear_filters_button() %}
+{{ forms.button(uicon='clear', tooltip='Clear filters', color='danger', inline=false, class='filter-button ms-2 float-end', link=request.path) }}
+{% endmacro %}
+
+{% macro filter_buttons() %}
+<div class="align-self-center flex-grow-1 pt-1" style="min-width: fit-content; width: unset;">
+    {{ clear_filters_button() }}
+    {{ apply_filters_button() }}
+</div>
+{% endmacro %}
+
+{% macro location_picker_modal(list_name, args={}) %}
+<!-- Modal Structure -->
+<div id="modal1" class="modal modal-large">
+    <div class="modal-content">
+        <h4>View in selected {{GlobalSetting('OperationalEntities')[2].name}}</h4>
+        <br>
+        <div class="input-field row">
+            <select name="shop" id="shop" class="select_2 reqselect" style="width: 100%;">
+                <option value="default" selected disabled>Choose {{GlobalSetting('OperationalEntities')[2].name}}</option>
+                {% for shop in current_user.get_shops_list() %}
+                <option value="{{ shop[0] }}">{{ shop[1] }} ({{ shop[0] }})</option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>
+    <div class="modal-footer">
+      <a href="#" class="modal-close waves-effect waves-red btn-flat left-align">Close</a>
+      <a onclick="changeView();" class="btn red waves-effect waves-red clickable-item">Change View</a>
+    </div>
+</div>
+<script>
+
+function changeView() {
+    var selected_id = $("#shop").val();
+    if(selected_id) {
+        var shop_url_base = "{{ url_for(list_name, path='shop', shop_id=888888, **args) }}";
+        window.location.href = shop_url_base.replace('888888', selected_id);
+    } else {
+        error_toast("{{ftext('Please select a {} to filter.', GlobalSetting('OperationalEntities')[2].name)}}");
+    }
+}
+</script>
+{%- endmacro %}
+
+
+{% macro time_filter(timeFilter, default='3', size='5') -%}
+{{ forms.select('time_filter', labeltag='Filter by date', choices={'3': 'In the last 3 days', '7': 'In the last 7 days', '14': 'In the last 14 days', '30': 'In the last 30 days', '90': 'In the last 90 days', 'forever': 'All Times'}, value=timeFilter, size=size) }}
+{%- endmacro %}
+
+{% macro billing_dropdown(bills, current_bill) %}
+<button class="btn btn-danger dropdown-toggle ms-2" href='#' type="button" id="dropdown-bills" data-trigger="hover" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+    {{ ui.icon('billing', 'tiny left') }}
+    {{ ftext(current_bill.date.strftime('%B')) }} {{ current_bill.date.strftime('%Y')}}
+</button>
+<ul class="dropdown-menu dropdown-menu-end" aria-labelledby="dropdown-bills">
+    {% for bill in bills %}
+    <li>
+        <a class="dropdown-item d-flex align-items-center" 
+           href="{{ url_for('admin.billing', month=bill.date.strftime('%m'), year=bill.date.strftime('%Y')) }}">{{ ftext(bill.date.strftime('%B')) }} {{bill.date.strftime('%Y')}}</a>
+    </li>
+    {% endfor %}
+</ul>
+{% endmacro %}

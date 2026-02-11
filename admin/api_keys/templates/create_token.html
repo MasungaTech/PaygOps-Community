@@ -1,0 +1,42 @@
+{% extends "macros/base.html" %}
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'macros/form_macros.html' as forms with context %}
+
+{% block title %}{{ ftext('API Keys') }}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('Admin', 'API keys') }}{% endblock %}
+
+{% block content %}
+
+<div {{ ui.card_start(title='Create API Key') }}>
+    <form id="MainForm" action="" method="post" class="row">
+        {{forms.select('user_id', users_list, labeltag='Choose user for the Token', size="6", required=true, translate=false)}}
+        {{forms.input('validity_seconds', 'Number of seconds before token expiry', placeholder='Default 3600 (1h)', type="number", size="6")}}
+        {{forms.button('Create token', fit=true, size=6, center=true, type="action", action='async_post', async_url='/api_key/web', success_action="showAPIKeyModal")}}
+    </form>
+</div {{ ui.card_end() }}>
+<div {{ ui.modal_start('api-key', 'API Key') }}>
+    {{ui.info_card(uicon='info', color='warning', text=ftext('This API Key is only shown once. If you lose it, you will have to create a new one.'))}}
+    <form>
+        <div class="modal-body" style="overflow-wrap: break-word;">
+        </div>
+        <div class="modal-footer">
+            {{ ui.modal_close_button() }}
+            {{ ui.button(uicon='content_paste', label='Copy to clipboard', type='action', action='copyContent()') }}
+        </div>
+    </form>
+</div {{ ui.modal_end() }}>
+
+<script>
+function showAPIKeyModal(data, options) {
+    $("#api-key .modal-body").text(data.api_key);
+    $('#api-key').modal('show')
+}
+
+function copyContent() {
+    var copyText = $("#api-key .modal-body").text();
+    copyToClipboard(copyText, 'API Key');
+}
+
+</script>
+{% endblock %}

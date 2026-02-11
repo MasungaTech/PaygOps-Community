@@ -1,0 +1,133 @@
+{% extends "macros/list_base.html" %}
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'macros/form_macros.html' as forms with context %}
+{% import 'macros/filter_macros.html' as filter with context %}
+
+
+{% if User is not defined %}
+  {% set Title='Add User' %}
+  {% set Action='Add' %}
+  {% set person=EmptyObject %}
+  {% set User=EmptyObject %}
+  {% set adding = true %}
+  {% set async_url='/users' %}
+{% else %}
+  {% set Title='Edit User' %}
+  {% set Action='Edit' %}
+  {% set person=User.person %}
+  {% set adding = false %}
+  {% set async_url='/users/'+User.id|string %}
+{% endif %}
+
+{% block title %}{{ Title }}{% endblock %}
+{% block page_title %}{{ ui.page_title('User', Action, object=User if not adding else none) }}{% endblock %}
+
+{% block content %}
+{% set entities = GlobalSetting('OperationalEntities') %}
+
+{{ ui.info_card(uicon='info', text=ftext('Selecting entities that are not {} can impact integrations
+using the old API endpoints. Please check <a href="{}#tag/Locations">API Documentation</a>
+for the new Operational Entities API endpoints and make sure integrations are updated to avoid errors. If there are
+integrations using deprecated endpoints we recommend choosing only {} as the reference entity.', entities[2].names, url_for('admin.api_docs'), entities[2].names),
+color='secondary') }}
+
+<div {{ ui.card_start() }}>
+  <form class="row card-row">
+    {{ forms.select('role_id:number', role, size="6", id="auth_level", labeltag="Role",
+    uicon="permission", required=true, value=User.AuthorizationLevel.id if (User.AuthorizationLevel is defined and User.AuthorizationLevel) else none, source='role') }}
+    {{ forms.select('reference_entity_id:number', shops, size="6", labeltag="Reference Entity",
+    uicon="shop", required=true, value=User.shop.id if (User.shop is defined and User.shop) else none, source='shops') }}
+
+    {{ forms.input('name', 'First Name', person.name, uicon='account_circle', required=true, size=6) }}
+    {{ forms.input('surname', 'Surname', person.surname, uicon='account_circle', required=true, size=6) }}
+
+    {{ forms.select('gender', {'male': 'Male', 'female': 'Female'}, labeltag='Gender', 
+      value=User.person.get_gender_name(lower=true) if not adding else none, uicon="wc", size=6) }}
+    {{ forms.input('birthdate', 'Birth Date', value=User.person.birthdate if not adding else none, max_val=NOW, type='datepicker', icon='insert_invitation', size=6) }}
+
+    {{ forms.input_phones(user=User, required=false) }}
+    {{ forms.input('email', 'Email', User.email, uicon='email', valid='email', size=6) }}
+    {{ forms.input('username', 'Username', User.username, uicon='user', size=6, required=true,
+      btn_icon='email', btn_action='copyEmail()', btn_tooltip='Use email as username',
+      btn2_icon='phone', btn2_action='copyPhone()', btn2_tooltip='Use phone number as username') }}
+
+    {% if not (GlobalSetting('disablePasswordLogin') and GlobalSetting('disablePasswordLoginMobile')) %}
+    {{ forms.checkbox('auto_generate_password:boolean', 'Autogenerate password and send it by email' if adding else 'Autogenerate new password and send it by email', labeltag='Auto-generate password', size=6,
+      onchange='checkBoxToggleForms(this, [], ".password_form")') }}
+    {{ forms.input('password', 'Password' if adding else 'Change Password', type='password', uicon='lock', notautocomplete=true, min=4, size=6, required=adding, selector_class='password_form') }}
+    {{ forms.input('password_confirm', 'Confirm Password' if adding else 'Confirm Changed Password', type='password', uicon='lock', min=4, size=6, required=adding, selector_class='password_form') }}
+    {% endif %}
+    
+    {{ forms.input('mobile_pin:number', 'Mobile App PIN' if adding else 'Change Mobile App PIN', uicon='phone_android', class="no-hash", size=6, id='pin', min=4, max=4) }}
+    {{ forms.input('login_expiration_date', 'Login expiration date', value=User.loginExpirationDate, type='datepicker',
+    uicon='insert_invitation', size=6) }}
+
+    {{ forms.select('sms_language', USERS_SMS_LANGUAGES.items(), labeltag='Preferred Web and Messages Language',
+    uicon="language", size=6, value=person.sms_language) }}
+
+    {{ forms.select('organization', ORGANIZATION_LIST|listMapper, size="6", labeltag="Choose
+    Organization",value=User.organization,uicon="recent_actors")}}
+
+    {{ forms.input('cash_collection_limit:number', 'Cash collection limit (leave empty to use platform default)',
+    valid='float', value=User.cash_collection_limit, uicon='cash', size=6) }}
+
+    {{ forms.checkbox('create_lead_generator:skip', labeltag='User is lead generator', label='Create associated Lead Generator profile', value='True', 
+      size=6, checked=true, visible=adding, onchange='checkBoxToggleForms(this, ".lg_type_form")') }}
+    {{ forms.select('lead_generator_type', [lg_types, 'name', 'name']|dictMapper, size="6", labeltag="Lead Generator Type", uicon="bookmark", visible=adding, selector_class='lg_type_form', required=true) }}
+
+    {{ forms.input('bad_login_count:number', 'Number of invalid logins (set to 0 to remove block)', value=User.bad_login_count,
+    uicon='highlight_off', valid='int', size=6, visible=(not adding) and current_user.is_admin()) }}
+
+    {% if current_user.is_super_admin() %}
+      {{ forms.checkbox('api_access_only:boolean', 'Restrict this user to only the API documentation', labeltag='Restrict to API documentation', size=6, checked=User.api_access_only) }}
+    {% endif %}
+
+    {{ forms.button(label=Action+' User', uicon='edit', size=4, center=true, fit=true, type='action',
+        action='async_post', async_url=async_url, redirect_url='/users/', redirect_append='id') }}
+
+  </form>
+</div {{ ui.card_end() }}>
+
+{% if not adding %}
+<div {{ ui.card_start(title='Two-Factor Authentication', uicon='security') }}>
+  <div class="row">
+    <div class="col-md-8">
+      {% if User.two_factor_enabled %}
+        {{ ui.info_card(title='Current Status', text='Enabled - 2FA is active for this user' + (' (since '+User.two_factor_setup_time.strftime('%d/%m/%Y at %H:%M')+')' if User.two_factor_setup_time else ''), color='success', uicon='check_circle') }}
+      {% else %}
+        {{ ui.info_card(title='Current Status', text='Disabled - 2FA is not active for this user.', color='warning', uicon='key_off') }}
+      {% endif %}
+    </div>
+    <div class="col-md-4">
+      <div class="d-grid gap-2">
+        {% if User.two_factor_enabled %}
+         <form action="{{ url_for('user.reset_two_factor', user_id=User.id) }}" method="post">
+          {{ forms.button(label=('Reset 2FA' if GlobalSetting('enforceTwoFactorForAllUsers') else 'Disable 2FA'), uicon='encrypted_off', size=12, fit=true, type='action', disabled=false) }}
+
+         </form>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div {{ ui.card_end() }}>
+{% endif %}
+{% endblock %}
+    
+{% block scripts %}
+<script type="text/javascript" src="/static/js/sha256.js?version={{ COMMIT_SHA }}"></script>
+<script>
+function copyPhone() {
+  var phone = $('#preferred_phone_number').val();
+  var PREFIX = "+" + {{ GlobalSetting('PhoneExtension') }};
+  if (phone.startsWith(PREFIX)) {
+    phone = phone.slice(PREFIX.length);
+  }
+  $('#username').val(phone);
+}
+
+function copyEmail() {
+  var email = $('#email').val();
+  $('#username').val(email);
+}
+</script>
+{% endblock %}

@@ -1,0 +1,197 @@
+{% extends 'macros/base.html' %}
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'macros/form_macros.html' as forms with context %}
+{% import 'addon_offer_macros.html' as addons with context %}
+{% import 'addon_categories_macros.html' as addons_categories with context %}
+
+{% if offer is not defined %}
+    {% if not based_on %}
+        {% set action='Add' %}
+        {% set Title=ftext('Add Add-On Offer') %}
+        {% set object = none %}
+    {% else %}
+        {% set action='Duplicate' %}
+        {% set Title=ftext('Duplicate Add-on Offer')%}
+        {% set object = based_on %}
+    {% endif %}
+    {% set offer=EmptyObject %}
+    {% set async_url='/add_on_offers' %}
+    {% set editing = false %}
+    {% set redirect_url='/contracts/addons_offers/' %}
+{% else %}
+    {% set Title=ftext('Edit Add-On Offer: {}', offer.id, novar=true) %}
+    {% set action='Edit' %}
+    {% set async_url='/add_on_offers/' + offer.id|string %}
+    {% set editing = true %}
+    {% set object = offer %}
+    {% set redirect_url='/contracts/addons_offers/' %}
+{% endif %}
+
+{% block title %}{{ Title }}{% endblock %}
+{% block page_title %}{{ ui.page_title('Add-On Offers', action=action, object=object) }}{% endblock %}
+
+{% block content %}
+{{ ui.info_card(type='info', title='Important Notice', text=ftext('The use of add-ons increases contract value and incurs usage fees. For more details about the fees for add-ons and contract, ask the support team or refer to your SaaS contract.'))}}
+
+{% if based_on %}
+    {{ ui.info_card(type='info', text=ftext('You are creating a new Add-on offer based on {}', ui.addon_offer_link(based_on))) }}
+{% endif %}
+
+<form id="addonOfferForm" action="" method="post" class="row">
+
+<div {{ ui.card_start(title='Basic information' , uicon='offer', body_class='row') }}>
+    {% if based_on %}
+        <input type="hidden" name="based_on_id:number" value="{{based_on.id}}" />
+    {% endif %}
+    {{ forms.input('name', 'Name', required=true, tooltip='The full name of the offer', value=(based_on.name + ' Copy' if based_on else offer.name), size=6 )}}
+    {{ forms.input('code', 'Code', required=true, valid="nospaces", value=(based_on.code + '_COPY' if based_on else offer.code), tooltip='The short code of the offer, used for quick identification in lists (must be unique).', size=6) }}
+    {{ addons_categories.addons_categories_navigation(based_on.category if based_on else offer.category, tooltip="Pick category: ", icon_tooltip='Choose a category', size=6, input=true) }}
+    {% if GlobalSetting('NPGDeviceEnabled') %}
+    {{ forms.checkbox('linked_to_product', labeltag='Linked to a product', label="The add-on offer requires a product", tooltip='This add-on offer requires that a product is selected for each add-on, you can specify product type and sub-type if enabled',
+        type='boolean', checked=offer.linked_to_product, size='6', onchange='checkBoxToggleForms(this, ".linked_to_product")') }}
+    {{ forms.select(
+        'product_type',
+        device_types,
+        value='NPG',
+        disabled=true,
+        size=6,
+        labeltag='Required Product Type',
+        class='onloan ontimebased onusagebased onlumpsum',
+        tooltip='You can only link non paygo devices to add-ons. ',
+        onchange='updatedProductType()',
+        translate=false,
+        selector_class='linked_to_product'
+    ) }}
+    
+    {{ 
+        forms.select(
+            'product_sub_type_id',
+            product_sub_types,
+            id="product_sub_type",
+            value=offer.product_sub_type.id if offer.product_sub_type else None,
+            size=6, 
+            ajax=config.AJAX_SELECT_CLASS,
+            source="product_sub_types",
+            min_chars=0,
+            onchange="updatedProductSubType()",
+            labeltag='Required Product Sub-Type',
+            class='onloan ontimebased onusagebased onlumpsum',
+            tooltip='Select the required product sub-type for this offer.',
+            translate=false,
+            selector_class='linked_to_product'
+        ) 
+    }}
+    {% endif %}
+
+
+</div {{ ui.card_end() }}>
+
+<div {{ ui.card_start(title='Payment Terms', uicon='payment', body_class="row", actions = ui.button(modal='unlock-modal', label='Unlock Editing', uicon="lock_open", type="action") if offer else '') }}>
+    {{ forms.input('price'+(':skip' if editing else ''), ftext('Unit Price ({})', Currency), required=true, valid="float",
+    value=based_on.last_version.price if based_on else (offer.last_version.price if offer else ''), disabled="true" if offer else '',
+    tooltip='The price of the add-on per unit sold. In case of an hourly service, the price per hour.', 
+    size=6) }}
+    
+    {{ forms.select('type', addon_types, required=true, size=6, value=based_on.type if based_on else (offer.type if offer else ''), 
+        type='skip' if editing else '',
+        labeltag="Type", tooltip="Type for this offer.", disabled="true" if offer else '',
+        onchange="selectToggleFormsMap(this, 'value', {'Loan Extension': '.loan_modes', 'Lump-Sum': '.lump_sum'})") }}
+   
+    {{ forms.select('loan_mode', loan_modes, required=false, size=6, 
+        type='skip' if editing else '',
+        value= based_on.loan_mode if based_on else (offer.loan_mode if offer else ''), id="loan_mode",
+        label='Duration and Reference Pricing', disabled="true" if offer else '',
+        labeltag="Loan extension options*", tooltip="Type of loan extension for this offer.", errormsg="Loan extension
+        mode is required", selector_class='loan_modes') }}
+
+    {{ forms.checkbox('enforce_extension_limit', labeltag='Add-ons of this offer count towards loan extension limit', label='Add-on count towards limit',
+        id="enforce_extension_limit", 
+        type='skip' if editing else 'boolean',
+        selector_class='loan_modes', size=6,
+        checked=based_on.last_version.enforce_extension_limit if based_on else (offer.last_version.enforce_extension_limit if offer else true), disabled="true" if offer else '', value=true) }}
+
+    {{ forms.checkbox('downpayment_required:skip', labeltag='Sales at lead level require downpayment',
+        id="downpayment_required", selector_class='loan_modes', label='Downpayment required',
+        checked=based_on.last_version.downpayment if based_on else (offer.last_version.downpayment is not none or offer.type ==
+        AddOnType.deposit_change if offer else ''),disabled="true" if offer else '', size=6,
+        onchange='checkBoxToggleForms(this, ".downpayment_required")') }}
+    
+    {{ forms.input('downpayment'+(':skip' if editing else ''), ftext('Downpayment ({})', Currency), required=true, valid="float",
+        value = based_on.last_version.downpayment if based_on else (offer.last_version.downpayment if offer else ''),
+        selector_class='downpayment_required',
+        tooltip='This downpayment will only be applied to pre-sales and will be ignored if an addon is sold to an
+        existing client, <br>
+        adding the full value of the add-on to the contract. If a downpayment is paid for pre-sales, <br>
+        this quantity will be extracted from the total amount of the add-on that will affect the contract. <br>
+        E.g.: Total amount: 60000, downpayment: 10000. Then the total amount that will affect the contract will be
+        50000.<br>
+        The downpayment is applied per item sold and must be lower than the unit price. ', disabled="true" if offer else '', size=6) }}
+
+    {{ forms.checkbox('allow_decimal_quantities', labeltag='Allow decimal quantities', label='Decimal quantities allowed', id="allow_decimal_quantities",
+        type='skip' if editing else 'boolean',
+        checked=offer.allow_decimal_quantities, disabled="true" if offer and offer.addons_count else '' if offer else '', size='6') }}
+    {% if GlobalSetting('FeatureToggles').get('OffTaking', False) %}
+        {{ forms.checkbox('purchasing_addon', labeltag='Purchasing add-on', label='Make add-on offer a purchasing add-on', id="purchasing_addon",
+            type='skip' if editing else 'boolean', selector_class='lump_sum',
+            checked=offer.purchasing_addon, disabled="true" if offer else '', size='6', tooltip='When applied to a contract this add-on will increase the net 
+            paid by the value of the add-on and reduce the remaining due of the contract. It is typically used when buying goods from clients') }}
+    {% endif %}
+</div {{ ui.card_end() }}>
+
+<div {{ ui.card_start(title='Approval and Availability' , uicon='offer' , body_class='row' ) }}>
+        {{ ui.info_card(type='info', text='If no entity is selected, it will be available for sales in all entities', in_card=true, class='mt-2')}}
+
+        {{ forms.select('entities_allowed_for_leads_ids',entities_leads,uicon='shop', type='number',
+        values=entities_allowed_for_leads if editing else [], max_answers=1000,size=6,
+        size_class='lead-entities',labeltag='Operational Entities allowed for sales',source='entities_leads')}}
+        
+        {{forms.select('entities_allowed_for_contracts_ids', entities_contracts, type='number', uicon='shop', 
+        values=entities_allowed_for_contracts if editing else [], max_answers=1000,
+        size=6,size_class='lead-entities',labeltag='Operational Entities allowed for registration',source='entities_contracts')}}
+
+        {{ forms.select('need_approval:boolean', {"true": 'Yes', "false": 'No'}, id="need_approval", required=true,
+        size=6,
+        value="true" if offer.need_approval else "false", labeltag="Needs Approval") }}
+</div {{ ui.card_end() }}>
+
+{{ ui.button(uicon='save', size_class='pt-2', label=action+' Addon Offer', type='action', fit=true, size=6, center=true, disabled=false if based_on else none,
+        action='async_post', async_url=async_url, redirect_url=redirect_url, redirect_append='id') }}
+
+</form>
+
+{% if offer %}
+<div {{ ui.modal_start('unlock-modal', 'Unlock add-on offer pricing fields') }}>
+    <form>
+        <div class="modal-body">
+            {{ ui.info_card('This add-on offer has been already used and the pricing fields cannot be modified. If you continue, it will create a new version of this add-on offer.', uicon='warning') }}
+        </div>
+        <div class="modal-footer">
+            {{ ui.modal_close_button() }}
+            {{ ui.button('Create new Version', uicon='add', type='action', link=url_for('contract.add_addon_offer_version', offer_id=offer.id))}}
+        </div>        
+    </div>
+    </form>
+</div {{ ui.modal_end() }}>
+{% endif %}
+<script>
+    const modelTypeMapping = {
+        {% for model in product_models_data -%}
+        {{model.id}}: "{{model.device_type}}"{%if not loop.last%},{%endif%}
+        {% endfor -%}
+    }
+    function updatedProductSubType() {
+        let device_type_selector = $('#product_type')
+        let model = $('#product_sub_type').val();
+        if (model) device_type_selector.val(modelTypeMapping[model]).change();
+    }
+    function updatedProductType() {
+        var device_type_selector = $('#product_type')
+        var selected_value = device_type_selector.val()
+        $('#product_sub_type').attr('data-device_type', selected_value)
+        let selected_model = $('#product_sub_type').val();
+        if (selected_model && selected_value && modelTypeMapping[selected_model] != selected_value) {
+            $('#product_sub_type').val('').change();
+        }
+    }
+</script>
+{% endblock %}
