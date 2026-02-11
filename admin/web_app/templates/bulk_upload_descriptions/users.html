@@ -1,0 +1,19 @@
+{{ ftext('
+<p>This section is used to upload a list of users with a CSV file. Once the list is uploaded all users will be added and have access to the platform. </p>
+
+<p>Before uploading the CSV file, reference entities and user roles must be set up on the platform.</p>
+
+<p>The file should be a CSV using "," as a delimiter. It should include a first line of headers with the data in the following order: <br>
+
+<br>Role, Reference Entity, First Name, Surname, Username, Email, Login Expiration Date, Cash collection limit, Phone Numbers, Web & Messages Language, Organization, Mobile App, PIN, Create Lead Generator, Lead Generator Type, Preferred Password Communication. <br><br>
+
+<p> A template can be downloaded <a href="{}?version={}">here.</a></p>
+
+<p>
+    <strong>Please note:</strong>
+    <br> - Mandatory fields are: Role, Reference Entity, First Name, Surname, Username, Email or phone number, Preferred password communication, Lead Generator Type.
+    <br> - The Create Lead Generator column can only accept boolean values TRUE or FALSE. If FALSE, the Lead Generator Type is not mandatory.
+    <br> - Format of the Login expiration date should be: dd/mm/yyyy
+    <br> - Web & Messages Language can either be English or French
+    <br> - The Password for each user will be auto generated and sent to either an email address or a phone number. Therefore, Preferred Password Communication should be set to either “Email” or “Phone number”.
+</p>', url_for('user.static', filename='UsersbulkUploadTemplate.csv'), COMMIT_SHA, novar=true) }}

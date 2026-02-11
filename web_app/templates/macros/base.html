@@ -1,0 +1,401 @@
+{% extends "macros/base_core.html" %}
+
+{% block head_scripts %}
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-SC26GDEWDY"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-SC26GDEWDY');
+</script>
+<!-- Helpers -->
+<script>
+    // We init the global variables from settings
+    DEBUG_MODE = {{ 'true' if config.ENV_VAR == 'DEV' else 'false' }};
+    var JWTKey = "{{ jwt_token }}";
+    var PAYGAPIURL= "{{ payg_api_url }}";
+    var AJAX_SELECT_CLASS = "{{config.AJAX_SELECT_CLASS}}";
+    var currencySymbol = "{{ GlobalSetting('CurrencySymbol') }}";
+    var MAX_INT_AMOUNT = {{config.MAX_INT_AMOUNT}};
+    var MAX_FLOAT_AMOUNT = {{config.MAX_FLOAT_AMOUNT}};
+    var googleMapsLoaded = false;
+    var maps = [];
+</script>
+<script src="/static/custom/js/config.js"></script>
+{% set lng = current_user.person.get_language(web=True).lower() %}
+
+{% if reload_templates or not config.ENABLE_ENTERPRISE_FEATURES %}
+<script src="/file/locales/{{lng}}/paygops.lng.js?version={{COMMIT_SHA}}"></script>
+{% else %}
+<script src="/static/assets_cache/paygops.lng.{{lng}}.js?version={{COMMIT_SHA}}"></script>
+{% endif %}
+{% endblock %}
+
+{% block body_content %}
+<!-- Layout wrapper -->
+<div class="layout-wrapper layout-content-navbar">
+    <div class="layout-container">
+     
+      {% if not is_custom_app and not current_user.api_access_only %}
+      <!-- Menu -->
+      <aside id="layout-menu" class="layout-menu menu-vertical menu bg-menu-theme">
+        <div class="app-brand demo d-flex justify-content-center">
+          <a href="/" class="app-brand-link">
+            <img src="{{ url_for('logo') }}?version=pic_{{ GlobalSetting('PlatformLogoPictureID') }}" class="logo-small">
+          </a>
+          <a href="javascript:void(0);" class="d-none d-xl-block layout-menu-toggle menu-link text-large ms-auto">
+            {{ ui.icon('chevron_right', 'align-middle menu-toggle-icon', tooltip='Expand/Collapse') }}
+          </a>
+        </div>
+
+        <div class="menu-inner-shadow"></div>
+
+        <ul class="menu-inner py-4">
+
+          {% for item, data in WEB_MENU_INFO.items() -%}
+          
+          {% set item_class = data['class'] if 'class' in data else '' %}
+          <li class="menu-item">
+              {% if 'children' in data %}
+              <a href="javascript:void(0)" class="menu-link menu-toggle">
+                {{ ui.icon(data['icon'], attributes='menu-icon') }}
+                <div>{{ ftext(data['label']) if data.get('translate', true) == true else data['label'] }}</div>
+              </a>
+              <ul class="menu-sub">
+                {% for child in data['children'] -%}
+                  {% if 'divider' in child %}
+                  {% else %}
+                    {% set target = 'target="'+child['target']+'"' if 'target' in child else '' %}
+                    {% set url = child['url'] if 'url' in child else url_for(child['endpoint']) if not 'kwargs' in child else url_for(child['endpoint'], **child['kwargs']) %}
+                    {% set label = child['label'](current_user) if child['label'] is callable else child['label'] %}
+                    {% set new = get_notifications(child['notifications']) if 'notifications' in child else none %}
+                    {% set premium = (child.get('type', '') == 'premium') and platform_type in ['freemium', 'freemium-demo'] %}
+                    {% set premium_forbidden = premium and platform_type == 'freemium' and not current_user.is_super_admin() %}
+                    <li class="menu-item">
+                        <a {% if not premium_forbidden %}href="{{url}}"{% else %}href="#" onclick="error_toast('{{ftext('This feature is only available with the premium version.')}}')"{% endif %} class="menu-link">
+                        <span class="menu-icon menu-link-icon material-symbols-rounded">{{ icons[child['icon']] if 'icon' in child else child['micon'] }}</span>
+                        <div>{{ ftext(label) if child.get('translate', true) == true else label }} {% if new %}<span class="badge rounded-pill bg-label-danger ms-1">{{human_number(new)}}</span>{% endif %}{% if premium %}<span class="badge rounded-pill bg-label-warning ms-1">{{ui.icon('premium', 'premium-icon')}}</span>{% endif %}</div>
+                        </a>
+                    </li>
+                  {% endif %}
+                {% endfor %}
+              </ul>
+              {% else %}
+                  {% set url = data['url'] if 'url' in data else url_for(data['endpoint']) if not 'kwargs' in data else url_for(data['endpoint'], **data['kwargs']) %}
+                  {% set new = get_notifications(data['notifications']) if 'notifications' in data else none %}
+                  <a href="{{url}}" class="menu-link">
+                    {{ ui.icon(data['icon'], attributes='menu-icon') }}
+                    <div>{{ ftext(data['label']) }} {% if new %}<span class="badge rounded-pill bg-label-danger ms-1">{{human_number(new)}}</span>{% endif %}</div>
+                </a>
+              {% endif %}
+            </li>
+          {% endfor %}
+
+        </ul>
+      </aside>
+      <!-- / Menu -->
+      {% endif %}
+
+      <!-- Layout container -->
+      <div class="layout-page">
+        <!-- Custom banner -->
+        {% if GlobalSetting('ShowStressBanner') %}<div class="custom-banner">{{ GlobalSetting('StressModeBanner') }}</div>
+        {% elif GlobalSetting('BannerMessage') %}<div class="custom-banner">{{ GlobalSetting('BannerMessage') }}</div>{% endif %}
+
+        <!-- Navbar -->
+        <nav
+          class="layout-navbar container-xxl navbar navbar-expand-xl navbar-detached align-items-center bg-navbar-theme"
+          id="layout-navbar"
+        >
+        {% if not is_custom_app %}
+        <div class="layout-menu-toggle navbar-nav align-items-xl-center me-3 me-xl-0 d-xl-none">
+            <a class="nav-item nav-link px-0 me-xl-4" href="javascript:void(0)">
+              {{ ui.icon('menu', 'align-middle') }}
+            </a>
+          </div>
+          {% else %}
+          <div class="navbar-nav align-items-xl-center me-3 me-xl-0 d-xl-none">
+            <a class="nav-item nav-link px-0 me-xl-4" href="/">
+              {{ ui.icon('home', 'align-middle') }}
+            </a>
+          </div>
+         {% endif %}
+
+          <div class="navbar-nav-right d-flex align-items-center" id="navbar-collapse">
+            <!-- Search -->
+            <div class="navbar-nav align-items-center">
+              <div class="nav-item d-flex align-items-center">
+                {#{{ ui.icon('search', 'align-middle') }}
+                <input
+                  type="text"
+                  class="form-control border-0 shadow-none"
+                  placeholder="{{ftext('Search...')}}"
+                  aria-label="Search..."
+                />#}
+              </div>
+            </div>
+            <!-- /Search -->
+
+            <ul class="navbar-nav flex-row align-items-center ms-auto">   
+              <!-- Task List -->
+              {% if config.ENABLE_ENTERPRISE_FEATURES
+                   and GlobalSetting('FeatureToggles').get('TaskSystem') 
+                   and (not is_custom_app 
+                        or (is_custom_app and GlobalSetting('taskMenuSetting').get('enabled'))) %}
+                {{task_dropdown() | safe }}
+              {% endif %}
+              {% if not is_custom_app %}             
+              <!-- Help -->
+              <li class="nav-item dropdown-notifications navbar-dropdown dropdown me-3 me-xl-1">
+                <a class="nav-link dropdown-toggle hide-arrow" href="javascript:void(0);" data-bs-toggle="dropdown">
+                    {{ ui.icon('help', 'align-middle') }}
+                </a>
+                <ul class="dropdown-menu dropdown-menu-end">
+                  {% if config.DOC360_CALLBACK_URL %}
+                  <li>
+                    <a class="dropdown-item" href="{{ url_for('admin.doc360_login') }}" target="_blank">
+                      {{ ui.icon('menu_book', 'user-dropdown-icon') }}
+                      <span class="align-middle">{{ftext('Documentation')}}</span>
+                    </a>
+                  </li>
+                  {% endif %}
+                  <li>
+                    <a class="dropdown-item" href="{{ url_for('admin.training') }}">
+                      {{ ui.icon('school', 'user-dropdown-icon') }}
+                      <span class="align-middle">{{ftext('Online Training')}}</span>
+                    </a>
+                  </li>
+                  {% if config.SUPPORT_URL %}
+                  <li>
+                    <a class="dropdown-item" href="{{config.SUPPORT_URL}}" target="_blank">
+                      {{ ui.icon('support_agent', 'user-dropdown-icon') }}
+                      <span class="align-middle">{{ftext('Contact Support')}}</span>
+                    </a>
+                  </li>
+                  {% endif %}
+                  {% if config.ENABLE_ENTERPRISE_FEATURES %}
+                  <li>
+                    <a class="dropdown-item" href="{{ url_for('files.get_latest_mobile_app') }}" target="_blank">
+                      {{ ui.icon('download', 'user-dropdown-icon') }}
+                      <span class="align-middle">{{ftext('App Download')}}</span>
+                    </a>
+                  </li>
+                  {% endif %}
+                </ul>
+              </li>
+              <!-- Notifications -->
+                <li class="nav-item dropdown-notifications navbar-dropdown dropdown me-3 me-xl-1">
+                  <a class="nav-link dropdown-toggle hide-arrow" href="{{url_for('admin.notifications')}}">
+                      {{ ui.icon('notifications', 'align-middle') }}
+                      {% set notifs = get_notifications('notifications') %}
+                      {% if notifs and notifs|int > 0 %}<span class="badge bg-danger rounded-pill badge-notifications">{{ human_number(notifs) }}</span>{% endif %}
+                  </a>
+                </li>
+              <!-- / Notifications -->
+              {% endif %}
+
+              <!-- User -->
+              <li class="nav-item navbar-dropdown dropdown-user dropdown">
+                <a class="nav-link dropdown-toggle hide-arrow" href="javascript:void(0);" data-bs-toggle="dropdown">
+                  <div class="avatar avatar-online">
+                    <img src="/static/img/default_t.jpg" alt class="w-px-40 h-auto rounded-circle" />
+                  </div>
+                </a>
+                <ul class="dropdown-menu dropdown-menu-end">
+                  <li>
+                    <a class="dropdown-item" href="#">
+                      <div class="d-flex">
+                        <div class="flex-shrink-0 me-3">
+                          <div class="avatar avatar-online">
+                            <img src="/static/img/default_t.jpg" alt class="w-px-40 h-auto rounded-circle" />
+                          </div>
+                        </div>
+                        <div class="flex-grow-1">
+                          <span class="fw-semibold d-block">{{current_user.full_name}}</span>
+                          <small class="text-muted">{{current_user.AuthorizationLevel.name}}</small>
+                        </div>
+                      </div>
+                    </a>
+                  </li>
+                  <li>
+                    <div class="dropdown-divider"></div>
+                  </li>
+                  {% if not is_custom_app %}
+                  {% if current_user.can_access('ViewOwnUsers') %}
+                  <li>
+                    <a class="dropdown-item" href="{{ url_for('user.view_user', user_id=current_user.id) }}">
+                      {{ ui.icon('user', 'user-dropdown-icon') }}
+                      <span class="align-middle">{{ftext('My Profile')}}</span>
+                    </a>
+                  </li>
+                  {% endif %}
+                  <li>
+                    <a class="dropdown-item" href="{{ url_for('admin.user_settings') }}">
+                      {{ ui.icon('settings', 'user-dropdown-icon') }}
+                      <span class="align-middle">{{ftext('Settings')}}</span>
+                    </a>
+                  </li>
+                  <li>
+                    <div class="dropdown-divider"></div>
+                  </li>
+                  {% endif %}
+                  <li>
+                    <a class="dropdown-item" href="{{ url_for('login.logout') }}">
+                      {{ ui.icon('logout', 'user-dropdown-icon') }}
+                      <span class="align-middle">{{ftext('Log Out')}}</span>
+                    </a>
+                  </li>
+                  <li>
+                    <div class="dropdown-divider"></div>
+                  </li>
+                  <li>
+                    <a class="dropdown-item" {{ ui.tooltip_code('Click to copy version to clipboard') }} onclick="copyToClipboard('{{VERSION}}', 'Version');">
+                      {{ ui.icon('info', 'user-dropdown-icon') }}
+                      <span class="align-middle">{{ VERSION }}</span>
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <!--/ User -->
+            </ul>
+          </div>
+        </nav>
+
+        <!-- / Navbar -->
+
+        <!-- Content wrapper -->
+        <div class="content-wrapper">
+          <!-- Content -->
+          <div class="container-xxl flex-grow-1 container-p-y">
+            <div class="row d-flex pb-4">
+              {% block page_title %}{% endblock %}
+              {% set page_actions_content %}{% block page_actions %}{% endblock %}{% endset %}
+              {% if page_actions_content|trim %}
+              <div class="col d-flex align-items-center justify-content-end page-actions-holder">{{ page_actions_content|safe }}</div>
+              {% endif %}
+            </div>
+            {% block content %}{% endblock %}
+            
+            {% if not is_custom_app %}
+              {{ ui.chat_window() }}
+            {% endif %}
+          </div>
+          <!-- / Content -->
+
+          <!-- Footer -->
+          <footer class="content-footer footer bg-footer-theme">
+            <div class="container-xxl d-flex flex-wrap justify-content-between pt-2 flex-md-row">
+              <div class="col-12 col-md-4 d-flex justify-content-center justify-content-md-start">
+                  <a id="logo-container" {% if not is_custom_app %}href="http://www.paygops.com"{% endif %}>
+                      <img src="/static/img/paygops_bottom_logo-{{theme}}.png?2" class="bottom-logo">
+                  </a>
+              </div>
+              {% if not is_custom_app %}
+              <div class="footer-text col-12 col-md-4 d-flex justify-content-center">
+                  <p>Copyright&copy; {{NOW.year}} <a href="https://www.masunga.tech">Masunga</a>, formerly Solaris Offgrid</p>
+              </div>
+              <div class="footer-text col-12 col-md-4 d-flex justify-content-center justify-content-md-end">
+                  <p>{% if platform_type == 'freemium-demo' %}<span class="badge bg-label-danger" data-bs-toggle="tooltip" title="{{ftext('This instance is in Demo Mode. This means that the data is randomized, that some feature might not work and that some statistics might be inaccurate.')}}">DEMO</span>{% endif %}
+                    {% if test_mode %}<span class="badge bg-label-danger" data-bs-toggle="tooltip" title="{{ftext('This instance is in Test Mode. This means that token generation will return mock tokens instead of real ones.')}}">TEST</span> {% endif %}
+                    {% if platform_type == 'freemium-demo' or test_mode %}| {% endif %}<a href="https://www.paygops.com/privacy-policy" target="_blank">{{ftext('Privacy Policy')}}</a></p>
+                  <br>
+              </div>
+              {% endif %}
+            </div>
+            <p class="d-flex mb-0"><var class="{% if not config.reload_templates %}hidden-footer-text{% endif %} col-12 d-flex justify-content-center">{{ g.request_time() }}</var></p>
+          </footer>
+          <!-- / Footer -->
+
+          <div class="content-backdrop fade"></div>
+        </div>
+        <!-- Content wrapper -->
+      </div>
+      <!-- / Layout page -->
+    </div>
+
+    <!-- Overlay -->
+    <div class="layout-overlay layout-menu-toggle"></div>
+  </div>
+<!-- / Layout wrapper -->
+{% endblock %}
+
+
+{% block bottom_scripts %}
+{% if reload_templates or not config.ENABLE_ENTERPRISE_FEATURES %}
+  {% assets "libs_js" %}<script src="{{ ASSET_URL }}"></script>{% endassets %}
+  {% assets "libs_extra_js" %}<script src="{{ ASSET_URL }}"></script>{% endassets %}
+{% else %}
+  <script src="/static/assets_cache/libs.js?{{ ASSETS_HASHES['libs.js'] }}"></script>
+  <script src="/static/assets_cache/libs_extra.js?{{ ASSETS_HASHES['libs_extra.js'] }}"></script>
+{% endif %}
+<script> 
+    // Global Variables
+    var isCustomApp = {{ 'true' if is_custom_app else 'false' }};
+    // We reset the bypass
+    let GLOBAL_bypassLeavePrevention = false;
+    // Initialize HTML sanitizer
+    var myDefaultAllowList = bootstrap.Tooltip.Default.allowList
+    myDefaultAllowList.var = []
+    // Special validators
+    setValidators();
+    $.validator.addMethod("phoneTZ", function(value, element) {
+        return this.optional(element) || /^\+{{ PhoneExtension|string }}[0-9]{{ '{' + PhoneLengthMin|string + ',' + PhoneLength|string + '}' }}$/.test(value);
+    }, "Specify a valid <var>{{ CountryDescriptor  }}</var> phone number starting with <var>'+{{ PhoneExtension }}'</var> and between <var>{{ PhoneLengthMin }}</var> and <var>{{ PhoneLength }}</var> digits after.");
+
+    $.validator.addMethod("custom_id", function(value, element) {
+      if(value && value != "") {
+        return new RegExp("{{GlobalSetting('CustomIdFormat')}}").test(value);
+      } else {
+        return true
+      }
+    }, "{{GlobalSetting('CustomId')}} does not match the required format.");
+
+    $.validator.addMethod("gps_location", function(value, element) {
+      if(value && value != "") {
+        return /^-?\d+(\.\d+)?\s*,\s*-?\d+(\.\d+)?$/.test(value);
+      } else {
+        return true
+      }
+    }, "The GPS location does not match the required format.");
+
+    // Set the Y position
+    //let yPos = {{ request.args.get('yPos')|float or 'NaN' }};
+    //if (yPos != NaN) window.scrollTo(0, yPos);
+
+    initMenu();
+    initTabs();
+
+    let PAQUITA_SETTINGS = {
+      name: '{{current_user.full_name}} (ID: {{current_user.id}})',
+      url: '{{config.PAYG_API_URL}}'
+    };
+
+</script>
+{% if GlobalSetting('FeatureToggles').get('EnableUserGuiding') and not reload_templates and not is_custom_app %}
+    <script>
+        (function(g,u,i,d,e,s){g[e]=g[e]||[];var f=u.getElementsByTagName(i)[0];var k=u.createElement(i);k.async=true;k.src='https://static.userguiding.com/media/user-guiding-'+s+'-embedded.js';f.parentNode.insertBefore(k,f);if(g[d])return;var ug=g[d]={q:[]};ug.c=function(n){return function(){ug.q.push([n,arguments])};};var m=['previewGuide','finishPreview','track','identify','triggerNps','hideChecklist','launchChecklist'];for(var j=0;j<m.length;j+=1){ug[m[j]]=ug.c(m[j]);}})(window,document,'script','userGuiding','userGuidingLayer','493937457ID'); 
+        window.userGuiding.identify('{{current_user.id}}', {
+        email: '{{current_user.email}}',      
+        url: '{{config.PAYG_API_URL}}',      
+        name: '{{current_user.full_name}}',
+        })
+    </script>
+{% endif %}
+<script>
+  (g=>{var h,a,k,p="The Google Maps JavaScript API",c="google",l="importLibrary",q="__ib__",m=document,b=window;b=b[c]||(b[c]={});var d=b.maps||(b.maps={}),r=new Set,e=new URLSearchParams,u=()=>h||(h=new Promise(async(f,n)=>{await (a=m.createElement("script"));e.set("libraries",[...r]+"");for(k in g)e.set(k.replace(/[A-Z]/g,t=>"_"+t[0].toLowerCase()),g[k]);e.set("callback",c+".maps."+q);a.src=`https://maps.${c}apis.com/maps/api/js?`+e;d[q]=f;a.onerror=()=>h=n(Error(p+" could not load."));a.nonce=m.querySelector("script[nonce]")?.nonce||"";m.head.append(a)}));d[l]?console.warn(p+" only loads once. Ignoring:",g):d[l]=(f,...n)=>r.add(f)&&u().then(()=>d[l](f,...n))})({
+    key: "{{config.GOOGLE_MAPS_API_KEY}}",
+    v: "weekly",
+    // Use the 'v' parameter to indicate the version to use (weekly, beta, alpha, etc.).
+    // Add other bootstrap parameters as needed, using camel case.
+  });
+</script>
+<!-- Posthog -->
+<script>
+  posthog.setPersonProperties({
+      email: '{{current_user.email}}',
+      url: '{{config.PAYG_API_URL}}',
+      role_type: '{{current_user.AuthorizationLevel.get_role_type_name()}}',
+  })
+</script>
+{% endblock %}

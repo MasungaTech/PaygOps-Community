@@ -1,0 +1,76 @@
+{% extends 'transaction_base.html' %}
+
+{% block title %}{{ ftext('Give Discount') }}{% endblock %}
+
+{% block form %}
+    {{ transaction.device_selector_macro() }}
+
+    {{ forms.select('discount_type', {
+        'units': 'Discount Credit Days/Months/Units',
+        'amount': 'Discount Amount'
+    }, label='Choose Discount Type', required=true, labeltag='Discount Type') }}
+    
+    <div id="units_or_amount_placeholder">
+        <div id="units_input">
+            {{ forms.input('discounted_units:number', 'Number of discounted credit days/months/units*', valid='req float') }}
+        </div>
+        <div id="days_input">
+            {{ forms.input('discounted_days:number', 'Discounted Days*', valid='req float', id='discounted_days') }}
+        </div>
+        <div id="amount_input">
+            {{ forms.input('discounted_amount:number', 'Discounted Amount*', valid='req float') }}
+        </div>
+    </div>
+    
+    {{ forms.input('note', 'Note') }}
+{% endblock %}
+
+{% block button %}
+    {{ ui.button('Give Discount', color='danger', class='transaction_action', action="validateAndSubmit('/api/v1/transaction_requests/give_discount/');") }}
+{% endblock %}
+
+{% block transaction_script %}
+<script>
+$().ready(function() {
+    $('#amount_input').hide();
+    $('#discount_type').on('change', function (e) {
+        setDiscountCreditType();
+    });
+    setDiscountCreditType();
+    $('#device').on('change', function(e) {
+        setDiscountCreditType();
+    })
+});
+
+function setDiscountCreditType(){
+    var selectedType = $('#discount_type').children("option:selected").val();
+    if (selectedType === 'amount') {
+        $('#days_input').hide().insertAfter($('#MainForm'));
+        $('#units_input').hide().insertAfter($('#MainForm'));
+        $('#units_or_amount_placeholder').append($('#amount_input').show());
+        return;
+    }
+    $('#amount_input').hide().insertAfter($('#MainForm'));
+
+    $('#device.select_2').find(':selected').each(function (e) {
+        var selectedOfferType = this.dataset.offertype;
+        var paymentFrequency = this.dataset.paymentfrequency
+        console.log("Offer type: "+selectedOfferType);
+        console.log("Payment frequency: "+paymentFrequency)
+        if (paymentFrequency == "MONTHLY"){
+            $("label[for='discounted_days']").text("Discounted Months*");
+        }else{
+            $("label[for='discounted_days']").text("Discounted Days*");
+        }
+        if (selectedOfferType != '{{OfferType.usage_based}}') {
+            $('#units_input').hide().insertAfter($('#MainForm'));
+            $('#units_or_amount_placeholder').append($('#days_input').show());
+        } else {
+            $('#units_or_amount_placeholder').append($('#units_input').show());
+            $('#days_input').hide().insertAfter($('#MainForm'));
+        }
+    });
+}
+</script>
+{% endblock %}
+

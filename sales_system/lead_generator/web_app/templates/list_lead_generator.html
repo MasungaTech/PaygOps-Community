@@ -1,0 +1,63 @@
+{% extends "macros/list_base.html" %}
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'macros/form_macros.html' as forms with context %}
+{% import 'macros/filter_macros.html' as filter with context %}
+
+{% block title %}{{ ftext('Lead Generators List') }}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('Lead Generators','List') }}{% endblock %}
+
+{% block page_actions %}
+    {{ui.button(link=url_for('.add_lead_generator'), uicon='add', tooltip='Add Lead Generator', permission='AddLeadGenerators', type='header-action')}}
+    {{ui.button(link=url_for('admin.bulk_upload_task_view', entity='lead_generators'), uicon='cloud_upload', tooltip='Bulk Upload Lead Generators', permission='AddLeadGenerators', type='header-action')}}
+{% endblock %}
+
+{% block header %}
+    <div {{ ui.collapsible_card_start(title='Filters', uicon='filter', icon_color='', active=any_filter([active_filter, lead_generator_type, pagination.search])) }}>
+    <form id="filter_form_v2" action="" method="get" class="row">
+        {{ forms.select('lead_generator_type', [lg_types, 'name', 'name']|dictMapper, size="6", value=lead_generator_type, labeltag="Filter by Lead Generator type") }}
+        {{ forms.select('active_filter', {'all': 'All Lead Generators', 'default': 'Active Lead Generators Only', 'inactive': 'Inactive Lead Generators Only'}, size="6", value=active_filter, labeltag="Filter by status") }}
+        
+        {{ forms.input('search', 'Search Lead Generators (by ID, name or phone number)', value=pagination.search, size="10") }}
+        {{ filter.filter_buttons() }}
+    </form>
+    </div {{ ui.collapsible_card_end() }}>
+{% endblock %}
+
+{% block table %}
+<table {{ ui.table_start(pagination) }}>
+    <thead>
+    <tr>
+        {{ui.sortable_header('id', "ID", class='ps-4', pagination=pagination)}}
+        {{ui.sortable_header('name', "Full Name", pagination=pagination)}}
+        {{ui.sortable_header('type', "Type", pagination=pagination)}}
+        {{ui.sortable_header('seniority', "Seniority", pagination=pagination)}}
+        {{ui.sortable_header('last_month', "Clients last month", pagination=pagination)}}
+        {{ui.sortable_header('monthly_avg', "Monthly Average", pagination=pagination, slow_sort=true)}}
+        {#{ui.sortable_header('quarter_avg', "Last quarter av.", pagination=pagination)}#}
+        {{ui.sortable_header('drop_rate', "Drop Rate", pagination=pagination, slow_sort=true)}}
+        {{ui.sortable_header('shop', GlobalSetting('OperationalEntities')[2].names, pagination=pagination)}}
+        {{ui.sortable_header('active', "Active", class='pe-4', pagination=pagination)}}
+    </tr>
+    </thead>
+    <tbody>
+        {% for lead_generator in pagination.objects %}
+        <tr>
+            <td class="ps-4">
+                <a href="/lead_generators/{{ lead_generator.id }}">{{ lead_generator.id }}</a>
+            </td>
+            <td class="truncate-hoverable">{{ lead_generator.person.full_name }}</td>
+            <td class="truncate-hoverable">{{ lead_generator.type.name }}</td>
+            <td>{{ lead_generator.seniority_by_month() }}</td>
+            <td>{{ lead_generator.get_installed_leads_last_month().count() }}</td>
+            <td>{{ lead_generator.month_average() }}</td>
+            {# <td>{{ lead_generator.last_quarter_average() }}</td> #}
+            <td>{{ lead_generator.drop_rate() }} %</td>
+            <td class="truncate-hoverable">{{ lead_generator.shop_names() }}</td>
+            <td class="pe-4">{{ ui.yes_no(lead_generator.working) }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+    <tfoot></tfoot>
+</table>
+{% endblock %}
