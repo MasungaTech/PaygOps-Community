@@ -1,0 +1,7 @@
+from payg_loan_system.transaction_requests.services.give_discount_service import GiveDiscountTransactionService
+from payg_loan_system.transaction_requests.api_views.transaction_resource import TransactionResource
+
+
+class GiveDiscountTransactionResource(TransactionResource):
+
+    service = GiveDiscountTransactionService

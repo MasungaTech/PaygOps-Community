@@ -1,0 +1,77 @@
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'macros/form_macros.html' as forms with context %}
+
+{% macro person_info_elements(client=none, lead=none, size=6) %}
+{% if client %}{% set person = client.person %}{% endif %}
+{% if lead %}{% set person = lead.person %}{% endif %}
+{% set leadconfig = GlobalSetting('LeadInfoSettings') %}
+  {{ ui.report_field('First Name', person.name, 'client', visible=leadconfig.get('first_name', {}).get('visible', false), size=size) }}
+  {{ ui.report_field('Surname', person.surname, 'client', visible=leadconfig.get('surname', {}).get('visible', false), size=size) }}
+  {{ ui.report_field('Age', person.getAge(), 'birthdate', visible=leadconfig.get('birthdate', {}).get('visible', false), size=size) }}
+  {{ ui.report_field(GlobalSetting('CustomId')|notranslate, person.custom_id, 'badge', visible=GlobalSetting('CustomIdEnabled'), size=size) }}
+  {{ ui.report_field('Language', ftext(person.get_sms_language_name() or '-') + ' / ' + (person.verbal_language or '-'), 
+    'language', visible=leadconfig.get('preferred_sms_language', {}).get('visible', false) or leadconfig.get('verbal_language', {}).get('visible', false), size=size) }}
+  {{ ui.report_field('Earliest payment due', ui.days_remaining(client.get_earliest_payment_due()) if client else none, 'alarm', visible=client, size=size) }}
+  {{ ui.report_field('Gender', ftext(person.get_gender_name()), 'wc', visible=leadconfig.get('gender', {}).get('visible', false), size=size) }}
+  {{ ui.report_field('Client Group', ui.client_group_link(person.client_group), 'groups', size=size, visible=leadconfig.get('client_group', {}).get('visible', false),truncable=true) }}
+  {% if lead %}
+    {{ ui.report_field('Portfolio', ui.portfolio_link(lead.portfolio),'groups', size=size,visible=leadconfig.get('portfolio', {}).get('visible', false)) }}
+    {{ ui.report_field('Contract', ui.contract_link(lead.contract), 'contract', size=size, visible=lead.contract) }}
+    {% if person.client %}
+        {{ ui.report_field('Client', ui.client_link(person.client), 'client', size=size) }}
+        {{ ui.report_field('Agent in Charge', ui.user_link(person.client.get_user_in_charge(), link=false if is_custom_app else true), 'user', size=size) }}
+    {% endif %}
+  {% elif client %}
+    {{ ui.report_field('Registration Date', ui.date(client.RegistrationDate), 'date', size=size) }}
+    {{ ui.report_field('Agent in Charge', ui.user_link(client.get_user_in_charge(), link=false if is_custom_app else true), 'user', size=size) }}
+  {% endif %}
+  {{ ui.report_field('Location', ui.gps_coords(person.GPSLat, person.GPSLon), 'room', visible=leadconfig.get('gps_coordinates', {}).get('visible', false), size=size) }}
+  {{ ui.report_field(GlobalSetting('OperationalEntities')[0].name|notranslate, ui.entity_link_ancestors(person.village), 'home', nospace=true, size=size) }}
+  {{ ui.report_field('Phones', ui.person_phone_numbers(person), 'phone', visible=leadconfig.get('phone_number', {}).get('visible', false), size=size) }}
+{% endmacro %}
+
+
+{% macro person_form_elements(person=none, client=none, lead=none, edit=true, restrict_editing=false, simple_phone=false, basic_configuration=none) %}
+    {% if not person %}{% set person = EmptyObject %}{% set edit=false %}{% endif %}
+
+    {{ forms.input('name', 'First Name', person.name, icon='account_circle', size=6, 
+    required=person_data_required('first_name', basic_configuration), visible=person_data_visible('first_name', basic_configuration, edit=edit), disabled=restrict_editing) }}
+    {{ forms.input('surname', 'Surname', person.surname, icon='account_circle', size=6,
+        required=person_data_required('surname', basic_configuration), visible=person_data_visible('surname', basic_configuration, edit=edit), disabled=restrict_editing) }}
+    {{ forms.input('birthdate', 'Birth Date', value=person.birthdate, max_val=NOW, type='datepicker', icon='insert_invitation', size=6,
+        required=person_data_required('birthdate', basic_configuration), visible=person_data_visible('birthdate', basic_configuration, edit=edit)) }}
+    {{ forms.input('custom_id', GlobalSetting('CustomId')|notranslate or 'Custom ID', value=person.custom_id, icon='badge', size=6,
+        required=person_data_required('custom_id', basic_configuration) and GlobalSetting('FeatureToggles').get('SalesFeatures'), valid='custom_id', visible=person_data_visible('custom_id', basic_configuration, edit=edit) and GlobalSetting('FeatureToggles').get('SalesFeatures'), disabled=restrict_editing) }}
+    {{ forms.select('gender', {'male': 'Male', 'female': 'Female'}, labeltag='Gender', value=person.get_gender_name(lower=true) if edit else none, uicon="wc", size=6, 
+        required=person_data_required('gender', basic_configuration), visible=person_data_visible('gender', basic_configuration, edit=edit)) }}
+    {{ forms.select('l0_entity_id', labeltag=GlobalSetting('OperationalEntities')[0].name|notranslate, uicon='village',
+        choices=villages, source='villages', value=person.village.id if person.village and edit else none, required=true, size=6, visible=person_data_visible('l0_entity_id', basic_configuration, edit=edit)) }}
+    {{ forms.searchable_select('client_group_id', client_groups, source='client_groups', labeltag="Client Group", value=person.client_group.id if person.client_group and edit else none, icon="groups",  size=6,
+        required=person_data_required('client_group', basic_configuration), visible=person_data_visible('client_group', basic_configuration, edit=edit)) }}
+
+    {% if GlobalSetting('FeatureToggles').get('SalesFeatures') %}
+        {{ forms.picture('picture_id', label='Profile Picture', value=person.profile_picture.uuid if person.profile_picture and edit else '', size=6, get_gps=true, required=person_data_required('profile_picture', basic_configuration), visible=person_data_visible('profile_picture', basic_configuration, edit=edit)) }}
+    {% endif %}
+    {{ forms.input('gps_longitude', 'GPS Coordinates', value={'gps_longitude': person.GPSLon, 'gps_latitude': person.GPSLat}, type='gps_split', icon='room', valid='longitude', size=6,
+        required=person_data_required('gps_coordinates', basic_configuration) and GlobalSetting('FeatureToggles').get('SalesFeatures'), visible=person_data_visible('gps_coordinates', basic_configuration, edit=edit) and  GlobalSetting('FeatureToggles').get('SalesFeatures')) }}
+    {{ forms.input('verbal_language', 'Verbal Language', person.verbal_language, icon='language', size=6,
+        required=person_data_required('verbal_language', basic_configuration) and GlobalSetting('FeatureToggles').get('SalesFeatures'), visible=person_data_visible('verbal_language', basic_configuration, edit=edit) and  GlobalSetting('FeatureToggles').get('SalesFeatures')) }}
+    {{ forms.select('sms_language', CLIENT_SMS_LANGUAGES, labeltag='SMS Language', value=person.sms_language or none, uicon="language", size=6, 
+        required=person_data_required('preferred_sms_language', basic_configuration), visible=person_data_visible('preferred_sms_language', basic_configuration, edit=edit))}}
+
+    {{ forms.checkbox('home' if person_data_visible('home_use', basic_configuration, edit=edit) else '', 'Home Use', checked=person.homeUse, size=6, labeltag='Use type', 
+        name2='business' if person_data_visible('business_use', basic_configuration, edit=edit) else '', label2='Business Use', checked2=person.businessUse,
+        visible=(person_data_visible('home_use', basic_configuration, edit=edit) or person_data_visible('business_use', basic_configuration, edit=edit)) and GlobalSetting('FeatureToggles').get('SalesFeatures')) }}
+
+    {% if simple_phone and not person.phoneNumbers %}
+        {{ forms.input(name='preferred_phone_number', uicon='phone', valid='phoneTZ', label='Phone Number', value='+'+GlobalSetting('PhoneExtension'), size=6, required=person_data_required('phone_number', basic_configuration), visible=person_data_visible('phone_number', basic_configuration, edit=edit), disabled=restrict_editing) }}
+    {% else %}
+        {{ forms.input_phones(client=client, lead=lead, required=person_data_required('phone_number', basic_configuration), visible=person_data_visible('phone_number', basic_configuration, edit=edit), disabled=restrict_editing)  }}
+    {% endif %}
+
+    {{ forms.input('note', 'Notes', value=client.Assets if client else none, type='textarea', size=6, icon='note', 
+        visible=client and current_user.can_access('EditClients', person=client.person)) }}
+    {{ forms.input('tags', type='tags', label='Client Tags', placeholder='+Tags', size=6, value=client.tags if client else none, icon='tags', 
+        visible=(client != none) and current_user.can_access('AddTagsClients', person=person)) }}
+
+{% endmacro %}

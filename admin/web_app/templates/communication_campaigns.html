@@ -1,0 +1,111 @@
+{% extends "macros/list_base.html" %}
+{% import 'macros/form_macros.html' as forms %}
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'macros/filter_macros.html' as filter with context %}
+
+
+{% block title %}{{ ftext('Communication Campaigns') }}{% endblock %}
+{% block page_title %}{{ ui.page_title('Communication Campaigns', 'List') }}{% endblock %}
+
+{% block page_actions %}
+{{ui.button(link=url_for('admin.communication_tool'), uicon='add', tooltip='Send new campaign',type='header-action')}}
+{% endblock %}
+
+
+{% block header %}
+    <div {{ ui.collapsible_card_start(title='Filters', uicon='filter', active=any_filter([pagination.search, users, min_date, max_date])) }}>
+        <form id="filter_form_v2" action="" method="get" class="row">
+            {{forms.input('search', 'Search by name or content', search, size=6)}}
+            {{forms.searchable_select('user', choices=users, labeltag="Filter by user", label='All', value=user_id, size=6, translate=false)}}
+            {{forms.input('min_date', 'Start date', min_date, type="datepicker", uicon='date', size=5)}}
+            {{forms.input('max_date', 'End date', max_date, type="datepicker", uicon='date', size=5)}}
+            {{ filter.filter_buttons() }}
+        </form>
+    </div {{ ui.collapsible_card_end() }}>
+{% endblock %}
+
+{% block table %}
+<table {{ ui.table_start(pagination) }}>
+    <thead>
+    <tr>
+        {{ui.sortable_header('Campaign_name', "Campaign Name", pagination=pagination, class='ps-4')}}
+        {{ui.sortable_header('date', "Date", pagination=pagination)}}
+        {{ui.sortable_header('sender_user', "Sender User", pagination=pagination)}}
+        {{ui.sortable_header('content', "Content", pagination=pagination)}}
+        {{ui.sortable_header('more_info', "More info", pagination=pagination, class='pe-4')}}
+    </tr>
+    </thead>
+    <tbody>
+        {% for campaign in campaigns|sort(attribute="time", reverse=true) %}
+        <tr>
+            <td class="ps-4 truncate-hoverable">{{ campaign.name }}</td>
+            <td>{{ ui.date(campaign.time) }}</td>
+            <td class="truncate-hoverable">{{ ui.user_link(campaign.user) }}</td>
+            <td class="truncate-hoverable">{{ campaign.content|replace('\n', '<br>')|safe }}</td>
+            <td class='pe-2'>
+                {%- if campaign.criteria -%}
+                    {{ ui.button(uicon='description', type='card-action', tooltip="Recipient criteria", modal='modal-filter-'+campaign.id|string)}}
+                {%- else -%}
+                    {{ ui.button(uicon='description', type='card-action', tooltip="No recipients data (imported phones only)", disabled=true)}}
+                {%- endif -%}
+                {{ ui.button(uicon='timeline', type='card-action', tooltip="Stats", modal='modal-stats-'+campaign.id|string)}}
+            </td>
+        </tr>
+        {{ filter_formatter(campaign.criteria, campaign.id) }}
+        {{ stats_formatter(campaign.stats, campaign.id) }}
+    {% else %}
+    <tr>
+        {{ ui.no_results_row(5) }}
+    </tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% endblock %}
+
+{% macro filter_formatter(filters, id) -%}
+<div {{ ui.modal_start("modal-filter-"+id|string, "Campaign Information") }}>
+    <div class="modal-body">
+        {{ ui.info_card(text='This campaign was sent using the following criterias: ', type='info')}}
+        {% if 'Lead' in filters -%}
+        <b>{{ftext('Leads')}}</b>:<br>
+        - {{ftext('Locations')}}:{{filters['Lead']['Location']|map("get_shop_name")|join(', ')}}<br>
+        - {{ftext('Statuses')}}: {{filters['Lead']['Status']|map("get_lead_status_name")|join(', ')}}
+        {%- endif %}
+        {% if filters.get('Client') -%}<br>
+        <b>{{ftext('Clients')}}</b>:<br>
+        - {{ftext('Locations')}}: {{filters['Client']['Location']|map("get_shop_name")|join(', ') if filters.get('Client', {}).get('Location') else ''}}<br>
+        - {{ftext('Statuses')}}: {{filters['Client']['Status']|join(', ') if filters.get('Client', {}).get('Status') else ''}}
+        {%- endif %}
+        {% if not filters %}{{ ftext('No filters selected') }}{% endif %}
+    </div>
+    <div class="modal-footer">
+        {{ ui.modal_close_button() }}
+    </div>
+</div {{ ui.modal_end() }}>
+{%- endmacro %}
+
+
+{% macro stats_formatter(stats, id) -%}
+<div {{ ui.modal_start('modal-stats-'+id|string, "Campaign statistics:") }}>
+    <div class="modal-body">
+        {% if stats['status'] == 'PROGRESS' %}
+        {{ ui.info_card(text='This campaign is still being processed. Please check again later.', type='warning') }}
+        {% else %}
+        <b>CSV Import</b>: {{ stats['phones']['success'] }} out of {{ stats['phones']['total'] }} succeeded<br>
+        <b>Clients</b>: {{ stats['clients']['success'] }} out of {{ stats['clients']['total'] }} succeeded
+        {% if stats['clients']['nophone'] %}({{stats['clients']['nophone']}} without phone){% endif %}<br>
+        <b>Leads</b>: {{ stats['leads']['success'] }} out of {{ stats['leads']['total'] }} succeeded
+        {% if stats['leads']['nophone'] %}({{stats['leads']['nophone']}} without phone){% endif %}
+        {% endif %}
+    </div>
+    <div class="modal-footer">
+        {% if stats['status'] == 'PROGRESS' %}
+            {{ ui.button(uicon='reload', label='Refresh', type='action', link=request.path) }}
+        {% else %}
+            {{ ui.modal_close_button() }}
+        {% endif %}
+    </div>
+</div>
+</div {{ ui.modal_end() }}>
+
+{%- endmacro %}

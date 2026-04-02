@@ -1,0 +1,15 @@
+{% extends 'transaction_base.html' %}
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'macros/form_macros.html' as forms with context %}
+
+{% block title %}{{ ftext('Resume Contract') }}{% endblock %}
+
+{% block form %}
+    {{ ui.info_card(uicon='warning',text='Resuming the contract will reactivate all transactions and data transfers.')}}
+    {{ transaction.device_selector_macro(request_code=true) }}
+    {{ forms.input('note', 'Note', type="textarea", size=6 if lead is defined else 12, max=40) }}
+{% endblock %}
+
+{% block button %}
+    {{ ui.button('Resume Contract', color='danger', class='transaction_action', action="validateAndSubmit('/api/v1/transaction_requests/resume/');") }}
+{% endblock %}
