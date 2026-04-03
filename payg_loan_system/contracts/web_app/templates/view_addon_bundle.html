@@ -1,0 +1,49 @@
+{% extends "macros/base.html" %}
+{% import 'macros/form_macros.html' as forms with context %}
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'lead_addons_macro.html' as addons_macro with context %}
+{% import 'addon_categories_macros.html' as addons_categories with context %}
+
+
+{% block title %}{{ ftext('Edit Add-On Bundle') }}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('Add-On Bundles' , 'Edit' ) }} {% endblock %}
+
+{% block page_actions %}
+{{ ui.button(modal='delete-bundle-modal', uicon='delete', type='header-action', tooltip='Delete Bundle') }}
+{% endblock %}
+
+{% block content %}
+
+<div {{ ui.card_start() }}>
+    <form class="row card-row">
+        {{ forms.input('name', 'Name*', valid='req', value=bundle.name, size=6) }}
+        {{ addons_categories.addons_categories_navigation(bundle.category, tooltip="Pick the add-on bundle category: ", size=6, id="_bundle_category", input=true) }}
+        {{ forms.button(label='Edit Add-On Bundle', uicon='save', size=6, center=true, fit=true, type='action', 
+            action='async_post', async_url='/addon_bundles/'+bundle.id|string, success_action='message', success_message='Name and category saved.')}}
+    </form>
+</div {{ ui.card_end() }}>
+
+<div {{ ui.card_start(title='Bundle Items', body_class='table-responsive') }}>
+    {{ addons_macro.lead_addons_macro(bundle=bundle) }}
+</div {{ ui.card_end() }}>
+
+
+{# delete add-on bundle modal #}
+<div {{ ui.modal_start('delete-bundle-modal', 'Delete Add-On Bundle') }}>
+    <form>
+        <div class="modal-body">
+            {{ ui.info_card(uicon='info', color='secondary', text='Do you want to remove the current bundle? This action cannot be undone.') }}
+        </div>
+        <div class="modal-footer">
+            {{ ui.modal_close_button() }}
+            {{ ui.button(uicon='delete', label='Delete Add-On Bundle', type='action', action='async_delete', async_url='/addon_bundles/'+bundle.id|string, redirect_url='/contracts/addons_configuration') }}
+        </div>
+    </form>
+</div {{ ui.modal_end() }}>
+
+{% endblock %}
+
+{% block scripts %}
+<script type="text/javascript" src="{{ url_for('leads.static', filename='js/lead_addons.js') }}?v={{COMMIT_SHA}}"></script>
+{% endblock %}

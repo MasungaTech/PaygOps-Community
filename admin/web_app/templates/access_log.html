@@ -1,0 +1,25 @@
+{% extends "macros/base.html" %}
+{% import 'macros/form_macros.html' as forms with context %}
+{% import 'macros/general_macros.html' as ui with context %}
+
+{% block title %}{{ ftext('Access Log') }}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('Access Log', 'Download') }}{% endblock %}
+
+{% block page_actions %}{% endblock %}
+
+{% block content %}
+    {{ ui.info_card(type='info', text='This page offers downloads of the access logs, those logs keep all the requests made to PaygOps and their associated data. It is meant to help developers of integrations using the PaygOps API troubleshoot issues they might encounter by checking the data actually received by PaygOps. The access logs are not permanent and are overwritten after they reaching 2 GB (uncompresed) to keep them manageable. 4 extra older logs backups are also available and are overwritten in order of age. Each row of the log is a JSON object representing the request data. ')}}
+
+    {{ forms.button(ftext('Download Access Log (Latest)', logn), uicon='download', link=url_for('admin.download_access_log', log_number=0), type='action', size=6, center=true, fit=true) }}
+
+    <div class="row">
+    {% for logn in log_numbers %}
+        {{ forms.button(ftext('Download Access Log (Backup {})', logn), uicon='download', link=url_for('admin.download_access_log', log_number=logn), type='action', size=6, fit=true) }}
+    {% endfor %}
+    </div>
+{% endblock %}
+
+{% block scripts %}
+    {# Your JS scripts here (if any) #}
+{% endblock %}

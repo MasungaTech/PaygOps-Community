@@ -1,0 +1,151 @@
+{% macro lead_tab_content(Lead, locked, show_register, show_downpayment, show_collect_cash, LeadsSurveys, extra_surveys, required_forms, restrict_editing, current_user, platform_type) %}
+    <div class="{{ ui.col_size('10s') }}">
+        <div id="general">
+            <div class="general-info">{{ general_info_macro.general_info_display(Lead, locked) }}</div>
+            <div class="entry-info">{{ lead_entry_info_macro.lead_entry_info_display(Lead, locked) }}</div>
+        </div>
+        <div class="mb-4" id="quick_actions">
+            <div{{ ui.collapsible_card_start(uicon='redo', title='Quick Access', active=true) }}>
+                {{quick_action('AddOutgoingMessages', 'Send Message', icon='send', url=url_for('message.list_message', lead_id=Lead.id, open_send_modal='true', send_message_entity_category='send_message_lead', send_message_entity_id=Lead.id), lead=Lead) }}
+                {{quick_action('ViewMessages', 'Messages', icon='message', url=url_for('message.list_message', search=Lead.full_name), lead=Lead) }}
+                {{quick_action('ViewPayments', 'Payments', icon='payment', url=url_for('payment.list_payment', phone_number=Lead.person.contactPhone.number if Lead.person.contactPhone else ''), lead=Lead) }}
+                {% for button in formattedCustomButtons %}
+                        {{quick_action('ViewCustomButtonActions', button.get('CustomButtonName'), button.get('CustomButtonIcon'), url=button.get('TargetUrl'), blank=true, lead=Lead) }}
+                {% endfor %}
+            </div {{ ui.collapsible_card_end() }}>
+        <div id="status">
+            <div class="status-info">{{ status_macro.lead_status_display(Lead, locked, active=true if is_custom_app else false) }}</div>
+
+            {# decision #}
+            {% if current_user.can_access('ApproveLeads', person=Lead.person) %}
+                {% if Lead.awaiting_information or Lead.inactive or Lead.to_be_convinced or Lead.discarded %}
+                    {{ decision.lead_decision_display(Lead) }}
+                {% elif Lead.awaiting_decision %}
+                    {{ decision.lead_decision_form(Lead, locked=locked) }}
+                {% endif %}
+            {% endif %}
+        </div>
+
+        {# downpayment #}
+        {% if show_downpayment %}
+            <div id="downpayment">
+                {{ payment.lead_downpayment_info(Lead) }}
+                {% if show_collect_cash %}
+                    <div id="collect_cash_content" class="new-modal" data-new-modal="transaction_result_modal"></div>
+                {%endif%}
+            </div>
+        {% endif %}
+        
+        {% if Lead.awaiting_delivery %}
+            <div id="delivery">
+                {# delivery planning #}
+                {% if current_user.can_access('EditPlannedDeliveryDateLeads', person=Lead.person) %}
+                    {{ payment.delivery_planning_form(Lead) }}
+                {% endif %}
+                {# registration #}
+                {% if show_register %}
+                    <div id="registration_content" class="new-modal" data-new-modal="transaction_result_modal"></div>
+                {% endif %}
+            </div>
+        {% endif %}
+
+        {# offer and allocated device (make sure it matches offer, same in add-lead page) #}
+        <div id="offer">
+            <div class="offer-info">{{ offer_device_macro.offer_and_device_display(Lead, locked=locked) }}</div>
+
+            {# add-ons #}
+            <div {{ ui.card_start(uicon='addon', title='Add-Ons', body_class='table-responsive visible-overflow') }}>
+                {{ addons_macro.lead_addons_macro(Lead) }}
+            </div {{ ui.card_end() }}>
+
+            {# payment planning #}
+            {% if Lead.offer and Lead.offer.type == OfferType.loan %}
+                {{ payment.payment_planning_table(Lead) }}
+            {% endif %}
+        </div>
+
+        {# custom forms #}
+        <div id="additional_info">
+        {% if platform_type == 'freemium' and not current_user.is_super_admin() %}
+        {{ ui.info_card(type='warning', text='Additional custom forms available with the premium version.')}}
+        {% else %}
+            <div class="forms">
+                {% for form_answer in LeadsSurveys %}
+                    {% set form_restricted = restrict_editing and form_answer.surveyAnswered.form.restrict_editing %}
+                    {{ custom_forms.custom_form_view_card(form_answer, edit=true, lead=Lead, is_required=(form_answer.surveyAnswered.form in required_forms), restrict_editing=form_restricted)}}
+                {% endfor %}
+                {% for form in extra_surveys if (form.form in required_forms) %}
+                    {% set form_restricted = restrict_editing and form.form.restrict_editing %}
+                    {{ custom_forms.custom_form_edit_card(form, is_required=true, lead=Lead, restrict_editing=form_restricted) }}
+                {% endfor %}
+                {% for form in extra_surveys if not (form.form in required_forms) %}
+                    {% set form_restricted = restrict_editing and form.form.restrict_editing %}
+                    {{ custom_forms.custom_form_edit_card(form, is_required=false, lead=Lead, restrict_editing=form_restricted) }}
+                {% endfor %}
+            </div>
+        {% endif %}
+        </div>
+
+        <div id="extras">
+            {# payment wallets #}
+            {% if Lead.payment_wallets.count() > 0 %}
+                {{ wallet_macros.payment_wallet_list(Lead.payment_wallets) }}
+            {% endif %}
+
+            {# commissions #}
+            {% if current_user.can_access('SetCommissionLeads', person=Lead.person) %}
+                {{ commission.commission_form(Lead) }}
+            {% endif%}
+        </div>
+
+        {# transaction modal #}
+        <div {{ ui.modal_start(id='transaction_result_modal', class='transaction_modal') }}>
+            <div class="modal-body" id="transaction_result_modal_content"></div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div {{ ui.modal_end() }}>
+    </div>
+</div>
+{% endmacro %}
+
+{% macro transaction_modal(modal_name) %}
+<div class="modal fade transaction_modal" id="{{ modal_name }}" tabindex="-1" aria-labelledby="{{modal_name}}" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content" id="{{ modal_name }}_content">
+      <div class="modal-body"></div>
+      <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+  $(function() {
+    $('#{{ modal_name }}').on('hidden.bs.modal', function () {
+      $('#{{ modal_name }}_content').html('');
+    });
+  });
+</script>
+{% endmacro %}
+
+{% macro quick_action(permission, tooltip, icon=none, id=none, url=none, blank=false, person=none, lead=none) %}
+{% if not person %}{% set person = lead.person if lead else '' %}{% endif %}
+{% if current_user.can_access(permission, person=person) %}
+    {% set href = url if url else '#modal_'+id %}
+    {% if not url %}
+      <div class="quick-action-group">
+        {{ ui.button(uicon=icon, id='button_'+id, color='danger', class='quick-action-button',
+          action="loadRemoteHTMLInElement('"+url_for('transaction_request.'+id+'_transaction_content', lead_id=lead.id if lead else none)+"', $('#modal_"+id+"_content'), true);$('#modal_"+id+"').modal({show:true});",
+          modal='modal_'+id) }}
+          <label for="button_{{ id }}" class="quick-action-text">{{ ftext(tooltip) }}</label>
+      </div>
+      {{ transaction_modal('modal_'+id) }}
+    {% else %}
+      <div class="quick-action-group">
+        {{ ui.button(uicon=icon, id='button_'+permission, color='danger', class='quick-action-button', link=url, link_target_blank=blank) }}
+          <label for="button_{{ permission }}" class="quick-action-text">{{ ftext(tooltip) }}</label>
+      </div>
+    {% endif %}
+{% endif %} 
+{% endmacro %}

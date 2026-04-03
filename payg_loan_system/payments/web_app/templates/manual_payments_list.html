@@ -1,0 +1,43 @@
+{% extends 'macros/base.html' %}
+
+{% import 'macros/general_macros.html' as ui with context %}
+
+{% block title %}{{ ftext('Manual Payment Log') }}{% endblock %}
+{% block page_title %}{{ ui.page_title('Payments', 'Manual Add Log') }}{% endblock %}
+
+{% block page_actions %}
+    {{ ui.button(link=url_for('payment.download_manual_payments_logs'), label="Export CSV", uicon="download", tooltip="Download Payment Logs", permission="AddPayments", type='header-action') }}
+{% endblock %}
+
+{% block content %}
+<div {{ ui.card_start(body_class='table-responsive') }}>
+        <table {{ ui.table_start() }}>
+            <thead>
+            <tr>
+                {{ui.table_header(ftext('Amount ({})', Currency))}}
+                {{ui.table_header('Reference')}}
+                {{ui.table_header('Wallet Name')}}
+                {{ui.table_header('Time')}}
+                {{ui.table_header('Person sending')}}
+                {{ui.table_header('IP')}}
+                {{ui.table_header('Memo')}}
+            </tr>
+            </thead>
+            <tbody>
+            {% for Line in ManualPaymentLogs %}
+                {% set P = json.loads(Line) %}
+                <tr>
+                    <td>{{ ui.amount(P['amount']|int) }}</td>
+                    <td>{{ P['payment_ref'] }}</td>
+                    <td>{{ P['mpesa_name'] }}</td>
+                    <td>{{ P['time'] }}</td>
+                    <td>{{ P['user_name'] }} ({{ P['user_id'] }})</td>
+                    <td>{{ P['user_ip'] }}</td>
+                    <td>{{ P.get('memo', '-') }}</td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div {{ ui.card_end() }}>
+{% endblock %}

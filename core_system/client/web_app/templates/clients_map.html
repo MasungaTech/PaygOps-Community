@@ -1,0 +1,28 @@
+{% extends "macros/base.html" %}
+
+{% import 'macros/general_macros.html' as ui with context %}
+
+{% import 'client_map_macro.html' as client_map with context %}
+{% import 'macros/filter_macros.html' as filter with context %}
+
+{% block title %}{{ ftext('Client Map') }}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('Clients', 'Map') }}{% endblock %}
+
+{% block page_actions %}
+    {{ filter.special_views_filter(views, view) }}
+{% endblock %}
+
+{% block content %}
+{{ filter.entities_navigation_filter(entity) }}
+
+<div {{ ui.card_start() }}>
+    <div id="map-container" style="height: 500px; width: 100%; margin: 0;">
+        <div id="map" style="height: 100%; width: 100%; margin:0; padding:0; position: relative;"></div>
+    </div>
+</div {{ ui.card_end() }}>
+{% endblock %}
+
+{% block scripts %}
+{{ client_map.client_map_script(Clients) }}
+{% endblock %}

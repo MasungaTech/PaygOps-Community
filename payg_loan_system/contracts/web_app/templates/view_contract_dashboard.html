@@ -1,0 +1,83 @@
+{% extends "macros/base.html" %}
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'macros/form_macros.html' as forms with context %}
+{% import 'macros/charts_macros.html' as charts with context %}
+{% import 'macros/filter_macros.html' as filter with context %}
+
+{% block title %}{{ ftext('Contracts Dashboard') }}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('Dashboards', 'Contracts') }} {% endblock %}
+
+{% block page_actions %}
+    {{ ui.custom_dashboard_link('contract') }}
+    {{ filter.special_views_filter(views, view) }}
+{% endblock %}
+
+{% block content %}
+{% if GlobalSetting('StressMode') %}
+    {{ ui.info_card('We are experiencing a high load on the server. Dashboards have been temporarily disabled.')}}
+{% else %}
+{{ filter.entities_navigation_filter(entity) }}
+
+<div {{ ui.card_start(body_class='card-row') }}>
+    <form action="" method="post">
+        <div class="row">
+        {{ forms.input('from_time', 'From', value=from_time, type='datepicker', icon='date', size='5') }}
+        {{ forms.input('to_time', 'To', value=to_time, type='datepicker', icon='date', size='5') }}
+        <div class="{{ ui.col_size(2) }}">{{ filter.apply_filters_button() }}</div>
+        </div>
+    </form>
+</div {{ ui.card_end() }}>
+
+<div {{ ui.card_start(title='Customer Base', tooltip='The active or completed contract are based on the status at that time.<br> The new and defaulted represents the changes that month. ') }}>
+    <canvas id="CustomerTraction" width="800" height="300"></canvas>
+</div {{ ui.card_end() }}>
+
+<div {{ ui.card_start(title='Default Rate', tooltip='Defined as: Number of contract defaulted in a month / Number of active contracts that month') }}>
+    <canvas id="DefaultRate" width="800" height="300"></canvas>
+</div {{ ui.card_end() }}>
+
+<div {{ ui.card_start(title='Portfolio at Risk (now)', tooltip='This is based on the next payment due date of the currently active contracts. ') }}>
+    <canvas id="CurrentInactiveCustomers" width="800" height="300"></canvas>
+</div {{ ui.card_end() }}>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if not GlobalSetting('StressMode') %}
+<script src="/static/js/chart.min.js"></script>
+<script>
+
+    {{ charts.chartJS('line', 'CustomerTraction', customer_traction_graph_data,
+    ['Active or completed contracts (cumul.)', 'New Contracts that month', 'Defaulted Contracts that month'],
+    backgroundColors=['basecolorbis', 'colorgreenbis', 'colorredbis'],
+    borderColors=['basecolor', 'colorgreen', 'colorred'],
+    displayLegend=true, noBezierCurve=true) }}
+
+    {{ charts.chartJS('line', 'DefaultRate', default_graph_data,
+    ['Default Rate (%)'],
+    backgroundColors=['basecolorbis'],
+    borderColors=['basecolor'],
+    displayLegend=true) }}
+
+    {% if platform_type == 'freemium-demo' %}
+        {% set total = par_graph_data['total'] %}
+        {% set par_graph_data =  {
+            'active': (total*0.743)|round,
+            'par': (total*0.107)|round,
+            'par7': (total*0.04)|round,
+            'par30': (total*0.085)|round,
+            'par90': (total*0.075)|round,
+            'total': total
+        } %}
+    {% endif %}
+
+    {{ charts.chartJS('bar', 'CurrentInactiveCustomers',
+    [('less than 7 days late', par_graph_data['par']),
+    ('between 7 and 30 days late', par_graph_data['par7']),
+    ('between 30 and 90 days late', par_graph_data['par30']),
+    ('more than 90 days late', par_graph_data['par90'])],
+    ['Contracts at risk'], noXGrid=true, translate_x=true) }}
+</script>
+{% endif %}
+{% endblock %}

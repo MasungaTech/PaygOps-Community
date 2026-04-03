@@ -1,0 +1,118 @@
+{% extends "macros/list_base.html" %}
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'macros/form_macros.html' as forms with context %}
+{% import 'macros/filter_macros.html' as filter with context %}
+
+{% block title %}{{ ftext('Offer List') }}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('Offers','List') }}{% endblock %}
+
+{% block page_actions %}
+    {{ui.button(link=url_for('offers.add_offers'), uicon='add', tooltip='Add Offer', permission='AddOffers', type='header-action')}}
+    {# AI disabled for now #}
+    {# {% if config.AI_ENABLED() %}
+    {{ ui.button(modal='add-offer-prompt', uicon='auto_fix_high', tooltip='Add Offer with AI', permission='AddOffers', type='header-action') }}
+    {% endif %} #}
+    {{ ui.button(link="/admin/api_caller?action=AllOffersResource_post", uicon="cloud_upload", tooltip="Bulk Add Offers", permission="AddOffers", type='header-action') }}
+{% endblock %}
+
+{% block header %}
+    <div {{ ui.collapsible_card_start(title='Filters', uicon='filter', icon_color='', active=any_filter([active_filter, pagination.search, otype])) }}>
+    <form id="filter_form_v2" action="" method="get" class="row">
+        {{ forms.input('search', 'Search Offers (by ID, name or code)', value=pagination.search, size="6") }}
+        {{ forms.select('active_filter', {'all': 'All Offers', 'default': 'Available Offers Only', 'inactive': 'Unavailable Offers Only'}, size="6", value=active_filter, labeltag="Filter by availability") }}
+        {{forms.select('type', types, 'All', value=otype, labeltag="Filter by type", size="6")}}
+
+        {{ filter.filter_buttons() }}
+    </form>
+    </div {{ ui.collapsible_card_end() }}>
+{% endblock %}
+
+{% block table %}
+<table {{ ui.table_start(pagination) }}>
+    <thead>
+    <tr>
+        {{ ui.sortable_header('id', "ID", class='ps-4', pagination=pagination) }}
+        {{ ui.sortable_header('name', "Offer Name", pagination=pagination) }}
+        {{ ui.sortable_header('code', "Code", pagination=pagination) }}
+        {{ ui.table_header("Type") }}
+        {{ ui.table_header("Sales", tooltip='If sales is allowed (associating the offer with a lead)') }}
+        {{ ui.table_header("Registration", tooltip='If registration is allowed (turning a lead with that offer into a client)', class='pe-4') }}     
+        {{ ui.table_header("Qty. Sold", tooltip='Number of <br><i class=\'material-symbols-rounded tiny inline-icon\'>gps_fixed</i>Leads / <i class=\'material-symbols-rounded tiny inline-icon\'>description</i>Contracts<br> with that offer') }}
+    </tr>
+    </thead>
+    <tbody>
+        {% for offer in pagination.objects %}
+            <tr>
+                <td class="ps-4"><a href="{{ url_for('offers.view_offers', offer_id=offer.id) }}">{{ offer.id }}</a></td>
+                <td class="truncate-hoverable">{{ offer.name }}</td>
+                <td class="truncate-hoverable">{{ offer.code }}</td>
+                <td class="truncate-hoverable">{{ ftext(offer.get_human_readable_type_short_new()) }}</td>
+                <td>
+                    {%- if offer.in_use_for_new_clients %}
+                        {% if offer.entities_allowed_for_leads.count() %}
+                            {{ ftext('In some entities') }}
+                            {{ ui.icon('info', 'tiny', tooltip=offer.entities_allowed_for_leads.select()|map('entityChipList')|join, translate_tooltip=false)}}
+                        {% else %}
+                        {{ ftext('In all entities') }}
+                        {% endif %}
+                    {% else %}
+                    {{ ftext('No') }}
+                    {% endif -%}
+                </td>
+                <td>
+                    {%- if offer.in_use %}
+                        {% if offer.entities_allowed_for_contracts.count() %}
+                        {{ ftext('In some entities') }}
+                            {{ ui.icon('info', 'tiny', tooltip=offer.entities_allowed_for_contracts.select()|map('entityChipList')|join, translate_tooltip=false) }}
+                        {% else %}
+                        {{ ftext('In all entities') }}
+                        {% endif %}
+                    {% else %}
+                    {{ ftext('No') }}
+                    {% endif -%}
+                </td>
+                <td class="truncate-hoverable pe-4">{{ui.icon('lead', 'tiny inline-icon')}}{{ human_number(offer.leads.count()) }} / {{ui.icon('contract', 'tiny inline-icon')}}{{ human_number(offer.contracts.count()) }}</td>
+            </tr>
+        {% endfor %}
+    </tbody>
+    <tfoot></tfoot>
+</table>
+
+{% if config.AI_ENABLED() %}
+<div {{ ui.modal_start('add-offer-prompt', 'Add Offer with AI Assistant') }}>
+    <form>
+        <div class="modal-body">
+            {{ ui.info_card(uicon='info', color='secondary', text='You can use our AI assistant to create your form, enter a prompt such as "10000 paid over 52 weeks with payment starting after the 2nd week" or "100 every 2 weeks for 2 years + 5000 of downpayment" and the assistant will create the offer for you. <br><br>Make sure to double check all of the created offer details afterwards to see if it meets your expectations. The assistant might take decision on your behalf using default or most relevant values for things that you do not specify.') }}
+            {{ forms.input('offer_name', 'Offer Name', required=true) }}
+            {{forms.input('ai_creation_prompt', 'Describe What You Want To Create To The AI Assistant', icon="auto_fix_high", type='textarea', placeholder='Describe what you want to create (e.g 10000 paid over 52 weeks with payment starting after the 2nd week)')}}
+        </div>
+        <div class="modal-footer">
+            {{ ui.modal_close_button() }}
+            {{ ui.button(uicon='save', id='save_offer_button', label='Add Offer', type='action', action='addOffer()') }}
+        </div>
+    </form>
+</div {{ ui.modal_end() }}>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function addOffer() {
+        if($('#ai_creation_prompt').val()) {
+            captureEvent('ai_offer_created',
+                {
+                    ai_offer_prompt: $('#ai_creation_prompt').val(),
+                }
+            )
+        }
+        SubmitForm($('#save_offer_button')[0], '/offers', {
+            "success_action": "redirect",
+            "redirect_url": "/offers/",
+            "redirect_append": "id",
+            "redirect_append_static": "?ai_offer_created=true"
+        })
+    }
+</script>
+{% endblock %}

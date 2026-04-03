@@ -1,0 +1,264 @@
+{% macro lead_downpayment_info(Lead, active=true) %}
+<div {{ ui.collapsible_card_start(uicon='payment', title='Downpayment (Pending)' if not Lead.deposit_paid else 'Downpayment', body_class='row', active=not Lead.deposit_paid or active == true) }}>
+    {{ basic_downpayment_info(Lead) }}
+    {% if Lead.has_payment_information %}
+        {{ ui.divider('Payments', small=true) }}active
+        {% if Lead.deposit_paid and Lead.offer_editing_locked %}
+            {{ ui.report_field('Total paid as downpayment',  ui.amount(Lead.downpayment, true), uicon='payment', size=6) }}
+        {% else %}
+            {{ ui.report_field('Total paid as downpayment',  ui.amount(Lead.already_paid, true), uicon='payment', size=6) }}
+            {{ ui.report_field('Left to pay as downpayment',  ui.amount(Lead.downpayment-Lead.already_paid+Lead.purchasing_addons_amount, true), uicon='payment', size=6) }}
+        {%endif%}
+        {{ payment_status_table(Lead) }}
+        <form id="lead-refund-form" class="row">
+            <input type="hidden" name="payment_reference" value="REFUND_DEPOSIT">
+            {% if not is_custom_app %}
+                {{ ui.button(uicon='undo', label='Refund Downpayment', type='action', fit=true, size=4, center=true, disabled=true if (Lead.installed or Lead.cancelled) else false,
+                    action='async_post', async_url='/leads/'+Lead.id|string, success_message='Downpayment refunded') }}
+            {% endif %}
+        </form>
+    {% endif %}
+    {% if not Lead.deposit_paid and Lead.offer_editing_locked and not Lead.cancelled %}
+        {{ ui.divider('Link Downpayment', small=true) }}
+        <form class="row">
+            {{ forms.input('payment_reference', 'Payment Transaction ID', uicon='receipt', required=true, size=6) }}
+            {{ ui.button(uicon='payment', label='Link New Payment' if Lead.reconciled_payments else 'Link Payment', type='action', fit=true, size=6, inline=true,
+                action='async_post', async_url='/leads/'+Lead.id|string, success_message='Payment Linked') }}
+        </form>
+    {% endif %}
+</div {{ ui.collapsible_card_end() }}>
+{% endmacro %}
+
+
+{% macro basic_downpayment_info(Lead) -%}
+{{ ui.report_field('Downpayment from lump-sum add-ons', ui.amount(Lead.lump_sum_addons_value, include_currency=true), 'payment', size=6) }}
+{{ ui.report_field('Downpayment from Offer', ui.amount(Lead.offer.registration_fee, include_currency=true), 'payment', size=6) }}
+{{ ui.report_field('Total Downpayment Amount', ui.amount(Lead.downpayment, include_currency=true), 'payment', size=6) }}
+{{ ui.report_field('Downpayment for other addons', ui.amount(Lead.loan_addons_downpayments, include_currency=true), 'payment', size=6) }}
+{{ ui.report_field('Future Contract Reference', Lead.future_contract_reference, 'description', size=6) }}
+{% if Lead.purchasing_addons_amount %}
+{{ ui.report_field('Total discounted from purchasing add-ons', -Lead.purchasing_addons_amount, 'description', size=6) }}
+{% endif %}
+{%- endmacro %}
+
+
+{% macro payment_status_table(Lead) -%}
+{% set multiple = Lead.reconciled_payments.count() %}
+<div class="table-responsive">
+    <table {{ ui.table_start() }}>
+        <thead>
+            <tr>
+                {{ ui.table_header('ID') }}
+                {{ ui.table_header('Date') }}
+                {{ ui.table_header(ftext('Amount ({})', Currency)) }}
+                {{ ui.table_header('Source') }}
+                {{ ui.table_header('Details', visible=multiple) }}
+                {{ ui.table_header('Wallet') }}
+            </tr>
+        </thead>
+        <tbody>
+            {% for payment in (Lead.reconciled_payments_filtered if Lead.contract else Lead.reconciled_payments)|sort(attribute='time') %}
+            <tr {% if payment.converse %}style="background-color: #eee;"{%endif%}>
+                <th>{{ payment.id }}</th>
+                <td>{{ ui.datetime(payment.time) }}</td>
+                <td>{{ ui.amount(payment.amount) }}</td>
+                <td>{% if payment.linked_payment %}{{ ui.payment_source_tooltip(payment.linked_payment)}} {{ payment.linked_payment.Reference }}{% elif payment.origin_reconciled_payment %}{{ ui.contract_link(payment.origin_reconciled_payment.repayment.contract) }}{% else %}Balance{% endif %}</td>
+                {%if multiple%}<td class="truncate-hoverable">
+                    {% if payment.add_on %}
+                        {{ ftext('Addon {}', payment.add_on.reference) }}
+                    {% elif payment.type == ReconciledPaymentType.repayment_pending %}
+                        {{ ftext('Over paid amount pending to be reconciled') }}
+                    {% elif payment.type == ReconciledPaymentType.blocked_during_lead_editing %}
+                        {{ ftext('Amount blocked during lead edition') }}
+                    {% elif payment.type == ReconciledPaymentType.blocked_during_lead_editing_reversal %}
+                        {{ ftext('Amount blocked during lead edition reversal') }}
+                    {% elif payment.type == ReconciledPaymentType.initial_payment %}
+                        {{ ftext('Contract Offer Downpayment') }}
+                    {% elif payment.type == ReconciledPaymentType.downpayment_reversal %}
+                        {{ ftext('Contract Offer Downpayment Reversal') }}
+                    {%else%}
+                        {{ ftext('Repayment paid before registration') }}
+                    {%endif%}
+                </td>{% endif %}
+                <td class="truncate-hoverable">{{ ui.wallet_link(payment.payment_account) }}</td>
+            </tr>
+            {% endfor %}
+            {% for addon in Lead.purchasing_addons %}
+            <tr {% if addon.cancelled %}style="background-color: #eee;"{%endif%}>
+                <th>-</th>
+                <td>{{ ui.datetime(addon.time_created) }}</td>
+                <td>{{ ui.amount(-addon.total_amount) }}</td>
+                <td>{{ ui.addon_link(addon)}} {{ ftext('(purchasing add-on)') }}</td>
+                {%if multiple%}<td class="truncate-hoverable">
+                {{ ftext('Amount to be discounted at registration') }}              
+                </td>{% endif %}
+                <td class="truncate-hoverable">-</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{%- endmacro %}
+
+{% macro lead_addon_info(Lead, offer=False, reference=False) %}
+    {% set addon_references = [Lead.future_contract_reference] %}
+    {% set addon_offer_names = [Lead.offer.name] %}
+    {% for addon in Lead.not_contract_term_changes_addons %}
+        {% set addon_references = addon_references.append(addon.reference) %}
+        {% set addon_offer_names = addon_offer_names.append(addon.offer_version.offer.name) %}
+    {% endfor %}
+    {% if offer %}
+        {% for o in addon_offer_names %}
+        {{o}}{% if not loop.last %},<br />{% endif %}
+        {% endfor %}
+    {% elif reference %}
+        {% for o in addon_references %}
+        {{o}}{% if not loop.last %},<br />{% endif %}
+        {% endfor %}
+    {% endif %}
+{% endmacro %}
+
+
+{% macro delivery_planning_form(Lead, active=true) -%}
+<div {{ ui.collapsible_card_start(uicon='inventory', title='Delivery Planning', active=active) }}>
+    <form class="row">
+        {% set min_day = none %}{% set max_day = none %}
+        {% set hide_individual_scheduling_card = 'hiddenform' if not Lead.addons_have_planned_delivery_date else '' %}
+        {% set hide_combined_scheduling_card = 'hiddenform' if Lead.addons_have_planned_delivery_date else '' %}
+        {% if GlobalSetting('EnableLimitOnPlannedDeliveryDate') and not current_user.can_access('OverrideDeliveryDateLimitsLeads', person=Lead.person) %}
+            {% set min_day = NOW + timedelta(days=GlobalSetting('BeforeLimitOnPlannedDeliveryDate')|float) %}
+            {% set max_day = NOW + timedelta(days=GlobalSetting('AfterLimitOnPlannedDeliveryDate')|float) if GlobalSetting('AfterLimitOnPlannedDeliveryDate') else none %}
+        {% endif %}
+        <div class="{{hide_individual_scheduling_card}} individual_scheduling_card table-responsive">
+            <table {{ ui.table_start() }}>
+                <thead>
+                    {{ ui.table_header('Offer') }}
+                    {{ ui.table_header('Reference') }}
+                    {{ ui.table_header('Delivery Date') }}
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>{{ Lead.offer.name }}</td>
+                        <td>{{ Lead.future_contract_reference }}</td>
+                        <td>{{ forms.input('planned_delivery_date', value=Lead.agreedDeliveryDate, type='datepicker', uicon='date', min=min_day, max=max_day, placeholder='Set a planned delivery date') }}</td>
+                    </tr>
+                    {% for addon in Lead.not_contract_term_changes_addons %}
+                        <tr>
+                            <td>{{ addon.offer_version.offer.name }}</td>
+                            <td>{{ addon.reference }}</td>
+                            <td>{{ forms.input('addons_planned_delivery_date['+ addon.reference +']', value=addon.planned_delivery_date, placeholder=Lead.agreedDeliveryDate|dateformat if Lead.agreedDeliveryDate else 'Set a planned delivery date', type='datepicker', uicon='date', min=min_day, max=max_day, disabled=true if not current_user.can_access('EditPlannedDeliveryDateAddOns', person=addon.get_person()) else false) }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div id="combined_table" class="{{hide_combined_scheduling_card}} combined_scheduling_card">
+            <table {{ ui.table_start() }}>
+                <thead>
+                    {{ ui.table_header('Offer') }}
+                    {{ ui.table_header('Reference') }}
+                    {{ ui.table_header('Delivery Date') }}
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>{{lead_addon_info(Lead, offer=True)}}  </td>
+                        <td>
+                            {{ lead_addon_info(Lead, reference=True) }}
+                        </td>
+                        <td>{{ forms.input('planned_delivery_date', value=Lead.agreedDeliveryDate, type='datepicker', uicon='date', min=min_day, max=max_day, placeholder='Set a planned delivery date') }}</td>
+                    </tr>
+                    {% for addon in Lead.not_contract_term_changes_addons %}
+                        <tr>
+                            <input type=hidden name='addons_planned_delivery_date[{{addon.reference}}]' value="null">
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="row">
+            {{ ui.button(uicon='date', label='Save Delivery Date', type='action', fit=true, size=6, inline=true, class='mt-3',
+                action='async_post', async_url='/leads/'+Lead.id|string, success_message='Delivery planned!') }}
+            {% if Lead.addons and current_user.can_access('EditPlannedDeliveryDateAddOns', person=Lead.person) %}
+                {{ forms.switch_simple('schedule_individual_addon_delivery_dates', checked=Lead.addons_have_planned_delivery_date, class='float-end p-5', 
+                label="Schedule delivery dates for each addon independently", size=6, onchange='checkBoxToggleForms(this, ".individual_scheduling_card", ".combined_scheduling_card")' )}}
+            {% endif %}
+        </div>
+    </form>
+</div {{ ui.collapsible_card_end() }}>
+
+{%- endmacro %}
+
+
+{% macro payment_planning_table(Lead, active=false) -%}
+<div {{ ui.collapsible_card_start(uicon='payment', title='Payment Planning', active=active, body_class='table-responsive') }}>
+    {% set total = Lead.future_contract_value+Lead.lump_sum_addons_value %}
+    {% if Lead.reference_price == 0 or total == 0 %}
+        {{ ui.info_card(text="This lead has a total reference price of 0 or the total value is 0, please complete the offer configuration to see Payments Planning.", uicon='info', color='secondary', class='mt-3 mb-2', in_card=true) }}
+    {% elif Lead.get_number_installments() > config.MAX_INSTALLMENTS_PLANNING %}
+        {{ ui.info_card(text="Too many installments to show.", uicon='info', color='secondary', class='mt-3 mb-2', in_card=true) }}
+    {% else %}
+        <table {{ ui.table_start() }}>
+            <thead>
+                <tr>
+                    {{ ui.table_header('#') }}
+                    {{ ui.table_header('Date') }}
+                    {{ ui.table_header('Amount') }}
+                    {% if not is_custom_app %}
+                        {{ ui.table_header('Total Paid') }}
+                        {{ ui.table_header('Type') }}
+                    {% endif %}
+                    {{ ui.table_header('% Paid') }}
+                </tr>
+            </thead>
+            <tbody>
+                {% if Lead.contract and Lead.contract.start_time %}
+                    {% set start_time = Lead.contract.start_time %}
+                {%else %}
+                    {% set start_time = NOW %}
+                {% endif %}
+                <tr>
+                    <td>1</td>
+                    <td>{{ ui.date(start_time) }}</td>
+                    <td>{{ ui.amount(Lead.downpayment, include_currency=true) }}</td>
+                    {% if not is_custom_app %}
+                        <td>{{ ui.amount(Lead.downpayment, include_currency=true) }}</td>
+                        <td>{{ ftext('Downpayment') }}</td>
+                    {% endif %}
+                    <td>{{ ui.amount(Lead.downpayment/total*100) if total else '100' }}%</td>
+                </tr>
+                {% set start_time = Lead.offer.add_credit(start_time, Lead.offer.free_credit_at_start) %}
+                {% set installments = ((total-Lead.downpayment)/Lead.reference_price)|round(0, 'ceil')|int %}
+                {% set payment_too_small_threshold = GlobalSetting('MaxRoundingDiscount') %}
+                {% for i in range(1, installments+1) %}
+                    {% set last_cumulative = Lead.downpayment + (i-1)*Lead.reference_price %}
+                    {% if (total - last_cumulative) > Lead.reference_price %}
+                        {% set paid = Lead.reference_price %}
+                        {% set cumulative = Lead.downpayment + i*Lead.reference_price %}
+                        {% if (total - cumulative) < payment_too_small_threshold %}
+                            {% set paid = paid + (total - cumulative) %}
+                            {% set cumulative = last_cumulative + paid %}
+                        {% endif %}
+                    {% else %}
+                        {% set paid = total - last_cumulative %}
+                        {% set cumulative = last_cumulative + paid %}
+                    {% endif %}
+                    {% if paid > payment_too_small_threshold or loop.first %}
+                    <tr>
+                        <td>{{ i+1 }}</td>
+                        <td>{{ ui.date(Lead.offer.add_credit(start_time, Lead.offer.base_price_credit*(i-1))) }}</td>
+                        <td>{{ ui.amount(paid, include_currency=true) }}</td>
+                        {% if not is_custom_app %}
+                            <td>{{ ui.amount(cumulative, include_currency=true) }}</td>
+                            <td>{{ftext('Contract Payment')}}</td>
+                        {% endif %}
+                        <td>{{ ui.amount(cumulative/total*100) }}%</td>
+                    </tr>
+                    {% endif %}
+                {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
+</div {{ ui.collapsible_card_end() }}>
+{%- endmacro %}
+
