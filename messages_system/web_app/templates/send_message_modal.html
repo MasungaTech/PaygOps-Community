@@ -1,0 +1,146 @@
+{% import 'macros/general_macros.html' as ui with context %}
+
+{% macro send_message_macro() -%}
+{% set quick_action_customer = (client or user or lead) %}
+{% set customer = (send_message_client or send_message_user or send_message_lead) %}
+{% set person = customer.person if customer else EmptyObject %}
+
+
+<div {{ ui.modal_start('send-message', 'Send Message', active=false) }}>
+    <form id="send_message_form" action="" method="get">
+        <div class="modal-body row">
+            {{ forms.select(id='receiver', 
+                            name='',
+                            choices=MESSAGE_RECEIVERS, 
+                            value=send_message_entity_category,
+                            labeltag='Receiver', 
+                            class="modal-select",
+                            onchange="selectToggleFormsMap(this, 'value', "+MESSAGE_RECEIVERS_TOGGLE_MAP | safe+")")}}
+            
+            {{ forms.select(id='send_message_client', 
+                            name='', 
+                            choices=send_message_client_id, 
+                            value=send_message_client.id if send_message_client else none,
+                            labeltag='Client', 
+                            source='send_message_client_id',
+                            required=true,
+                            disabled=true if quick_action_customer else false,
+                            size_class='hiddenform',
+                            class='nochangeonload',
+                            selector_class='send_message_client')}}
+            {{ forms.select(id='send_message_lead', 
+                            name='',
+                            choices=send_message_lead_id, 
+                            value=send_message_lead.id if send_message_lead else none,
+                            labeltag='Lead', 
+                            source='send_message_lead_id',
+                            required=true,
+                            disabled=quick_action_customer,
+                            size_class='hiddenform',
+                            class='nochangeonload',
+                            selector_class='send_message_lead')}}
+            {{ forms.select(id='send_message_user', 
+                            name='',
+                            choices=send_message_user_id, 
+                            value=send_message_user.id if send_message_user else none,
+                            labeltag='User', 
+                            source='send_message_user_id',
+                            required=true,
+                            disabled=quick_action_customer,
+                            size_class='hiddenform',
+                            class='nochangeonload',
+                            selector_class='send_message_user')}}
+            {{ forms.select(name='to_number', 
+                            labeltag='Select Phone Number', 
+                            choices=[person.phoneNumbers, 'number', 'number']|dictMapper if person and person.phoneNumbers else [],
+                            value=person.contactPhone.number if person and person.contactPhone else none,
+                            required=true,
+                            size_class='hiddenform',
+                            selector_class='send_message_client send_message_lead send_message_user',
+                            translate=false)}}
+            {{ forms.input('to_number', 
+                            'Phone Number', 
+                            placeholder="Type or select phone number", 
+                            type='text', 
+                            required=true, 
+                            value=person.contactPhone.number if person and person.contactPhone else none,
+                            valid="phoneTZ",
+                            micon='phone',
+                            size_class='hiddenform',
+                            selector_class='send_message_phone_receiver') }}
+            {{ forms.input('body', 
+                            'Message Body', 
+                            type='textarea',
+                            placeholder='Type Message Body',
+                            required=true, 
+                            micon='message') }}
+        </div>
+
+        <div class="modal-footer">
+            {{ ui.modal_close_button() }}
+            {{ ui.button(   label="Send Message", 
+                            type='action', 
+                            inline=true,
+                            action='async_post', 
+                            async_url='/outgoing_messages', 
+                            success_message='Message Sent', 
+                            success_action='successfullySentMessage') }}
+        </div>
+    </form>
+</div {{ ui.modal_end() }}>
+{%- endmacro %}
+
+{% macro send_message_macro_scripts() %}
+<script>
+    $(document).ready(function() {
+        var sendMessageModalOpen = getQueryParam('open_send_modal');
+        if(sendMessageModalOpen == 'true') {
+            $('#send-message').modal('show'); 
+        }
+        $('#send-message').on('hidden.bs.modal', function () {
+            deleteQueryParam("open_send_modal");
+        });
+
+        if(getQueryParam('user_id') || getQueryParam('client_id') || getQueryParam('lead_id')) {
+            // Force disable receiver select input while waiting for select2 to fully load
+            setTimeout(() => 
+                $("select#receiver").prop("disabled", true).trigger("change.select2")
+            , 500);
+        }
+
+        $("select#receiver")
+                .css('visibility', 'visible')
+                .show()
+                .removeAttr('disabled');
+
+        $("#receiver").on("change", function(e) {
+            var selectedValue = $(this).val();
+            
+            setQueryParam('send_message_entity_category', selectedValue);
+            $('input#to_number').val('');
+        });
+
+        $("#send_message_client, #send_message_lead, #send_message_user").on("change", function(e) {
+            var selectedID = $(this).attr('id');
+            var selectedValue = $(this).val();
+            
+            setQueryParam('open_send_modal', 'true');
+            setQueryParam('send_message_entity_category', selectedID);
+            setQueryParam('send_message_entity_id', selectedValue);
+
+            setTimeout(() => location.reload(), 300); 
+        });
+    });
+
+    function successfullySentMessage(data, options) {
+            const removableParams = [  "client_id", 
+                                        "open_send_modal", 
+                                        "send_message_entity_category", 
+                                        "send_message_entity_id"]
+            removableParams.map((p) => deleteQueryParam(p));
+
+            $('#send-message').modal('hide'); 
+            setTimeout(() => resetForm($('#send_message_form')), 1000);
+    }
+</script>
+{%- endmacro %}

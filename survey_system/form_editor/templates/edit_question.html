@@ -1,0 +1,4 @@
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'macros/form_macros.html' as forms with context %}
+{% import 'question_macros.html' as questions with context %}
+{{questions.edit_question_form(question, types_dict=types_dict)}}
