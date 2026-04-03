@@ -1,0 +1,273 @@
+{% import 'macros/form_macros.html' as forms with context %}
+{% import 'macros/general_macros.html' as ui with context %}
+
+{% macro save_button(center=true, class='', size=6) -%}
+{{ ui.button(uicon='save', label='Save Settings', type='action', fit=true, size=size, center=center, inline=not center, class=class,
+                        action='async_post', async_url='/settings', success_message='Settings saved', success_action='message') }}
+{%- endmacro %}
+
+{% macro PaymentRouterRule(key,values) -%}
+<div {{ ui.card_start(class='rule-card', body_class='py-3') }}>
+    <div class="row">
+        <div class="{{ ui.col_size(1) }} pt-4">
+            {{ ui.icon('drag_indicator', color='lightgrey', style="cursor: move;") }}
+        </div>
+        {% set strict = False if values.strict == False else True %}
+        {% set ignore_prefix = True if values.ignore_prefix == True else False %}
+        {{ forms.select('FlexiblePaymentRouterSettings[][routing_attribute]',
+                    config.AVAILABLE_ROUTING_ATTRIBUTES,
+                    value=values.routing_attribute or none,
+                    id="routing_attribute_"+key,
+                    required=true,
+                    size=4,
+                    label="Choose routing attribute",
+                    labeltag="When the...") }}
+        {{ forms.select('FlexiblePaymentRouterSettings[][matching_parameter]',
+                    matching_parameters,
+                    value=values.matching_parameter or none,
+                    id="matching_parameter_"+key,
+                    required=true,
+                    size=4,
+                    label="Choose matching parameter",
+                    labeltag="Matches the...") }}
+        {{ forms.checkbox('FlexiblePaymentRouterSettings[][strict]:boolean',
+                    id='strict_'+key,
+                    checked=values.strict,
+                    size=1,
+                    labeltag='Strictly',
+                    value_false=none,
+                    tooltip='When activated, the selected routing attribute must match exactly, otherwise a partial match is enough (e.g. last digits of the serial number).') }}
+        
+        <div class="{{ ui.col_size(2) }} pt-4">
+            {{ ui.button(uicon='delete', type='card-action', class='float-end', tooltip='Remove rule', action='remove_rule(this);')}}
+            {{ ui.button(uicon='more_vert', type='card-action-grey',class='float-end', tooltip='Toggle advanced options', action='toggleDivVisibility($("#advanced_routing_'+key+'"))')}}
+        </div>
+    </div>
+
+    <div class="row hide" id="advanced_routing_{{key}}">
+        {{ ui.info_card(title='Advanced options', uicon='info', in_card=true, class='mt-3', color='secondary', text='Use the validity check to check if the routing attribute has a specific format or extract specific data before applying the routing rule.
+        This could be used to check the format of a serial number or extract a phone number no matter what prefix is used. ')}}
+
+        {{ forms.input('FlexiblePaymentRouterSettings[][validity_check]',
+            label="Validity check (RegExp)",
+            value=values.validity_check,
+            size=7,
+            id="validity_"+key) }}
+
+        {{ forms.select('FlexiblePaymentRouterSettings[][validity_check_mode]',
+            config.AVAILABLE_VALIDITY_CHECK_MODE,
+            value=values.validity_check_mode or 'FIND_MATCH',
+            id="validity_check_mode_"+key,
+            required=true,
+            size=5,
+            label="Choose validity check mode",
+            labeltag="Check mode") }}
+
+        {{ forms.input('FlexiblePaymentRouterSettings[][prepend]',
+            label="Prepend (add to beginning of attribute)",
+            value=values.prepend,
+            size=4,
+            id="prepend_"+key) }}
+
+        {{ forms.input('FlexiblePaymentRouterSettings[][append]',
+            label="Append (add to end of attribute)",
+            value=values.append,
+            size=4,
+            id="append_"+key) }}
+
+        {{ forms.checkbox('FlexiblePaymentRouterSettings[][ignore_prefix]:boolean',
+            checked=values.ignore_prefix,
+            size=4,
+            labeltag='Ignore Prefix',
+            label='Ignore Prefix',
+            value_false=none,
+            tooltip='When activated, the routing of serial number can be done strictly but ignoring the prefix (FOR DEVICES ONLY). ') }}
+    </div>
+</div {{ ui.card_end() }}>
+{%- endmacro %}
+
+{% macro PaymentReminderDayChip(day=none) -%}
+    {% if day == none %}
+        {% set label = '%daylabel%' %}
+        {% set day = '%day%' %}
+    {% elif day > 1 %}
+        {% set label = day|string+' days before' %}
+    {% elif day == 1 %}
+        {% set label = '1 day before' %}
+    {% elif day == 0 %}
+        {% set label = 'On due date' %}
+    {% elif day == -1 %}
+        {% set label = '1 day after' %}
+    {% elif day < -1 %}
+        {% set label = -day|string+' days after' %}
+    {% endif %}
+    <span class="badge bg-label-secondary main-badge mb-1"><input type="hidden" id="payment_reminder_{{day}}" name="PaymentRemindersDaysBeforeExpiry[]:number" value="{{day}}"/>{{label}} {{ ui.icon('cancel', 'badge-icon', onclick="removePaymentReminder(this)") }}</span>
+{%- endmacro %}
+
+{% macro DeviceIntegrationAPI(key,values,offertypes={},usedcodes=[]) -%}
+{% set locked = ' (locked)' %}
+{% set tooltip = none %}
+{% if key == '' %}
+    {% set key = 'new' %}
+    {% set locked = '' %}
+    {% set tooltip = 'The device API code cannot be changed later' %}
+{% endif %}
+<div id="{{key}}" class="row">
+    {{ ui.divider(values.device_api_full_name|notranslate if key != 'new' else 'New Integration', small=true) }}
+        {% if values.supported_units %}
+            {{ ui.info_card(color='secondary', in_card=true, class='mt-1', uicon='info', text=ftext('This device type supports the following units: <br>{}', values.supported_units.values()|join(", ")))}}
+        {% endif %}
+        {% if key not in used_apis %}
+            {{ ui.button(uicon='delete', label='Delete Integration', type='card-action', size_class='py-1', center=true, fit=true, size=6, action='enableElement($("#settings_save"));$("#'+key+'").remove();') }}
+        {% endif %}
+        
+        {{ forms.input('AllDeviceAPIS['+key+'][device_api_code]',
+        label="Device Code"+locked,
+        value=key if key != 'new' else '',
+        disabled=key!='new',
+        tooltip=tooltip,
+        size=6,
+        valid="devicecode",
+        data='data-already-used="'+ usedcodes|join(',') +'"') }}
+        
+        {{ forms.input('AllDeviceAPIS['+key+'][device_api_full_name]',
+        label="Device Name",
+        value=values.device_api_full_name,
+        size=6,
+        valid='devicename')}}
+
+        {{ forms.select('AllDeviceAPIS['+key+'][device_api_type]',
+        choices=config.AVAILABLE_DEVICE_API_TYPES,
+        label="Device API Type",
+        labeltag='Device API Type',
+        value=values.device_api_type,
+        size=7) }}
+
+        {{ forms.select('AllDeviceAPIS['+key+'][device_api_version]',
+        choices=config.AVAILABLE_DEVICE_API_VERIONS|list2dict,
+        label="Device API Version",
+        labeltag='Device API Version',
+        value=values.device_api_version,
+        size=3) }}
+
+        {{ forms.select('AllDeviceAPIS['+key+'][offline_mode]',
+        choices=config.AVAILABLE_DEVICE_API_OFFLINE_SUPPORT,
+        label="Offline Mode",
+        labeltag='Offline Mode',
+        value=values.get('offline_mode', 'DISABLED'),
+        disabled=key=='NPG',
+        size=2) }}
+
+        {{ forms.select('AllDeviceAPIS['+key+'][device_pairing]',
+        choices=config.AVAILABLE_DEVICE_API_OFFLINE_SUPPORT,
+        label="Pairing",
+        labeltag='Pairing',
+        value=values.get('device_pairing', 'DISABLED'),
+        disabled=key=='NPG',
+        size=2) }}
+
+        {{ forms.select('AllDeviceAPIS['+key+'][supports_monitoring_data]',
+        choices=config.AVAILABLE_DEVICE_API_OFFLINE_SUPPORT,
+        label="Usage Metrics",
+        labeltag='Usage Metrics',
+        value=values.get('supports_monitoring_data', 'DISABLED'),
+        disabled=key=='NPG',
+        size=2) }}
+
+        {{ forms.input('AllDeviceAPIS['+key+'][device_api_url]',
+        label="Device API URL",
+        value=values.device_api_url,
+        size=6,
+        valid="url" if not config.is_dev_mode() else "") }}
+
+        {{ forms.select('AllDeviceAPIS['+key+'][supported_offer_type]',
+        choices=offertypes,
+        label="Supports",
+        labeltag='Supports offer types',
+        value=values.get('supported_offer_type', 'TIME_BASED'),
+        size=4) }}
+
+        {{ forms.input('AllDeviceAPIS['+key+'][device_api_key]',
+        type='textarea',
+        label="Device API Key",
+        value=values.device_api_key,
+        size=12,
+        required=true) }}
+</div>
+{%- endmacro %}
+
+
+{% macro LeadField(key, config_object, lead_statuses) -%}
+<div>
+        <div class="row">
+                {{ forms.input('var_name:skip', 
+                    value=ftext(ui.format_lead_field(key), force=true), 
+                    label='Attribute Name',
+                    disabled=true, 
+                    size=4)}}
+                {{ forms.checkbox('LeadInfoSettings['+key+'][visible]:boolean',
+                            checked=config_object[key].get('visible', true),
+                            label='Visible',
+                            labeltag='Visible',
+                            disabled='true' if key == 'status' else '',
+                            size=2
+                )}}
+                {{ forms.checkbox('LeadInfoSettings['+key+'][required]:boolean',
+                            checked=config_object[key].get('required', false),
+                            label='Required',
+                            labeltag='Required',
+                            disabled='true' if key in ['status', 'get_gps_from_picture', 'home_use', 'business_use', 'reasons_for_not_buying'] else '',
+                            size=2
+                )}}
+                {{LeadFieldDefault(key, config_object, lead_statuses)}}
+        </div>
+</div>
+{%- endmacro %}
+
+{% macro LeadFieldDefault(key, config_object, lead_statuses)%}
+    {% if key in config.PERSONAL_INFO_FIELDS_WITH_DEFAULT %}
+        {% if key == "verbal_language" %}
+            {{ forms.input('LeadInfoSettings['+key+'][default]', 
+                            label='Default Value',
+                            value=config_object[key].get('default'),
+                            size=4,
+                            ) 
+            }}
+        {% elif key == "home_use" or key == "business_use" %}
+            {% set val = config_object[key].get('default') %}
+            {% if val != none %}{% set val = 'true' if val else 'false' %}{% endif %}
+            {{ forms.select('LeadInfoSettings['+key+'][default]:boolean',
+                        config.LEAD_INFO_BOOLEAN_OPTIONS,
+                        labeltag='Default Value',
+                        value=val,
+                        size=4,
+                        ) }}
+        {% elif key == "preferred_sms_language" %}
+            {{ forms.select('LeadInfoSettings['+key+'][default]',
+                        config.LANGUAGES_NAMES,
+                        labeltag='Default Value',
+                        value=config_object[key].get('default'),
+                        size=4,
+                        translate=false) }}
+        {% elif key == "status" %}
+            {{ forms.select('LeadInfoSettings['+key+'][default]:number',
+                        [lead_statuses, 'id', 'name']|dictMapper,
+                        value=config_object[key].get('default'),
+                        labeltag='Default Value',
+                        size=4,
+                        translate=false) }}
+        {% elif key == "reasons_for_not_buying" %}
+            {% set defaultReasons=GlobalSetting('LeadInfoSettings')['reasons_for_not_buying'].get('default', []) %}
+            {{ forms.select('LeadInfoSettings['+key+'][default]', labeltag='Default Value', type='number',
+            choices=reasons_for_not_buying, values=defaultReasons, max_answers=reasons_for_not_buying|length, size=4, translate=false) }}
+        {% elif key == "birthdate" %}
+            {{ forms.input('LeadInfoSettings['+key+'][default]', 
+                        type='datepicker',
+                        uicon='date',
+                        label='Default Value',
+                        value=config_object[key].get('default'), 
+                        size=4) 
+            }}  
+        {% endif %}
+    {% endif %}
+{%- endmacro %}

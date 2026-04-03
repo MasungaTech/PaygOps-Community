@@ -1,0 +1,12 @@
+{% extends 'transaction_base.html' %}
+
+{% block title %}{{ ftext('Mark contract as Defaulted') }}{% endblock %}
+
+{% block form %}
+    {{ transaction.device_selector_macro(request_code=true) }}
+    {{ forms.input('note', 'Note', type="textarea", size=6 if lead is defined else 12, max=40) }}
+{% endblock %}
+
+{% block button %}
+    {{ ui.button('Mark as Defaulted', color='danger', class='transaction_action', action="validateAndSubmit('/api/v1/transaction_requests/default/');") }}
+{% endblock %}

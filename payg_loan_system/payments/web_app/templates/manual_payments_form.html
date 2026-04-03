@@ -1,0 +1,35 @@
+{% extends 'macros/base.html' %}
+
+{% import 'macros/form_macros.html' as forms %}
+
+{% block title %}{{ ftext('Manually Add Payment') }}{% endblock %}
+{% block page_title %}{{ ui.page_title('Payments', 'Manual Add') }}{% endblock %}
+
+{% block content %}
+<div>
+    {{ ui.info_card(uicon='info', color='secondary', text='This page is to be used to manually enter a Mobile Money payment, in case the integration does not exist or failed. <br>
+    It is different from the "collect payment" feature as it does not debit the amount from the agent account.') }}
+    {{ ui.info_card(uicon='warning', text='Please make sure to enter the information accurately, in particular the wallet name should be spelled
+    <strong>EXACTLY</strong> as provided by the Mobile Money provider (including lower and upper case). Any payment added here will be <a href="list">logged</a> with your name, IP address and time.')}}
+
+    <div {{ ui.card_start(size=12) }}>
+      <form id="MainForm" action="" method="post" class="row">
+        {% set wallet_action = 'toggleFormVisibility("#wallet_input");toggleFormVisibility("#wallet_select")' %}
+        {{ forms.select('payment_wallet_name_list', size_id='wallet_select', choices=payment_wallet_name_list, labeltag='Wallet', required=true, source='payment_wallet_name_list', size=6, btn_icon='add', btn_tooltip='Add New Wallet', btn_action=wallet_action, translate=false)}}
+        {{ forms.input('payment_wallet_name', size_id='wallet_input', label='New Wallet', required=true, size_class="pt-1 hiddenform", size=6, btn_icon='list', btn_action=wallet_action, btn_tooltip='Select Existing Wallet', uicon='warning', tooltip='Wallet name is case sensitive so please be careful and check that it is written exactly as expected') }}
+        
+        {% set operator_action = 'toggleFormVisibility("#operator_input");toggleFormVisibility("#operator_select")' %}
+        {{ forms.select('wallet_operator', size_id='operator_select', choices=wallet_operator, labeltag='Wallet operator', required=true, size=6, btn_icon='add', btn_action=operator_action, btn_tooltip='Add New Wallet Operator', translate=false)}}
+        {{ forms.input('wallet_operator', size_id='operator_input', label='New Wallet Operator', required=true, size_class="pt-1 hiddenform", size=6, btn_icon='list', btn_action=operator_action, btn_tooltip='Select Existing Wallet Operator', uicon='warning', tooltip='Wallet operator is case sensitive so please be careful and check that it is written exactly as expected') }}
+
+        {{ forms.input('payment_ref', 'Payment Reference', required=true, size=6) }}
+        {{ forms.input('amount', 'Amount', min_val=0, numeric=true, required=true, size=6) }}
+
+        {{ forms.input('payment_msisdn', 'Phone Number associated with Wallet', valid="phoneTZ", size=6) }}
+        {{ forms.input('payment_memo', 'Payment Memo', size=6) }}
+
+        {{ forms.button(label='Add Payment', uicon='save', type='action', fit=true, size=6, center=true) }}
+      </form>
+    </div {{ ui.card_end() }}>
+</div>
+{% endblock %}

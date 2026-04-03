@@ -1,0 +1,146 @@
+version: "3.8"
+
+x-app-env: &app-env
+  ENV_VAR: PROD
+  PAYG_URL: ${PAYG_URL:-localhost}
+  PG_HOST: db
+  PG_PORT: "5432"
+  ANALYTICAL_DB_HOST: analytical_db
+  ANALYTICAL_DB_PORT: "5432"
+  DISABLE_ANALYTICAL_DB: "0"
+  PG_USER: ${PG_USER}
+  PG_PASSWORD: ${PG_PASSWORD}
+  REDIS_SERVER_ADDRESS: redis
+  SECRET_KEY: ${SECRET_KEY}
+  INITIAL_ADMIN_EMAIL: ${INITIAL_ADMIN_EMAIL}
+  INITIAL_ADMIN_PASSWORD: ${INITIAL_ADMIN_PASSWORD}
+
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-${MAIN_DB_NAME:-main_db}}
+      POSTGRES_USER: ${PG_USER}
+      POSTGRES_PASSWORD: ${PG_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PG_USER} -d ${POSTGRES_DB:-${MAIN_DB_NAME:-main_db}}"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    ports:
+      - "5432:5432"
+    volumes:
+      - do_debug_db_data:/var/lib/postgresql/data
+
+  analytical_db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: analytical_db
+      POSTGRES_USER: ${PG_USER}
+      POSTGRES_PASSWORD: ${PG_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PG_USER} -d analytical_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    volumes:
+      - do_debug_analytical_db_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    ports:
+      - "6379:6379"
+    volumes:
+      - do_debug_redis_data:/data
+
+  runtime_setup:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: paygops-community:do-debug
+    restart: "no"
+    command: ["runtime_setup"]
+    environment:
+      <<: *app-env
+    depends_on:
+      db:
+        condition: service_healthy
+      analytical_db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - do_debug_setup_data:/setup_data
+      - do_debug_temp_data:/temp
+
+  web:
+    image: paygops-community:do-debug
+    command: ["start_web_app"]
+    environment:
+      <<: *app-env
+    depends_on:
+      runtime_setup:
+        condition: service_completed_successfully
+    ports:
+      - "8000:8000"
+    volumes:
+      - do_debug_setup_data:/setup_data
+      - do_debug_temp_data:/temp
+    profiles: ["full"]
+
+  api:
+    image: paygops-community:do-debug
+    command: ["start_api_app"]
+    environment:
+      <<: *app-env
+    depends_on:
+      runtime_setup:
+        condition: service_completed_successfully
+    ports:
+      - "6789:6789"
+    volumes:
+      - do_debug_setup_data:/setup_data
+      - do_debug_temp_data:/temp
+    profiles: ["full"]
+
+  celery_worker:
+    image: paygops-community:do-debug
+    command: ["start_worker"]
+    environment:
+      <<: *app-env
+    depends_on:
+      runtime_setup:
+        condition: service_completed_successfully
+    volumes:
+      - do_debug_setup_data:/setup_data
+      - do_debug_temp_data:/temp
+    profiles: ["full"]
+
+  celery_heavy_worker:
+    image: paygops-community:do-debug
+    command: ["start_heavy_worker"]
+    environment:
+      <<: *app-env
+    depends_on:
+      runtime_setup:
+        condition: service_completed_successfully
+    volumes:
+      - do_debug_setup_data:/setup_data
+      - do_debug_temp_data:/temp
+    profiles: ["full"]
+
+volumes:
+  do_debug_db_data:
+  do_debug_analytical_db_data:
+  do_debug_redis_data:
+  do_debug_setup_data:
+  do_debug_temp_data:

@@ -1,0 +1,39 @@
+{% extends 'macros/list_base.html' %}
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'macros/form_macros.html' as forms with context %}
+
+
+{% block title %}{{ ftext('Portfolios') }}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('Portfolios','List') }}{% endblock %}
+
+{% block page_actions %}
+{{ ui.button(link=url_for('portfolios.add_portfolio'), uicon='add', tooltip='Create New Portfolio', type='header-action') }}
+{% endblock %}
+
+{% block table %}
+<table {{ ui.table_start(pagination) }}>
+  <thead>
+    <tr>
+      {{ ui.table_header('ID', class='ps-4') }}
+      {{ ui.table_header('Name') }}
+      {{ ui.table_header('Description') }}
+      {{ ui.table_header('Budget') }}
+      {{ ui.table_header('Contracts') }}
+      {{ ui.table_header('Leads', class='pe-4') }}
+    </tr>
+  </thead>
+  <tbody>
+    {% for portfolio in pagination.objects %}
+      <tr>
+        <td class='ps-4'><a href="{{ url_for('portfolios.view_portfolio', portfolio_id=portfolio.id) }}">{{ portfolio.id }}</a></td>
+        <td class="truncate-hoverable">{{ portfolio.name }}</td>
+        <td class="truncate-hoverable">{{ portfolio.description }}</td>
+        <td>{{ portfolio.budget }}</td>
+        <td>{{ portfolio.contracts.count() }}</td>
+        <td class='pe-4'>{{ portfolio.associated_leads.count() }}</td>
+      </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

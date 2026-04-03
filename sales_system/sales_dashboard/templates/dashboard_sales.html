@@ -1,0 +1,95 @@
+{% extends "macros/base.html" %}
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'macros/form_macros.html' as forms %}
+{% import 'macros/charts_macros.html' as charts with context %}
+{% import 'macros/filter_macros.html' as filter with context %}
+
+{% block title %}{{ ftext('Sales Dashboard') }}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('Dashboards', 'Sales') }}{% endblock %}
+
+{% block page_actions %}
+    {{ ui.custom_dashboard_link('sales') }}
+    {{ ui.button(uicon='cached', tooltip='Refresh Stats Now (automatically refreshed every 12h)', link=url_for('sales_dashboard.sales_dashboard_default', clear_cache=true, **request.args), type='header-action') }}
+{% endblock %}
+
+{% block content %}
+{% if GlobalSetting('StressMode') %}
+    {{ ui.info_card('We are experiencing a high load on the server. Dashboards have been temporarily disabled.')}}
+{% else %}
+<div class="row">
+    <div {{ ui.card_start(body_class='card-row') }}>
+        <form class="row" method="post">
+            {{ forms.input('begin_date', 'From', value=BeginDate, type='datepicker', icon='date', size='5') }}
+            {{ forms.input('end_date', 'To', value=EndDate, type='datepicker', icon='date', size='5') }}
+            <div class="{{ ui.col_size(2) }}">{{ filter.apply_filters_button() }}</div>
+        </form>
+    </div {{ ui.card_end() }}>
+
+    <div {{ ui.card_start(size='12', uicon='lead', title='New Leads and Clients (weekly)') }}>
+        <canvas id="LeadsPerWeek" height="80"></canvas>
+    </div {{ ui.card_end() }}>
+
+    {#<div {{ ui.card_start(size='12', uicon='generator', title='Top 20 Generators by Client Count') }}>
+        <canvas id="SubsPerGenerator" height="80"></canvas>
+    </div {{ ui.card_end() }}>
+
+    <div {{ ui.card_start(size='12', uicon='generator', title='Top 20 Generators by Lead Count') }}>
+        <canvas id="LeadsPerGenerator" height="80"></canvas>
+    </div {{ ui.card_end() }}>#}
+
+    <div {{ ui.card_start(size='6', uicon='lead', title='Leads by Generator Type') }}>
+        <canvas id="LeadsPerLeadGeneratorType" height="140"></canvas>
+    </div {{ ui.card_end() }}>
+
+    <div class="{{ ui.col_size(6) }}">
+        <div {{ ui.card_start() }}>
+            {{ ui.stat_card_header(uicon='lead', color='main', tooltip='Calculated as: number of lead converted to client / number of leads. ', number=Stats.GetLeadConversionRate(), title='Lead conversion rate', number_text='%', if_number_null='-') }}
+        </div {{ ui.card_end() }}>
+
+        <div {{ ui.card_start() }}>
+            {{ ui.stat_card_header(uicon='lead', color='main', tooltip='Calculated as: time in days between the lead entry and the client registration (for leads registered in the last 30 days). ', number=Stats.TimeBetweenLeadAndRegistration(BeginDate, EndDate), title='Average conversion time', number_text='days', if_number_null='-') }}
+        </div {{ ui.card_end() }}>
+    </div>
+
+    <div {{ ui.card_start(size='6', match_height=true, uicon='offer', title='Leads by Offer Type') }}>
+        <canvas id="LeadsPerOfferType" height="140"></canvas>
+    </div {{ ui.card_end() }}>
+
+    <div {{ ui.card_start(size='6', match_height=true, uicon='offer', title='Clients by Offer Type') }}>
+        <canvas id="ClientsPerOfferType" height="140"></canvas>
+    </div {{ ui.card_end() }}>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if not GlobalSetting('StressMode') %}
+    <script src="/static/js/chart.min.js"></script>
+    <script>
+        {% cache 3600*12, 'lead_stats_data_'+BeginDate.strftime('%Y-%m-%d')+'_'+EndDate.strftime('%Y-%m-%d') %}
+        {{  charts.chartJS('line', 'LeadsPerWeek',
+        StatsHelper.GetLeadsAndClientsPerWeekChartData(BeginDate, EndDate),
+        ['Leads per week', 'Clients per Week'],
+        backgroundColors=['basecolorbis', 'colorgreenbis'],
+        borderColors=['basecolorbis', 'colorgreen'],
+        displayLegend=true) }}
+
+        {# charts.chartJS('bar', 'SubsPerGenerator',
+        Stats.GetSubNumberPerLeadGenerator(BeginDate,EndDate, 20), ['Subscribers'], noXGrid=true) #}
+
+        {#  charts.chartJS('bar', 'LeadsPerGenerator',
+        Stats.GetLeadsNumberPerLeadGenerator(BeginDate,EndDate, 20), ['Leads'], noXGrid=true) #}
+
+        {{  charts.pieJS('doughnut', 'LeadsPerLeadGeneratorType',
+        StatsHelper.GetLeadGeneratedByGeneratorType(BeginDate, EndDate)) }}
+
+        {{  charts.pieJS('doughnut', 'LeadsPerOfferType',
+        StatsHelper.getLeadsPerOfferTypeChartData(BeginDate, EndDate)) }}
+
+        {{  charts.pieJS('doughnut', 'ClientsPerOfferType',
+        StatsHelper.getClientsPerOfferTypeChartData(BeginDate, EndDate)) }}
+        {% endcache %}
+    </script>
+{% endif %}
+{% endblock %}

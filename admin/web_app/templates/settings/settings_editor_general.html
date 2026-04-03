@@ -1,0 +1,1117 @@
+{% extends "macros/base.html" %}
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'settings/settings_editor_macros.html' as settings_forms with context %}
+{% import 'macros/form_macros.html' as forms with context %}
+{% import 'offline_token_config_macros.html' as offline_tokens with context %} 
+{% import 'edit_custom_messages_macros.html' as custom_msg with context %}
+
+
+{% block title %}{{ ftext('General Settings') }}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('Settings', 'General') }}{% endblock %}
+
+{% block content %}
+
+{% if current_user.can_access('ConfigureLocalSettingsAdmin') %}
+<div {{ ui.collapsible_card_start(title='Locale Settings' , uicon='map', active=false) }}>
+    <form id="local_settings_form" method="POST" class="row card-row">
+        {{ forms.select('TargetTimezone',
+        config.AVAILABLE_TIMEZONES_LIST,
+        value=GlobalSetting('TargetTimezone'),
+        required=true,
+        label="Choose Timezone",
+        labeltag="Current Timezone",
+        size=6, translate=false) }}
+        {% if not GlobalSetting('ForcedCurrencyExchangeRate') %}
+        {{ forms.select('CurrencyISOName',
+        currencies,
+        value=GlobalSetting('CurrencyISOName'),
+        required=true,
+        label="Choose Currency",
+        labeltag="Currency",
+        size=6, translate=false) }}
+        {% endif %}
+        {{ forms.input('CurrencySymbol',
+        label="Currency symbol",
+        value=GlobalSetting('CurrencySymbol'),
+        required=true,
+        size=6) }}
+        {{ forms.input('CountryName',
+        label="Country name",
+        value=GlobalSetting('CountryName'),
+        required=true,
+        size=6) }}
+        {{ forms.input('CountryDescriptor',
+        label="Country Descriptor",
+        value=GlobalSetting('CountryDescriptor'),
+        required=true,
+        size=6) }}
+        {{ forms.input('PhoneExtension',
+        label="Phone number extension (w/o +)",
+        value=GlobalSetting('PhoneExtension'),
+        required=true,
+        size=6,
+        type='number') }}
+        {{ forms.input('PhoneLengthMin',
+        label="Minimum phone number length",
+        value=GlobalSetting('PhoneLengthMin'),
+        required=true,
+        type='number',
+        size=6) }}
+        {{ forms.input('PhoneLength',
+        label="Maximum phone number length",
+        value=GlobalSetting('PhoneLength'),
+        required=true,
+        size=6,
+        type='number') }}
+        {{ forms.select('FirstDayOfWeek',
+        config.DAYS_OF_WEEK,
+        value=GlobalSetting('FirstDayOfWeek'),
+        required=true,
+        label="Choose First Day of the Week",
+        size=6,
+        labeltag="First Day of the Week") }}
+        {{ forms.select('GpsSurfaceMeasurementUnit',
+        config.GPS_SURFACE_MEASUREMENT_UNITS,
+        value=GlobalSetting('GpsSurfaceMeasurementUnit'),
+        required=true,
+        label="Choose GPS surface measurement unit",
+        size=6,
+        labeltag="GPS surface measurement unit") }}
+        {{ settings_forms.save_button(center=true) }}
+    </form>
+</div {{ ui.collapsible_card_end() }}>
+{% endif %}
+
+{% if current_user.can_access('ConfigureLanguageSettingsAdmin') %}
+<div {{ ui.collapsible_card_start(title='Language Settings' , uicon='language', active=false) }}>
+    <form id="language_settings_form" method="POST" class="row card-row">
+        {{ forms.select('DefaultWebLanguage',
+        config.AVAILABLE_WEB_LANGUAGES,
+        value=GlobalSetting('DefaultWebLanguage'),
+        required=true,
+        label="Choose Default Web Language",
+        size=6,
+        labeltag="Default Web Language") }}
+
+        {{ forms.select('DefaultSMSUsersLanguage',
+        USERS_SMS_LANGUAGES,
+        value=GlobalSetting('DefaultSMSUsersLanguage'),
+        required=true,
+        size=6,
+        label="Choose Default SMS language for users",
+        labeltag="Default SMS language for users") }}
+
+        {{ forms.select('DefaultSMSClientsLanguage',
+        CLIENT_SMS_LANGUAGES,
+        value=GlobalSetting('DefaultSMSClientsLanguage'),
+        required=true,
+        size=6,
+        label="Choose Default SMS language for clients",
+        labeltag="Default SMS language for clients") }}
+        {{ settings_forms.save_button(center=false) }}
+    </form>
+</div {{ ui.collapsible_card_end() }}>
+{% endif %}
+
+{% if current_user.can_access('ConfigureGeneralSettingsAdmin') %}
+<div {{ ui.collapsible_card_start(title='Logo Settings' , uicon='photo_library', active=false) }}>
+    <form class="row card-row">
+        {{ ui.info_card(uicon='info', class='mt-3', color='secondary', in_card=true, text='You need to upload a <strong>black on white background image</strong> with your logo, 
+        it can be PNG, JPG or GIF (static). If your image is not black and white it will be converted. Your image will be optimized and the quality might be lowered, 
+        ensure to check it after upload') }}
+
+        {{ forms.input('PlatformLogoPictureID', type='picture', label='Platform Logo', size=5) }}
+
+        {{ settings_forms.save_button(center=false, size=4) }}
+        {{ ui.button(uicon='clear', label='Clear Logo', type='action', fit=true, size=3, inline=true, disabled=false,
+                        action='async_post', async_url='/settings', success_message='Settings saved', success_action='message') }}
+    </form>
+</div {{ ui.collapsible_card_end() }}>
+{% endif %}
+
+{% if current_user.can_access('ConfigureGeneralSettingsAdmin') %}
+<div {{ ui.collapsible_card_start(title='Security Settings' , uicon='lock', active=false) }}>
+    <form id="general_settings_form" method="POST" class="row card-row">
+        {% set value = GlobalSetting('SessionLifetime') if GlobalSetting('SessionLifetime') >= 10 else '' %}
+        {{ forms.input('SessionLifetime:number',
+        micon="logout",
+        tooltip="The minimum value to log out users automatically is 10 minutes. Leave the field empty if you do not
+        wish to log out users automatically.",
+        min_val=0,
+        type='number',
+        label="Automatically log users off after",
+        value=value,
+        size=6,
+        placeholder='Unlimited (0)',
+        is_int=true,
+        suffix='minutes of inactivity (min. 10)') }}
+
+        {{ forms.checkbox('enableLoginPIN',
+            checked=GlobalSetting('enableLoginPIN'),
+            labeltag='Force use of the PIN on the Mobile App',
+            label='Use PIN on Mobile App',
+            id='enableLoginPINSwitch',
+            size=6,
+        ) }}
+
+        {{ forms.checkbox('disablePasswordLogin',
+            checked=GlobalSetting('disablePasswordLogin'),
+            labeltag='Prevent users from logging in with password',
+            label='Disable Password Login',
+            id='disablePasswordLogin',
+            tooltip='SSO feature must be enabled to use this setting',
+            size=6,
+            disabled=not GlobalSetting('FeatureToggles').get('SSO')
+        )}}
+
+        {{ forms.checkbox('disablePasswordLoginMobile',
+            checked=GlobalSetting('disablePasswordLoginMobile'),
+            labeltag='Prevent users from logging in with password in mobile app',
+            label='Disable Password Login in mobile app',
+            id='disablePasswordLoginMobile',
+            tooltip='SSO feature must be enabled on mobile to use this setting',
+            size=6,
+            disabled=not GlobalSetting('FeatureToggles').get('MobileSSO')
+        )}}
+
+        {{ forms.checkbox('enforceTwoFactorForAllUsers',
+            checked=GlobalSetting('enforceTwoFactorForAllUsers'),
+            labeltag='Require all users to enable two-factor authentication (2FA)',
+            label='Enforce 2FA for all users',
+            id='enforceTwoFactorForAllUsers',
+            tooltip='When enabled, users without 2FA will be prompted to enable it before accessing the app.',
+            size=6
+        )}}
+
+        {{ settings_forms.save_button() }}
+    </form>
+</div {{ ui.collapsible_card_end() }}>
+{% endif %}
+
+
+{% if current_user.can_access('ConfigureDeviceAPIAdmin') %}
+<div {{ ui.collapsible_card_start(title='Device Settings' , uicon='device', active=false) }}>
+    <form id="general_settings_form" method="POST" class="row card-row">
+        {{ forms.select('FallBackDeviceType',
+                        AvailableDeviceTypeList,
+                        value=GlobalSetting('FallBackDeviceType'),
+                        required=true,
+                        size=4,
+                        label="Choose Fallback Device Type",
+                        labeltag="Fallback Device Type", translate=false) }}
+
+        {{ forms.select('HidePrefixFallBackDeviceType',
+                        config.HIDE_PREFIX_FALLBACK_DEVICE_TYPE_OPTIONS,
+                        value=GlobalSetting('HidePrefixFallBackDeviceType')|string,
+                        required=true,
+                        size=4,
+                        label="Hide type prefix for fallback device type",
+                        labeltag="Hide device type prefix for fallback device type") }}
+
+        {{ forms.select('NPGDeviceEnabled',
+                        config.NPG_DEVICE_ENABLED_OPTIONS,
+                        value=GlobalSetting('NPGDeviceEnabled')|string,
+                        required=true,
+                        size=4,
+                        label="Enable Non-PAYGO Devices",
+                        labeltag="Enable Non-PAYGO (NPG) Devices") }}
+
+        {{ settings_forms.save_button() }}
+    </form>
+
+    {{ ui.divider(ftext('Offline Token Configuration ')+ui.beta_tag(), small=true) }}
+
+    {{ ui.info_card(type='info', in_card=true, class='mt-3', text='Use this menu to configure the type of tokens that will be available offline
+    for devices of each type of device. Those will be usable for use of those
+    devices with new clients. Make sure to find values that work on the most
+    common offer you use with those devices.') }}
+    {{ ui.info_card(type='warning', in_card=true, text='Even though a type of device might support
+    offline mode does not mean all the devices of that type will support it.
+    Please check with the manufacturer for more details.')}}
+
+    {% for device_type in device_types %}
+        <div {{ ui.collapsible_card_start(title=device_type['full_name'], active=false) }}>
+            {{ offline_tokens.offline_token_config_card(device_type['offline_token_config'],
+                name=device_type['name']) }}
+        </div {{ ui.collapsible_card_end() }}>
+    {% else %}
+        {{ ui.info_card(in_card=true, text='None of the devices you have configured support offline mode.')}}
+    {% endfor %}
+</div {{ ui.collapsible_card_end() }}>
+{% endif %}
+
+
+{% if current_user.can_access('ConfigureOperationalEntitiesAdmin') %}
+<div {{ ui.collapsible_card_start(title='Operational Entities Settings' , uicon='map', active=false) }}>
+
+    {{ ui.info_card(uicon='info', text=ftext('Enabling new levels can have a impact in integrations and workflows using old
+    APIs that
+    don\'t support this feature. Please check <a href="{}#tag/Locations">API
+        Documentation</a>
+    for the new Operational Entities API endpoints and make sure integrations are updated to avoid errors. ', url_for('admin.api_docs')),
+    color='secondary') }}
+
+    <form id="operational_entities_form" method="POST" class="row">
+        {{ forms.input('OperationalEntities[0][name]',
+        label="Level 0 name (e.g. Village)",
+        value=GlobalSetting('OperationalEntities')[0].name,
+        required=true, size=5, uicon="home") }}
+        {{ forms.input('OperationalEntities[0][names]',
+        label="Level 0 plural name (e.g. Villages)",
+        value=GlobalSetting('OperationalEntities')[0].names,
+        required=true, size=5) }}
+        {{ forms.checkbox('nothing:skip',
+        checked=true,
+        id="ClusterEnabledCheckbox",
+        labeltag='Level 0 Enabled',
+        label='Enabled',
+        disabled=true,
+        size=2) }}
+
+        {{ forms.input('OperationalEntities[1][name]',
+        label="Level 1 name (e.g. Cluster)",
+        value=GlobalSetting('OperationalEntities')[1].name,
+        required=true, size=5, uicon="filter_tilt_shift") }}
+        {{ forms.input('OperationalEntities[1][names]',
+        label="Level 1 plural name (e.g. Clusters)",
+        value=GlobalSetting('OperationalEntities')[1].names,
+        required=true, size=5) }}
+        {{ forms.checkbox('OperationalEntities[1][enabled]:boolean',
+        checked=GlobalSetting('OperationalEntities')[1].enabled,
+        id="ClusterEnabledCheckbox",
+        labeltag='Level 1 Enabled',
+        label='Enabled',
+        size=2) }}
+
+        {{ forms.input('OperationalEntities[2][name]',
+        label="Level 2 name (e.g. Hub)",
+        value=GlobalSetting('OperationalEntities')[2].name,
+        required=true, size=5, uicon="store") }}
+        {{ forms.input('OperationalEntities[2][names]',
+        label="Level 2 plural name (e.g. Hubs)",
+        value=GlobalSetting('OperationalEntities')[2].names,
+        required=true, size=5) }}
+        {{ forms.checkbox('OperationalEntities[2][enabled]:boolean',
+        checked=GlobalSetting('OperationalEntities')[2].enabled,
+        id="ClusterEnabledCheckbox",
+        labeltag='Level 2 Enabled',
+        label='Enabled',
+        size=2) }}
+
+        {{ forms.input('OperationalEntities[3][name]',
+        label="Level 3 name (e.g. Zone)",
+        value=GlobalSetting('OperationalEntities')[3].name,
+        required=true, size=5, uicon="device_hub") }}
+        {{ forms.input('OperationalEntities[3][names]',
+        label="Level 3 plural name (e.g. Zones)",
+        value=GlobalSetting('OperationalEntities')[3].names,
+        required=true, size=5) }}
+        {{ forms.checkbox('OperationalEntities[3][enabled]:boolean',
+        checked=GlobalSetting('OperationalEntities')[3].enabled,
+        id="ClusterEnabledCheckbox",
+        labeltag='Level 3 Enabled',
+        label='Enabled',
+        size=2) }}
+
+        {{ forms.input('OperationalEntities[4][name]',
+        label="Level 4 name (e.g. Region)",
+        value=GlobalSetting('OperationalEntities')[4].name,
+        required=true, size=5, uicon="terrain") }}
+        {{ forms.input('OperationalEntities[4][names]',
+        label="Level 4 plural name (e.g. Regions)",
+        value=GlobalSetting('OperationalEntities')[4].names,
+        required=true, size=5) }}
+        {{ forms.checkbox('OperationalEntities[4][enabled]:boolean',
+        checked=GlobalSetting('OperationalEntities')[4].enabled,
+        id="ClusterEnabledCheckbox",
+        labeltag='Level 4 Enabled',
+        label='Enabled',
+        size=2) }}
+
+        {{ ui.divider('Other Settings', small=true)}}
+        {{ forms.checkbox('SyncEntityByDefaultForNewUsersInCharge',
+                labeltag='Sync Entity (or Client Group) by default for new users in charge',
+                label='Sync Entity by default',
+                checked=GlobalSetting('SyncEntityByDefaultForNewUsersInCharge'),
+                size=6) }}
+
+        {{ settings_forms.save_button() }}
+    </form>
+</div {{ ui.collapsible_card_end() }}>
+{% endif %}
+
+{% if GlobalSetting('MetabaseURL') not in [none, ''] %}
+<div {{ ui.collapsible_card_start(title='Custom Dashboards Settings' , uicon='addchart', active=false) }}>
+    <form id="custom_dashboard_form" method="POST" class="row card-row">
+        {% for dashboard_name in custom_dashboard_names %}
+            {{ ui.divider(dashboard_name.capitalize(), small=true, class='mt-3') }}
+            {{ forms.input('CustomDashboards['+dashboard_name+'][id]',
+            uicon="tag",
+            label="Metabase ID",
+            value=GlobalSetting('CustomDashboards').get(dashboard_name, {}).get('id'),
+            size=2,
+            ) }}
+
+            {{ forms.input('CustomDashboards['+dashboard_name+'][name]',
+            uicon="text_format",
+            label="Custom Name",
+            value=GlobalSetting('CustomDashboards').get(dashboard_name, {}).get('name'),
+            size=2,
+            ) }}
+
+            {{ forms.checkbox('CustomDashboards['+dashboard_name+'][enabled]:boolean',
+            labeltag='Dashboard Enabled',
+            label='Enabled',
+            checked=GlobalSetting('CustomDashboards').get(dashboard_name, {}).get('enabled'),
+            id='CustomDashboards['+dashboard_name+'][enabled]',
+            size=2) }}
+
+            {{ forms.checkbox('CustomDashboards['+dashboard_name+'][replaces_default]:boolean',
+            checked=GlobalSetting('CustomDashboards').get(dashboard_name, {}).get('replaces_default'),
+            size=2,
+            id='CustomDashboards['+dashboard_name+'][replaces_default]',
+            label="Default",
+            labeltag='Show by Default'
+            ) }}
+
+            {{ forms.checkbox('CustomDashboards['+dashboard_name+'][filter_entity]:boolean',
+            checked=GlobalSetting('CustomDashboards').get(dashboard_name, {}).get('filter_entity'),
+            id='CustomDashboards['+dashboard_name+'][filter_entity]',
+            size=2,
+            labeltag='Entity Filter',
+            label="Enabled") }}
+
+            {{ forms.checkbox('CustomDashboards['+dashboard_name+'][filter_user]:boolean',
+            checked=GlobalSetting('CustomDashboards').get(dashboard_name, {}).get('filter_user'),
+            id='CustomDashboards['+dashboard_name+'][filter_user]',
+            size=2,
+            labeltag='User Filter',
+            label="Enabled") }}
+
+        {% endfor %}
+        {{ settings_forms.save_button() }}
+    </form>
+</div {{ ui.collapsible_card_end() }}>
+{% endif %}
+{% if current_user.can_access('ConfigureGeneralSettingsAdmin') %}
+<div {{ ui.collapsible_card_start(body_class='row', uicon='touch_app', title='Custom Buttons', active=false) }}>
+  <form id="custom_button_config_form" action="/settings" method="POST" class="row card-row template-badge-holder">
+
+    <div class="buttons-wrapper w-100">
+      {# Normalize current settings to a list #}
+      {% set _buttons = GlobalSetting('customButtonConfiguration') or [] %}
+      {% set buttons = [_buttons] if _buttons is mapping else _buttons %}
+
+      {# ===== Existing buttons (editable cards) ===== #}
+      {% for btn in buttons %}
+        {% set i = loop.index0 %}
+        <div {{ ui.card_start(body_class='row custom-button-item template-badge-holder') }}>
+          <div class="{{ ui.col_size(12) }} d-flex justify-content-between align-items-center mb-2">
+            <h6 class="mb-0">{{ btn['CustomButtonName'] or ('Custom Button ' ~ (i + 1)) }}</h6>
+
+            {# Delete button (client-side remove; or wire to your own delete action) #}
+            {{ forms.button(uicon='delete', label='Delete', type='action', color='outline-danger',
+                            class='btn btn-sm', action='deleteCustomButton(this)') }}
+          </div>
+
+          {{ forms.input('customButtonConfiguration[][CustomButtonName]',
+            label='Custom Button Name',
+            value=btn['CustomButtonName'],
+            size=4) }}
+
+          {{ forms.select_icon('customButtonConfiguration[][CustomButtonIcon]',
+            label='Custom Button Icon*',
+            value=btn['CustomButtonIcon'] or 'link',
+            required=true,
+            size=4,
+            id='customButtonConfiguration[' ~ i ~ '][CustomButtonIcon]') 
+          }}
+
+          {# Target Page select toggles which variable badges are shown in this card #}
+          {{ forms.searchable_select(
+            'customButtonConfiguration[][TargetPage]',
+            config.CUSTOM_BUTTON_TARGET_PAGES,
+            labeltag='Target Page',
+            value=btn['TargetPage'] or 'client',
+            size=4,
+            onchange='selectToggleFormsMap(this, "value", {"client":".vars-client-' ~ i ~ '","contract":".vars-contract-' ~ i ~ '","lead":".vars-lead-' ~ i ~ '"})',
+            id='customButtonConfiguration[' ~ i ~ '][TargetPage]'
+          ) }}
+
+          {{ forms.input('customButtonConfiguration[][TargetUrl]',
+            value=btn['TargetUrl'],
+            variables=config.CUSTOM_BUTTON_VARIABLES_INFO,
+            uicon='link',
+            label='Target URL',
+            class='url_protocol',
+            required=true,
+            type='variable_box',
+            size=12) }}
+
+          {# Per-page variable badges (switch via selectToggleFormsMap) #}
+            <div class="row ms-1 mt-2">
+                {{ ftext('The following variables are available:') }}
+                <div class="d-flex flex-wrap gap-2 mt-2 ps-0">
+                {# CLIENT — visible when target is client or unset #}
+                <div class="vars-client-{{ i }} {% if (btn['TargetPage'] or 'client') != 'client' %}hiddenform{% endif %}">
+                    {% for key, label in config.CUSTOM_BUTTON_VARIABLES_BY_PAGE['client'] %}
+                    {{ ui.variable_badge(key, add=true) }}
+                    {% endfor %}
+                </div>
+            
+                {# CONTRACT — hidden unless contract is selected #}
+                <div class="vars-contract-{{ i }} {% if btn['TargetPage'] != 'contract' %}hiddenform{% endif %}">
+                    {% for key, label in config.CUSTOM_BUTTON_VARIABLES_BY_PAGE['contract'] %}
+                    {{ ui.variable_badge(key, add=true) }}
+                    {% endfor %}
+                </div>
+            
+                {# LEAD — hidden unless lead is selected #}
+                <div class="vars-lead-{{ i }} {% if btn['TargetPage'] != 'lead' %}hiddenform{% endif %}">
+                    {% for key, label in config.CUSTOM_BUTTON_VARIABLES_BY_PAGE['lead'] %}
+                    {{ ui.variable_badge(key, add=true) }}
+                    {% endfor %}
+                </div>
+                </div>
+            </div>
+            
+        </div {{ ui.card_end() }}>
+      {% endfor %}
+
+      {# ===== New button card (hidden until "Add Button" is clicked) ===== #}
+      <div class="py-2 custom-button-item new_button hiddenform">
+        <div {{ ui.card_start(body_class='row template-badge-holder') }}>
+          <div class="{{ ui.col_size(12) }} d-flex justify-content-between align-items-center mb-2">
+            <h6 class="mb-0">New Custom Button</h6>
+            {{ forms.button(uicon='delete', label='Remove', type='action', color='outline-danger',
+                            class='btn btn-sm', action='deleteCustomButton(this)') }}
+          </div>
+
+          {{ forms.input('customButtonConfiguration[][CustomButtonName]',
+            label='Custom Button Name',
+            size=4) }}
+
+          {{ forms.select_icon('customButtonConfiguration[][CustomButtonIcon]',
+            label='Custom Button Icon*',
+            value='link',
+            required=true,
+            size=4,
+            id='add_custom_button_icon'
+          ) }}
+
+          {# Note: for the "new" card we use static ids with suffix -new #}
+          {{ forms.searchable_select(
+            'customButtonConfiguration[][TargetPage]',
+            config.CUSTOM_BUTTON_TARGET_PAGES,
+            labeltag='Target Page',
+            value='client',
+            size=4,
+            onchange='selectToggleFormsMap(this, "value", {"client":".vars-client-new","contract":".vars-contract-new","lead":".vars-lead-new"})',
+            id='add_custom_button_target_page'
+          ) }}
+
+          {{ forms.input('customButtonConfiguration[][TargetUrl]',
+            value='',
+            variables=config.CUSTOM_BUTTON_VARIABLES_INFO,
+            uicon='link',
+            label='Target URL',
+            value='https://',
+            type='variable_box',
+            class='url_protocol',
+            required=true,
+            size=12) }}
+
+          <div class="row ms-1 mt-2">
+            {{ ftext('The following variables are available:') }}
+            <div class="d-flex flex-wrap gap-2 mt-2 ps-0">
+              {# Default visible = client; others hidden until TargetPage changes #}
+                <div class="vars-client-new">
+                    {% for key, label in config.CUSTOM_BUTTON_VARIABLES_BY_PAGE['client'] %}
+                    {{ ui.variable_badge(key, add=true) }}
+                    {% endfor %}
+                </div>
+                <div class="vars-contract-new hiddenform">
+                    {% for key, label in config.CUSTOM_BUTTON_VARIABLES_BY_PAGE['contract'] %}
+                    {{ ui.variable_badge(key, add=true) }}
+                    {% endfor %}
+                </div>
+                <div class="vars-lead-new hiddenform">
+                    {% for key, label in config.CUSTOM_BUTTON_VARIABLES_BY_PAGE['lead'] %}
+                    {{ ui.variable_badge(key, add=true) }}
+                    {% endfor %}
+                </div>
+  
+            </div>
+          </div>
+        </div {{ ui.card_end() }}>
+      </div>
+      {# ===== /New button card ===== #}
+    </div>
+
+    {# Actions: Add shows hidden card; Save posts the whole array #}
+    {{ ui.button('Add Button', id='add_button_button', uicon='add', size=6, type='action',
+                 class='add_button_button', fit=true,
+                 action='showForm(".new_button")',
+                 tooltip='Add a new button') }}
+
+    {{ ui.button('Save Buttons', uicon='save', size=6, type='action',
+                 class='submit-btn forms_save_button', fit=true,
+                 action='async_post', async_url='/settings',
+                 success_message='Buttons saved!') }}
+  </form>
+</div {{ ui.collapsible_card_end() }}>
+{% endif %}
+
+
+{% if current_user.can_access('ConfigureSpecialSettingsAdmin') %}
+<div {{ ui.collapsible_card_start(title='Special Settings' , uicon='magic_exchange', active=false) }}>
+    <form class="row">
+        {{ forms.checkbox(
+            'StressMode',
+            checked=GlobalSetting('StressMode'),
+            size='6',
+            id="StressModeCheckbox",
+            labeltag="Enable Stress Mode",
+            label='Stress Mode Enabled'
+        ) }}
+        {{ forms.checkbox(
+            'ShowStressBanner',
+            checked=GlobalSetting('ShowStressBanner'),
+            size='6',
+            id="ShowStressBannerCheckbox",
+            labeltag="Show Stress Mode Banner in app and web",
+            label='Stress Mode Banner Enabled'
+        ) }}
+
+        {{ settings_forms.save_button() }}
+    </form>
+    {{ ui.divider('Force Mobile App Sync', small=true)}}
+    {{ ui.info_card(uicon='info', class='mt-3', in_card=true, color='secondary', text='Clicking on this button will force app
+    synchronisation once users are online.') }}
+    <form class="row">
+        {{ forms.input('last_force_sync_time:skip', value=ui.standard_datetime(GlobalSetting('LastForcedSyncTime'), 'Never'), size=6, disabled=true, label='Last Force Synchronization Time', type='datetime')}}
+        {{ ui.button(uicon='loop', label='Force sync for all users', type='action', action='async_post',
+        async_url='/force_sync', disabled=false, fit=true, size=6, inline=true) }}
+    </form>
+</div {{ ui.collapsible_card_end() }}>
+{% endif %}
+
+{% if current_user.can_access('ConfigureSpecialSettingsAdmin') %}
+
+<!-- side menu child macro -->
+{% macro side_menu_child(menu, menu_item, child) %}
+    {% set menu_icon = child.get('icon') or child.get('micon') %}    
+    {% set icon = icons.get(menu_icon) if icons.get(menu_icon) else menu_icon %} 
+    {% set menu_is_enabled = GlobalSetting("sideMenuSettings").get(menu_item, {}).get("children", {}).get(child['label'], {}).get("enabled") != False %}
+    {% set is_custom = child.get('child_type') in ['user_journey', 'custom_dashboard'] %}
+
+    {{ forms.input( '', 
+                    label='Button Name', 
+                    value=child.get('label'), 
+                    disabled=true, 
+                    size=5) }}
+
+    {{forms.select_icon('', 
+                    'Button Icon', 
+                    size=4, 
+                    value=icon, 
+                    id=menu_item+'_'+menu.get('label')+'_'+child.get('label'),
+                    disabled=true)}}
+
+    {{ forms.checkbox(  name='sideMenuSettings['+menu_item+'][children]['+child['label']+'][enabled]:boolean',
+                        labeltag='Show', 
+                        label='', 
+                        checked=true if menu_is_enabled else false,
+                        size=1,
+                        value=true if menu_is_enabled else false) }}  
+
+    {% if is_custom %}
+    {{ ui.button(uicon='remove', label='', type='action', color='outline-danger',
+                    class='btn btn-sm mt-3 pt-0', tooltip='Remove from side menu',
+                    action='removeCustomSideMenuItem(this)',
+                    size=1,
+                    data_attributes={'menu_item': menu_item, 'child_label': child['label'], 'child_type': child.get('child_type', ''), 'slug': child.get('slug', '')}) }}
+    {% endif %}
+
+    <div class="hidden">
+        {{ forms.input( name='sideMenuSettings['+menu_item+'][children]['+child['label']+'][child_type]',
+                        label='Type', 
+                        size=4,
+                        value=child.get('child_type'),
+                            ) }} 
+        {{ forms.input( name='sideMenuSettings['+menu_item+'][children]['+child['label']+'][id]',
+                        label='Type', 
+                        size=4,
+                        value=child.get('id'),
+                            ) }} 
+    </div>
+        
+{% endmacro %}
+<!-- / side menu child macro -->
+
+<div {{ ui.collapsible_card_start(title='Side Menu' , uicon='side_navigation', active=false, actions=ui.button(tooltip='Add Side Menu', uicon='add', type='card-action', modal='add-side-menu-modal')) }}>
+    <form class="row">
+
+    {{ ui.divider(ftext('Global Section'), small=true) }}
+
+    {% for menu_item, menu in WEB_MENU_INFO_UNFILTERED.items() if not menu.get('children') %}
+        {% set menu_icon = menu.get('icon') or menu.get('micon') %}    
+        {% set icon = icons.get(menu_icon) if icons.get(menu_icon) else menu_icon %}    
+        {% set menu_is_enabled = GlobalSetting("sideMenuSettings").get(menu_item, {}).get("enabled") != False %}
+
+        {{ forms.input( name='', 
+                        label='Button Name', 
+                        value=menu.get('label'), 
+                        disabled=true, 
+                        size=5) }}
+
+        {{ forms.select_icon('', 
+                        'Button Icon', 
+                        size=5, 
+                        value=icon, 
+                        id=menu_item+'_'+menu.get('label'),
+                        disabled=true) }}
+        
+        {{ forms.checkbox(  name='sideMenuSettings['+menu_item+'][enabled]:boolean',
+                            labeltag='Show', 
+                            label='', 
+                            checked=true if menu_is_enabled else false,
+                            size=1,
+                            value=true if menu_is_enabled else false) }}
+    {% endfor %}
+
+    {{ ui.divider(ftext('Sub Menus'), small=true) }}
+
+    {% for menu_item, menu in WEB_MENU_INFO_UNFILTERED.items() if menu.get('children') %}
+        <div {{ ui.collapsible_card_start(title=menu['label']+' Sub Menu' , uicon='drag_indicator', active=false) }}>
+            {{ ui.divider(ftext('User Journey'), small=true) }}
+            <div class="row z-depth-1 side_menu_children_container">
+                {% for child in menu.get('children') if menu.get('children') and child.get('label') and child.get('child_type') in ['user_journey'] %}
+                    <div class="row">
+                        <div class="{{ ui.col_size(1) }} pt-4">
+                                {{ ui.icon('drag_indicator', color='lightgrey', style="cursor: move;") }}
+                        </div>
+                        {{ side_menu_child(menu, menu_item, child) }}
+                    </div>
+                {% endfor %}
+            </div>
+            {{ ui.divider(ftext('Default Sub Menus'), small=true) }}
+            <div class="row z-depth-1">
+                {% for child in menu.get('children') if menu.get('children') and child.get('label') and child.get('child_type') not in ['user_journey', 'custom_dashboard'] %}
+                    <div class="row">
+                        <div class="{{ ui.col_size(1) }} pt-4"></div>
+                        {{ side_menu_child(menu, menu_item, child) }}
+                    </div>
+                {% endfor %}
+            </div>
+            {{ ui.divider(ftext('Custom Dashboards'), small=true) }}
+            <div class="row z-depth-1 side_menu_children_container">
+                {% for child in menu.get('children') if menu.get('children') and child.get('label') and child.get('child_type') in ['custom_dashboard'] %}
+                    <div class="row">
+                        <div class="{{ ui.col_size(1) }} pt-4">
+                                {{ ui.icon('drag_indicator', color='lightgrey', style="cursor: move;") }}
+                        </div>
+                        {{ side_menu_child(menu, menu_item, child) }}
+                    </div>
+                {% endfor %}
+            </div>
+        </div {{ ui.collapsible_card_end() }}>
+    {% endfor %}
+
+    {{ settings_forms.save_button(class='side-menu-save-button') }}
+    </form>
+</div {{ ui.collapsible_card_end() }}>
+{% endif %}
+
+<!-- Add User Journey Menu --> 
+
+<!-- UJ macro -->
+{% macro user_journey_form_elements() %}
+        {{ forms.input( '', 
+                        label='Button Name', 
+                        size=4,
+                        id='user_journey_button_name',
+                        disabled=true) }}
+        {{forms.select_icon('', 
+                        'Button Icon', 
+                        size=4, 
+                        id='user_journey_button_icon',
+                        disabled=true)}}
+        {{forms.select('', 
+                        [user_journeys, 'id', 'name'] | dictMapper, 
+                        'No User Journey', 
+                        size=3, 
+                        translate=false, 
+                        labeltag='User Journey', 
+                        onchange='selectUserJourney(this)',
+                        id='user_journey_select'
+                        )}}
+        {{ forms.checkbox(  name='uj_menu',
+                            labeltag='Show', 
+                            label='', 
+                            checked=true,
+                            size=1,
+                            id='user_journey_menu_visibility') }}
+
+        <div class="modal-footer mt-2 me-0 pe-0">
+            {{ ui.modal_close_button() }}
+            {{ forms.button(uicon='save', 
+                            label='Save', 
+                            color='danger', 
+                            tooltip='Save User Journey menu', 
+                            action='saveUserJourneyMenu()') }}
+        </div>
+    
+{% endmacro %}
+<!-- / UJ macro -->
+
+<! -- Custom Dashboard macro -->
+{% macro custom_dashboard_form_elements() %}
+    {% set dashboard_name = 'overview' %}
+        <div class="row">
+            {{ forms.input('CustomDashboardsSideMenuSetting[button_name]', 
+                        label='Button Name', 
+                        required=true,
+                        size=2) }}
+
+            {{forms.select_icon('CustomDashboardsSideMenuSetting[button_icon]', 
+                        'Button Icon', 
+                        size=3, 
+                        required=true,
+                        )}}
+
+            {{ forms.input( 'CustomDashboardsSideMenuSetting[id]',
+                            uicon="tag",
+                            label="Metabase ID",
+                            value=GlobalSetting('CustomDashboardsSideMenuSetting').get('id'),
+                            required=true,
+                            size=2,
+                            ) }}
+       
+            {{ forms.checkbox(  'CustomDashboardsSideMenuSetting[filter_entity]:boolean',
+                                checked=true,
+                                id='CustomDashboardsSideMenuSetting[filter_entity]',
+                                size=2,
+                                labeltag='Entity Filter',
+                                label="Enabled") }}
+
+            {{ forms.checkbox(  'CustomDashboardsSideMenuSetting[filter_user]:boolean',
+                                checked=true,
+                                id='CustomDashboardsSideMenuSetting[filter_user]',
+                                size=2,
+                                labeltag='User Filter',
+                                label="Enabled") }}
+            {{ forms.checkbox(  name='CustomDashboardsSideMenuSetting[show_menu]:boolean', 
+                                checked=true,
+                                id='CustomDashboardsSideMenuSetting[show_menu]',
+                                labeltag='Show', 
+                                label='',
+                                size=1) }}
+        </div>
+
+        <div class="modal-footer mt-2 me-0 pe-0">
+            {{ ui.modal_close_button() }}
+            {{ forms.button(uicon='save', 
+                            label='Save', 
+                            color='danger', 
+                            tooltip='Save Custom Dashboard menu', 
+                            action='saveCustomDashboardMenu()') }}
+        </div>
+{% endmacro %}
+<!-- / Custom Dashboard macro -->
+
+<div {{ ui.modal_start('add-side-menu-modal','Add Side Menu', large=true) }}>
+    <form id="side_menu_form" action="" method="POST" class="row ps-4">
+
+        <div class="modal-body row">
+            {{ forms.select('menu', 
+                            menus, 
+                            'Choose Side Menu', 
+                            size=6,
+                            labeltag='Side Menu Section', 
+                            value='',
+                            uicon='menu_open',
+                            required=true,
+                            id='side_menu_section'
+                        )}}
+            {{ forms.select('', 
+                            custom_buttom_types, 
+                            'Choose Button Type', 
+                            size=6,
+                            labeltag='Button Type', 
+                            value='',
+                            uicon='menu_open',
+                            required=true,
+                            onchange='selectToggleFormsMap(this, "value", {"user_journey": ".user_journey", "custom_dashboard": ".custom_dashboard"});'
+                        )}}
+        
+        <div id="user_journey" class="user_journey hiddenform row mt-2 me-0 pe-0"  selector_class='user_journey'>
+            {{ user_journey_form_elements() }}
+        </div>
+        
+        <div id="custom_dashboard" class='custom_dashboard hiddenform row mt-2 me-0 pe-0' selector_class='custom_dashboard'>
+            {{ custom_dashboard_form_elements() }}
+        </div>
+        </div>
+    </form>
+    
+</div {{ ui.modal_end() }}>
+<!-- / Add User Journey Menu -->
+
+{% endblock %}
+
+{% block scripts %}
+    {{ offline_tokens.offline_token_scripts() }}
+    {# these imports are required for the custom button variable input #}
+    <script type="text/javascript" src="/static/custom/js/admin_helpers.js?version={{ COMMIT_SHA }}"></script>
+
+    <script>
+        const parsed_user_journeys_dict_list = {{ user_journeys_dict_list | tojson }};
+        let selectedUserJourneyID = undefined;
+        let selectedUserJourney = undefined;
+
+        function selectUserJourney(element) {
+            const buttonNameElement = $("#user_journey")
+                                            .find("#user_journey_button_name");
+            const buttonIconElement = $("#user_journey")
+                                            .find("#user_journey_button_icon");
+            const selectedSideMenu = $("#side_menu_form")
+                                            .find("#side_menu_section")
+                                            .val(); 
+            selectedUserJourneyID = element.value
+
+            if(!selectedUserJourneyID) {
+                buttonNameElement.val('');
+                buttonIconElement.val('')
+                                    .trigger('change');
+                return;
+            }
+
+            selectedUserJourney =   parsed_user_journeys_dict_list
+                                            .find(
+                                                uj => uj.id == selectedUserJourneyID
+                                            );
+
+            buttonNameElement.val(selectedUserJourney['name']);
+            buttonIconElement.val(selectedUserJourney['icon'])
+                                .trigger('change');
+        }
+
+        function saveUserJourneyMenu() {        
+            if(!$('#side_menu_form').valid()) {
+                error_toast('The form is not filled correctly, please have a look at the fields highlighted in red.')
+                return;
+            }
+
+            if(!selectedUserJourney['current_version']) {
+                error_toast('UserJourney does not have a version')
+                return;
+            }
+            const selectedSideMenu = $("#side_menu_form")
+                                            .find("#side_menu_section")
+                                            .val(); 
+            showMenu = $("#user_journey")
+                        .find("#user_journey_menu_visibility")[0]
+                        .checked;  
+            const journeyName = selectedUserJourney.name;
+            const menuChild = journeyName
+            const sideMenuSettings = getUpdatedSideMenuSettings(menuChild, showMenu, 'user_journey')
+
+            sendDataToAPI({
+                    "id": selectedUserJourney['current_version'],
+                    "menu": selectedSideMenu,
+                    "published": true,
+                    "steps": selectedUserJourney['steps']
+                }, 
+                    '/user_journey_version/' + selectedUserJourney['current_version'],
+                {
+                    'success_action': _ => saveSideMenuSettings(sideMenuSettings),
+                });
+        }
+
+        function saveCustomDashboardMenu() {
+            if(!$('#side_menu_form').valid()) {
+                error_toast('The form is not filled correctly, please have a look at the fields highlighted in red.')
+                return;
+            }
+
+            const customDashboardsSideMenuSetting = {{ GlobalSetting('CustomDashboardsSideMenuSetting')  | tojson }}
+            const formData = $('#side_menu_form').serializeJSON();
+            const menu = formData['menu']
+            const menuKey = formData['CustomDashboardsSideMenuSetting']['button_name']
+            const showMenu = formData['CustomDashboardsSideMenuSetting']['show_menu']
+            const sideMenuSettings = getUpdatedSideMenuSettings(menuKey, showMenu, 'custom_dashboard')
+
+            formData['CustomDashboardsSideMenuSetting']['menu'] = menu
+            customDashboardsSideMenuSetting[menuKey] = formData['CustomDashboardsSideMenuSetting']
+            
+            sendDataToAPI({
+                    'CustomDashboardsSideMenuSetting': customDashboardsSideMenuSetting
+                }, 
+                '/settings',
+                {
+                    'error_action': _ => error_toast('Unable to save setting'),
+                    'success_action': _ => saveSideMenuSettings(sideMenuSettings)
+                })
+        }
+
+        function saveSideMenuSettings(sideMenuSettings) {
+            sendDataToAPI({
+                    sideMenuSettings
+                }, 
+                '/settings',
+                {
+                    'error_action': _ => error_toast('Unable to save setting')
+                })
+        }
+
+        function getUpdatedSideMenuSettings(childMenu, showMenu, type) {
+            let sideMenuSettings = {{ GlobalSetting('sideMenuSettings')  | tojson  }}
+            const selectedSideMenu = $("#side_menu_form")
+                                            .find("#side_menu_section")
+                                            .val(); 
+
+            if (!sideMenuSettings[selectedSideMenu]) {
+                sideMenuSettings[selectedSideMenu] = {};
+            }
+            if (!sideMenuSettings[selectedSideMenu].children) {
+                sideMenuSettings[selectedSideMenu].children = {};
+            }
+            if (!sideMenuSettings[selectedSideMenu].children[childMenu]) {
+                sideMenuSettings[selectedSideMenu].children[childMenu] = {};
+            }
+            sideMenuSettings[selectedSideMenu].children[childMenu]["enabled"] = showMenu
+            sideMenuSettings[selectedSideMenu].children[childMenu]["child_type"] = type
+
+            return sideMenuSettings
+        }
+
+        function updateSortable() {
+            $('.side_menu_children_container').each(function(index, element) {
+                new Sortable(element, {
+                    handle: 'i',
+                    animation: 150,
+                    onSort: function (evt) {
+                        config_changed();
+                    },
+                });
+            });
+        }
+
+        function config_changed() {
+            enableElement($('.side-menu-save-button'))
+        }
+
+        function removeCustomSideMenuItem(btn) {
+            const $btn = $(btn);
+            const menuItem = $btn.attr('data-menu_item');
+            const childLabel = $btn.attr('data-child_label');
+            const childType = $btn.attr('data-child_type');
+            const slug = $btn.attr('data-slug') || '';
+
+            if (!menuItem || !childLabel || !childType) {
+                error_toast('Missing data for removal');
+                return;
+            }
+
+            sendDataToAPI({
+                menu_item: menuItem,
+                child_label: childLabel,
+                child_type: childType,
+                slug: slug
+            }, '/settings/remove_custom_side_menu', {
+                success_message: 'Custom menu item removed',
+                success_action: 'reload'
+            });
+        }
+
+        $(document).ready(function () {
+            updateSortable();
+        });
+
+        function addCustomButton() {
+            showForm(".new_button");                          // your helper shows the hidden card
+            enableElement($('.forms_save_button'));           // mark form dirty
+            updateTooltip($('#add_button_button'), "{{ ftext('You must save before adding another button') }}");
+            $('#add_button_button').attr('onclick', function(i, val) {
+              return val.replace('addCustomButton()', 'toast("{{ ftext("You must save before adding another button") }}")');
+            });
+          }
+      
+          function deleteCustomButton(el) {
+            $(el).closest('.custom-button-item').remove();
+            enableElement($('.forms_save_button'));
+          }
+
+          // mark the focused variable editor inside its card
+        $(document).on('focusin click', '.template', function () {
+            // limit "active" to the current card only
+            const card = $(this).closest('.custom-button-item, .menu-item-wrapper, .template-badge-holder, form');
+            card.find('.template').removeClass('is-active-template');
+            $(this).addClass('is-active-template');
+        });
+
+        // ensure there is a caret inside the editor (end of content if none)
+        function ensureCaret(el) {
+            const sel = window.getSelection();
+            if (!sel || sel.rangeCount === 0 || !sel.anchorNode || !el.contains(sel.anchorNode)) {
+            const r = document.createRange();
+            r.selectNodeContents(el);
+            r.collapse(false); // end
+            const s = window.getSelection();
+            s.removeAllRanges();
+            s.addRange(r);
+            }
+        }
+
+        // scoped addVariable: insert into the active .template within the same card
+        function addVariable(elem, callback) {
+            const scope = $(elem).closest('.custom-button-item, .menu-item-wrapper, .template-badge-holder, form');
+            if (!scope.length) return false;
+
+            // find active editor in this card, else first enabled
+            let tem = scope.find('.template.is-active-template').first();
+            if (!tem.length) tem = scope.find('.template:not(.disabled)').first();
+            if (!tem.length) {
+            console.warn('No editable .template found in this card.');
+            return false;
+            }
+
+            // build the chip
+            const name = $(elem).clone().children().remove().end().text().trim();
+            const variable = $(elem).attr('data-variable');
+            const varChip = $('.templateVar .badge').clone();
+            varChip.text(name).attr('data-variable', variable);
+
+            // focus + ensure caret, then insert
+            tem[0].focus();
+            ensureCaret(tem[0]);
+            tem.insertAtCaret(varChip);
+
+            if (callback) callback(tem);
+            copyTextToInput(tem); // your existing helper
+            return false;
+        }
+
+        // Validator for TargetUrl fields - must start with http:// or https://
+        $.validator.addMethod("url_protocol", function(value, element) {
+            if (!value) return true; // Allow empty, handle required separately
+            // Remove variable badges to check the actual URL text
+            const urlText = value.replace(/\{[^}]+\}/g, '').trim();
+            // Check if URL text starts with http:// or https://
+            return urlText === '' || /^https?:\/\//i.test(urlText);
+        }, "URL must start with http:// or https://");
+
+        $.validator.addClassRules({
+            'url_protocol': {
+                url_protocol: true
+            }
+        });
+        
+    </script>
+
+{% endblock %}
+
+
+
