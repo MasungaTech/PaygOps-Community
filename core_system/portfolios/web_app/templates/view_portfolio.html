@@ -1,0 +1,42 @@
+{% extends "macros/list_base.html" %}
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'macros/form_macros.html' as forms with context %}
+
+
+{% block title %}{{ ftext('Portfolio Details') }}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('Portfolios', 'View', object=Portfolio) }}{% endblock %}
+
+{% block page_actions %}
+    {{ui.button(modal='delete-portfolio', uicon='delete',tooltip='Delete', type='header-action')}}
+    {{ui.button(link=url_for('.edit_portfolio', portfolio_id=Portfolio.id), uicon='create',tooltip='Edit', type='header-action')}}
+{% endblock %}
+
+{% block content %}
+<div {{ ui.card_start(title='Basic Information', uicon='portfolios', icon_color='main', body_class='row') }}>
+    {{ ui.report_field('Portfolio name',value=Portfolio.name, size=6) }}
+    {{ ui.report_field('Description',value=Portfolio.description, size=6) }}
+    {{ ui.report_field('Budget',value=ui.amount(Portfolio.budget, true), size=6) }}
+</div {{ ui.card_end() }}>
+
+<div {{ ui.card_start(title='Quick Access', uicon="redo") }}>
+    <div class="align-items-center justify-content-between">
+        {{ ui.quick_access('ViewPayments', 'Portfolio Payments', 'payment', link=url_for('payment.list_payment', portfolio_id=Portfolio.id)) }}
+        {{ ui.quick_access('ViewClients', 'Portfolio Clients', 'client', link=url_for('client.list_client', portfolio_id=Portfolio.id)) }}
+        {{ ui.quick_access('ViewLeads', 'Portfolio Leads', 'lead',link=url_for('leads.list_lead', portfolio_id=Portfolio.id)) }}
+    </div>
+</div {{ ui.card_end() }}>
+
+<div {{ ui.modal_start('delete-portfolio', 'Delete Portfolio') }}>
+    <form>
+        <div class="modal-body">
+            {{ui.info_card(text=ftext('Are you sure you want to delete portfolio {}?', Portfolio.id), type='warning') }}
+        </div>
+        <div class="modal-footer">
+            {{ ui.modal_close_button() }}
+            {{ ui.button(type='action', uicon='delete', label='Delete Portfolio', action='async_delete', async_url='/portfolios/'+Portfolio.id|string, redirect_url='/portfolios') }}
+        </div>
+    </form>
+</div {{ ui.modal_end() }}>
+{% endblock %}
+

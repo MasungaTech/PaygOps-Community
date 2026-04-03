@@ -1,0 +1,62 @@
+{% extends "macros/base.html" %}
+{% import 'macros/form_macros.html' as forms with context %}
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'payment_macros.html' as payment_macros with context %}
+
+{% block title %}{{ ftext('View Payment Reversal') }}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('Payment Reversals', 'View', object=rp) }}{% endblock %}
+
+{% block content %}
+{% set card_action= '' %}
+{% if not rp.handled %}
+    {% set card_action = card_action + ui.button('Mark as handled', type='card-action', modal='handle-modal', uicon='check_circle') %}
+    {% if rp.payment %}
+        {% set card_action = card_action + ui.button('Reverse', type='card-action', modal='reverse-modal', uicon='reversal') %}
+    {% endif %}
+{% endif %}
+<div {{ ui.card_start(title='Payment Reversal Details', uicon='reversal', body_class='row', actions=card_action) }}>
+    {{ ui.report_field('Reversal ID', rp.reference_code, size=6) }}
+    {% if rp.payment %}
+        {{ ui.report_field('Payment Transation ID', rp.payment.Reference, size=6) }}
+        {{ ui.report_field('Payment Date', ui.datetime(rp.payment.PaymentTime), size=6) }}
+        {{ ui.report_field('Reversal Date', ui.datetime(rp.reversed_on), size=6) }}
+        {{ ui.report_field('Destination', payment_macros.payment_destination(rp.payment), size=6) }}
+        {{ ui.report_field('Amount', ui.amount(rp.payment.Amount), size=6) }}
+        {{ ui.report_field('Memo', rp.payment.memo, size=6) }}
+    {% else %}
+        {{ ui.report_field('Payment Transation ID', ftext('{} (Payment not found in the system)', rp.payment_code), size=6) }}
+        {{ ui.report_field('Payment Date', '-', size=6) }}
+        {{ ui.report_field('Reversal Date', ui.datetime(rp.reversed_on), size=6) }}
+        {{ ui.report_field('Destination', '-', size=6) }}
+        {{ ui.report_field('Amount', ui.amount(rp.amount), size=6) }}
+        {{ ui.report_field('Memo', '-', size=6) }}
+    {% endif %}
+    {{ ui.report_field('Status', payment_macros.reversed_status(rp), size=6) }}
+</div {{ ui.card_end() }}>
+
+<div {{ ui.modal_start('reverse-modal', 'Reverse Payment') }}>
+    <form id="handled-form" action="{{url_for('reversed_payment.reverse_payment', reversal_id=rp.id)}}" method="post">
+        <div class="modal-body">
+            {{ ftext('This will revert the payment in the system. It cannot be undone.') }}
+        </div>
+        <div class="modal-footer">
+            {{ ui.modal_close_button() }}
+            {{ ui.button(uicon='save', label='Reverse Payment', type='action', disabled=false) }}
+        </div>
+    </form>
+</div {{ ui.modal_end() }}>
+
+<div {{ ui.modal_start('handle-modal', 'Handle Payment Reversal') }}>
+    <form id="handled-form" action="{{url_for('reversed_payment.mark_handled', reversal_id=rp.id)}}" method="post">
+        <div class="modal-body">
+            {{ ftext('Did you process the reversal, call the client and explain the consequences of reversing a payment?') }}
+        </div>
+        <div class="modal-footer">
+            {{ ui.modal_close_button() }}
+            {{ ui.button(uicon='save', label='Reverse Payment', type='action', disabled=false) }}
+        </div>
+    </form>
+</div {{ ui.modal_end() }}>
+
+{% endblock %}

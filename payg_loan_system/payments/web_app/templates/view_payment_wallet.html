@@ -1,0 +1,118 @@
+{% extends "macros/base.html" %}
+{% import 'macros/form_macros.html' as forms with context %}
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'wallet_macros.html' as wallet_macros with context %}
+{% import 'reconciled_payment_list_macros.html' as reconciled_list with context %}
+{% import 'manual_reconcile_payment_macro.html' as reconcile_payment with context %}
+
+{% set is_cash_collection = (Account.Type == PaymentWalletType.agent_collection) %}
+
+{% block title %}{{ ftext('View Payment Wallet' if not is_cash_collection else 'View Cash Collection Wallet') }}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('Payment Wallets' if not is_cash_collection else 'Cash Collection Wallets', 'View', object=Account) }}{% endblock %}
+
+{% block page_actions %}
+  {{ ui.button(link=url_for('payment.edit_account', account_id=Account.id), uicon="edit", tooltip="Edit Wallet", permission="EditWalletPayments", type="header-action") }}
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div {{ ui.card_start(title='Basic Information', uicon='wallet', body_class='row') }}>
+        {{ ui.report_field('Wallet Name', Account.FullName, 'wallet', size=6) }}
+        {{ ui.report_field('Wallet Operator', Account.operator or '-', 'wallet', size=6) }}
+        {{ ui.report_field('Phone Number', Account.phone_number.number if Account.phone_number else '', 'phone', size=6) }}
+        {{ ui.report_field('Type', ftext(Account.type_name), 'amount', size=6) }}
+        {{ ui.report_field('Total Payments', ui.amount(Account.get_total_payments(), include_currency=true), 'amount', size=6) }}
+        {{ ui.report_field('Total Reconciliation and Adjustments', ui.amount(-Account.get_total_reconciled(), include_currency=true), 'amount', size=6) }}
+        {{ ui.report_field('Balance', ui.amount(Account.get_balance()), 'amount', size=6) }}
+        {{ ui.report_field('First Payment', ui.date(Account.RegistrationDate), 'amount', size=6) }}
+        {% if Account.client is not none %}
+            {{ ui.report_field('Owner', ui.client_link(Account.client), 'client', size=6) }}
+        {% elif Account.user is not none %}
+            {{ ui.report_field('Owner', ui.user_link(Account.user), 'user', size=6) }}
+        {% elif Account.lead is not none %}
+            {{ ui.report_field('Owner', ui.lead_link(Account.lead), 'lead', size=6) }}
+        {% else %}
+            {{ ui.report_field('Owner', 'No Owner', 'user', translatable=true, size=6) }}
+        {% endif %}
+    </div {{ ui.card_end() }}>
+
+    <div {{ ui.card_start(title='Collected Payments' if is_cash_collection else 'Payments (Incoming)', tooltip='The money that was collected' if is_cash_collection else 'The money that was received', uicon='payment', body_class='table-responsive') }}>
+        {{ wallet_macros.incoming_payments_table(payments_pagination, is_cash_collection) }}
+    </div {{ ui.card_end() }}>
+
+    {% if outgoing_payments_pagination.total_count > 0 %}
+        <div {{ ui.card_start(title='Sent Payments' if is_cash_collection else 'Payments (Outgoing)', tooltip='The money that was sent' if is_cash_collection else 'The money that was sent', uicon='payment', body_class='table-responsive') }}>
+            {{ wallet_macros.outgoing_payments_table(outgoing_payments_pagination, is_cash_collection, true) }}
+        </div {{ ui.card_end() }}>
+    {% endif %}
+
+    <div {{ ui.card_start(title='Adjustments' if is_cash_collection else 'Reconciliations and Adjustments', tooltip='' if is_cash_collection else 'What the money was used for', uicon='reconciliation', body_class='table-responsive') }}>
+        {{ reconciled_list.reconciled_payment_table(reconciliations_pagination) }}
+    </div {{ ui.card_end() }}>
+
+    {% if current_user.can_access('AdjustBalanceAndReconcilePayments') %}
+        {% if not is_cash_collection %}
+            {{ reconcile_payment.manual_reconcile_payment(payments,contracts,Account,total_remaining) }}
+        {% endif %}
+        {{ reconcile_payment.manual_balance_transaction(Account) }}
+    {% endif %}
+
+    <div {{ ui.card_start(title='Ownership History', tooltip='Who that wallet was linked to', uicon='client', body_class='table-responsive') }}>
+        {{ wallet_macros.ownership_history_list(Account) }}
+    </div {{ ui.card_end() }}>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    $(document).ready(function () {
+        const $amountInput = $('#amount'); // The actual input (not wrapper div)
+        function updateAmountFromSelectedPayment() {
+            const $selectedOption = $('#payment_reference option:selected');
+            const remaining = parseFloat($selectedOption.data('remaining')) || 0;
+    
+            // Set value and remember remaining balance on input
+            $('#amount')
+                .val(remaining.toFixed(2))
+                .attr('max', remaining.toFixed(2))
+                .data('remaining', remaining)
+                .get(0).setCustomValidity('');
+    
+            // If checkbox is checked, keep it disabled and show full amount
+            if ($('#total_remaining').is(':checked')) {
+                $('#amount').prop('disabled', true);
+            }
+        }
+    
+        function toggleAmountInputState() {
+            const isTotal = $('#total_remaining').is(':checked');
+            if (isTotal) {
+                $('#amount').prop('disabled', true);
+                updateAmountFromSelectedPayment();
+            } else {
+                $('#amount').prop('disabled', false);
+            }
+        }
+    
+        // Event bindings
+        $('#payment_reference').on('change', function () {
+            updateAmountFromSelectedPayment();
+            if (!$('#total_remaining').is(':checked')) {
+                validateAmount();
+            }
+        });
+    
+        $('#total_remaining').on('change', function () {
+            toggleAmountInputState();
+        });
+    
+        // Init when page loads
+        toggleAmountInputState();
+        if ($('#payment_reference').val()) {
+            updateAmountFromSelectedPayment();
+        }
+    });
+</script>
+
+{% endblock %}

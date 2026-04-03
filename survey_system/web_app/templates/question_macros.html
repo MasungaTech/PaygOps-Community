@@ -1,0 +1,252 @@
+{% macro view_question_info(question, min, max, freeze=false, protected=false) %}
+<h5 data-id="{{question.id}}" style="cursor:pointer;margin-bottom:10px" class="d-flex justify-content-between">
+  <div style="max-width: 90%;">
+    {% if question.icon %}{{ ui.icon(question.icon, 'inline-icon main-badge icon-badge', style='font-size: 1.2rem', tooltip="Question icon") }}{% endif %}
+    {{question.getText(1)}} <i style="font-size: 14px; color:gray; margin-left: 0.5rem;">({{question.name}})</i> {{ ui.icon('info', 'inline-icon-small grey', tooltip=('Slug for API (click to copy to clipboard): \n'+question.slug)|notranslate, onclick='copyToClipboard(\''+question.slug+'\',\'Slug\')'|safe) }}
+  </div>
+  <div class="float-end">
+    {% if not freeze %}
+      {{ ui.button(uicon='Edit', tooltip='Edit Question', type='card-action', action='loadQuestionToEdit('+question.id|string+')')}}
+      {{ ui.button(uicon='delete', tooltip='Remove Question', type='card-action-grey', action="remove_question(this);")}}
+    {% endif %}
+  </div>
+</h5>
+<div class="row">
+    <div class="{{ ui.col_size(4) }} row">
+      {{ forms.input('x:skip', label='Type', size=7, value=ftext(types(question.type))+(ftext(' (integer)') if question.is_numeric_type() and question.isInt else ''), disabled=true)}}
+      {{ forms.input('y:skip', label='Unit', size=5, value=question.unit or '-', visible=question.is_numeric_type(), disabled=true)}}
+    </div>
+    {% set multi_answer_class = 'hiddenform' if not question.can_have_multiple_answers() else '' %}
+    <div class="{{ ui.col_size(4) }} max-min-wrapper row">
+        {{forms.input('questions[][min_answers]:number', label='Min. Ans.', size=4, class="min-val-input", selector_class=multi_answer_class, value=min, numeric=true, is_int=true, type="number", min=0, disabled=freeze, id="", disable_clear=true) }}
+        {{forms.input('questions[][max_answers]:number', size=4, label='Max. Ans.', class="max-val-input", selector_class=multi_answer_class, value=max, numeric=true, is_int=true, type="number", disabled=freeze, id="", disable_clear=true) }}
+        {{forms.checkbox('required:skip', class='required-checkbox', size=4, labeltag='Required', disabled=freeze, checked=true if min > 0 else false)}}
+    </div>
+    <div class="{{ ui.col_size(1) }}">
+      {# We use value false none because it doesnt work for array, we put the false in the JS instead #}
+      {{forms.checkbox('questions[][protected]:boolean', value_false=none, labeltag='Protected', disabled=freeze, checked=protected, id="")}}
+    </div>
+    <div class="{{ ui.col_size(3) }}">
+      {% if question.is_text_type() and not question.is_choice_type() %}
+        {{ forms.input('y:skip', label='Length', value=ftext('Between {} and {}', question.minValue or '0', question.maxValue or 'inifinity', novar=true), disabled=true) }}
+      {% elif question.is_numeric_type() and not question.is_choice_type() %}
+        {{ forms.input('y:skip', label='Value limits', value=ftext('Between {} and {}', question.minValue or '-infinity', question.maxValue or '+inifinity', novar=true), disabled=true) }}
+      {%endif%}
+      {% if question.choices %}
+        {{ forms.input('y:skip', label='Options', value=question.choices|sort(attribute="order")|map(attribute='display_value')|join(', '), disabled=true) }}
+      {% endif %}
+    </div>
+</div>
+{% endmacro %}
+
+{% macro edit_question_form(question=none, types_dict=none) %}
+{% set mode = 'create' if question is none else 'edit'+question.id|string %}
+{% if question %}
+  {{ ui.info_card(type='info', text='Changes will apply to all versions of the form. Editing is limited to allow backwards compatibility with existing answers.')}}
+{%endif%}
+<form id="{{mode}}-question-form" data-question-id="{{question.id if question else none}}" class="row .question-form">
+    {{forms.select_icon('icon', label='Icon', size=6, value=question.icon if question else none, id=mode)}}
+    {{forms.input('name', 'Question Name (unique)', required=true, size=6, value=question.name if question else none, max=50, tooltip="This name needs to be unique. It is shown when viewing the answer to a question (e.g. Number of Kids).")}}
+    {{forms.select('type', choices=types_dict, label='Question type...', labeltag='Question Type', size=12, required=false if question == none else true, value=question.type if question else none, disabled=question is not none)}}
+    {{forms.input('full_question', 'Question text (keep reasonably short; use a "note" if a long explanation is needed)', size=12, required=true, value=question.full_question if question else none, tooltip='It is the actual text of the question when answering (e.g. How many kids do you have?)')}}
+    {{forms.input('unit', 'Choose a unit...', size=12, selector_class="hiddenform type-specific type-3 type-5", value=question.unit if question else none)}}
+    {{forms.input('minValue', 'Minimum value', size=6, selector_class="hiddenform type-specific type-3", id='', value=question.minValue if question and question.type == 3 else '', numeric=true, max=config.MAX_INT_AMOUNT)}}
+    {{forms.input('maxValue', 'Maximum value', size=6, selector_class="hiddenform type-specific type-3", id='', value=question.maxValue if question and question.type == 3 else '', numeric=true, max=config.MAX_INT_AMOUNT)}}
+    {{forms.input('minValue', 'Minimum length', size=6, selector_class="hiddenform type-specific type-2 type-7", id='', value=question.minValue if question and question.type != 3 else '', numeric=true, max=config.MAX_INT_AMOUNT, min=0)}}
+    {{forms.input('maxValue', 'Maximum length', size=6, selector_class="hiddenform type-specific type-2 type-7", id='', value=question.maxValue if question and question.type != 3 else '', numeric=true, max=config.MAX_INT_AMOUNT, min=1)}}
+    {{forms.select('additional_data[picture_type]', choices=picture_types, labeltag='Picture type', size=12, selector_class="hiddenform type-specific type-6", id='', value=question.additional_data.get("picture_type") if question and question.additional_data and question.type == 6  else None, placeholder='Picture type..')}}
+    {{forms.input('additional_data[picture_instructions]', 'Picture Instructions', size=12, selector_class="hiddenform type-specific type-6", id='', value=question.additional_data.get("picture_instructions") if question and question.additional_data and question.type == 6 else None, placeholder='Picture instructions..')}}
+    {{forms.input('additional_data[regex]', 'RegEx', size=12, required=false, selector_class="hiddenform type-specific type-15", value=question.additional_data.get("regex") if question and question.additional_data and question.type == 15 else none, placeholder='Type your regex code here.')}}
+    <div class="col s12 hiddenform type-specific type-15">
+      {{ ui.info_card(type='info', class='mt-3', in_card=true, text='This question type is meant to be used by people with knowledge of Regex. We recommend using <a href="https://regex101.com/" target="_blank">Regex 101</a> to test your expressions before using them here.')}}
+    </div>
+
+    {{ ui.info_card(type='info', class='mt-3 type-10 hiddenform', in_card=true, text='You can now include <a href="https://www.markdownguide.org/basic-syntax/" target="_blank">markdown</a> in note questions. This allows for richer formatting and links to be include in forms.')}}
+
+    <div class="col s12 hiddenform type-specific type-4 type-5">
+      {{ ui.info_card(type='info', class='mt-3', text='Note that after you save, you will not be able to remove or edit choices (only add).') }}
+      <div class="options-wrapper">
+      </div>
+      <div class="valign-wrapper">
+        {{ ui.icon('add', 'small add-option', color='lightgrey', style="cursor: pointer; width: 30px;") }}
+        <span style="margin-left: 10px; line-height: 3rem; color: gray; cursor: pointer;" class="add-option">Add new option</span>
+      </div>
+    </div>
+</form>
+<div id="{{mode}}-option-template" class="hiddenform">
+    <div class="valign-wrapper count">
+    {{ ui.icon('drag_indicator', 'small drag-icon', color='lightgrey', style="cursor: move; width: 30px;") }}
+    <span class="option-counter" style="margin-bottom: 2px;">.&nbsp;</span>
+    <input type="hidden" class="value-input" value="" name="choices[][value]">
+    <input type="hidden" class="id-input" value="" name="choices[][id]">
+    <input type="hidden" class="order-input" value="" name="choices[][order]">
+    <span class="option-text text-input" contenteditable="true" placeholder="Option text" data-enter-action="{{mode}}AddOption"></span>
+    {{ ui.icon('clear', 'small clear-icon', style="cursor: pointer; width: 30px;") }}
+    </div>
+</div>
+<script>
+$(document).ready(function () {
+  $('#{{mode}}-option-template .clear-icon, #{{mode}}-question-form .clear-icon').click(function () {
+    $(this).parents('.count').remove();
+  });
+  $('#{{mode}}-question-form .add-option').click(function () {
+    {{mode}}AddOption()
+  });
+  $('#{{mode}}-question-form select[name=type]').change(function () {
+    var type = $(this).val();
+    hideForm($('#{{mode}}-question-form .type-specific'));
+    showForm($('#{{mode}}-question-form .type-'+type));
+  });
+  {{mode}}UpdateSortableOptions();
+  $('#{{mode}}-question-form select[name=type]').change();
+  {% if question %}
+    {% for opt in question.choices|sort(attribute="order") %}
+    {{mode}}AddOption(undefined, {{opt.display_value|tojson}}, {{opt.id}}, true, true)
+    {% endfor %}
+  {%endif%}
+});
+
+// The functions below are for the choice text/numeric questions
+function {{mode}}UpdateSortableOptions() {
+  new Sortable($("#{{mode}}-question-form .options-wrapper")[0], {
+    animation: 150,
+    forcePlaceholderSize: true, 
+    placeholder: "<div class=\"count valing-wrapper\"></div>", 
+    handle: 'i.drag-icon'
+  });
+  $("#{{mode}}-question-form .options-wrapper").on("sortupdate", function() {
+    $("#{{mode}}-question-form .options-wrapper .order-input").each(function( index ) {
+        $(this).val(parseInt(index))
+        // The counter is updated via CSS
+    });
+  });
+  $("#{{mode}}-question-form .options-wrapper").trigger("sortupdate")
+}
+function {{mode}}AddOption (el, text, id, frozen, no_update) {
+  var newel = $('#{{mode}}-option-template').find('.count').clone(true)
+  if (el) {$(el).parents(".count").after(newel);}
+  else {$('#{{mode}}-question-form .options-wrapper').append(newel);}
+  if (text) {
+    $(newel).find('.option-text').text(text);
+    $(newel).find('.value-input').val(text);
+  }
+  if (id) {
+    $(newel).find('.id-input').val(id);
+  }
+  $(newel).find('.option-text').focus();
+  $('#{{mode}}-question-form .options-wrapper .option-text').keyup(function () {
+    $(this).parent().find(".value-input").val($(this).text())
+  });
+  if (frozen) {
+    $(newel).find('.clear-icon').remove();
+    $(newel).find('.option-text').attr('contenteditable', false);
+
+  }
+  if (!no_update) {
+    {{mode}}UpdateSortableOptions()
+  }
+}
+</script>
+{% endmacro %}
+
+
+{% macro ordered_question_scripts() %}
+<script>
+  var EDITED = false;
+  
+  function versionEdited() {
+    EDITED = true;
+    $(".questions-wrapper .order-input").each(function( index ) {
+        $(this).val(index)
+    });
+    enableElement($('.form-save-button'))
+    enableElement($('.undo-button'))
+    refreshQuestionInputs();
+  }
+  
+  function undo() {
+      EDITED = false
+      reloadPage()
+  }
+  
+  function duplicate_form(version_id) {
+      sendDataToAPI({
+          "from_version": version_id
+      }, '/forms',
+      {
+          'success_action': 'redirect',
+          'redirect_url': '/forms/view/',
+          'redirect_append': 'form'
+      })
+  }
+  
+  function saveInfo() {
+      var data = $("#edit-general-info").serializeJSON()
+      sendDataToAPI(data, '/forms/{{form.id}}', {'method': 'PATCH', 'success_action': 'message', 'success_message': 'Change saved.'})
+  }
+  
+  function createVersion() {
+      EDITED = false;
+      // We use value false none because it doesnt work for arrays, we put the false in the JS instead
+      data = $("#version-form").serializeJSON({checkboxUncheckedValue: "false"})
+      sendDataToAPI(data, '/forms/{{form.id}}', {'success_message': 'Version created!'})
+  }
+  
+  function delete_form(form_id) {
+      {% set after_delete = url_for('forms_blueprint.view_form', form_id=form.id) if form.versions.count() > 1 else url_for('forms_blueprint.list_forms', form_id=form.id) %}
+      {% if form.versions.count() >= 1 %}
+        sendDataToAPI({}, '/form_versions/{{version.id}}', {'method': 'DELETE', 'success_action': 'redirect', 'success_message': 'Form version deleted.', 'redirect_url': "{{after_delete}}"})
+      {% else %}
+        sendDataToAPI({}, '/forms/{{form.id}}', {'method': 'DELETE', 'success_action': 'redirect', 'success_message': 'Form deleted.', 'redirect_url': "{{after_delete}}"})
+      {% endif %}
+  }
+
+  function updateSortable() {
+    new Sortable($('.questions-wrapper')[0], {
+        handle: 'i',
+        animation: 150,
+        onSort: function (evt) {
+            versionEdited()
+        },
+    });
+  }
+</script>
+{% endmacro %}
+
+
+
+{% macro form_editor_scripts() %}
+<script>
+function refreshQuestionInputs() {
+  $('.min-val-input').change(function () {
+      var max_el =  $(this).parents('.max-min-wrapper').find('.max-val-input');
+      max_el.attr('min', $(this).val());
+      if ($(this).val() > max_el.val()) {
+          max_el.val($(this).val());
+      }
+      var min_el =  $(this).parents('.max-min-wrapper').find('.min-val-input');
+      var required_check =  $(this).parents('.max-min-wrapper').find('.required-checkbox');
+      if (min_el.val() > 0) {
+        required_check.prop("checked", true);
+      } else {
+        required_check.prop("checked", false);
+      }
+  });
+  $('.required-checkbox').change(function () {
+    var min_el =  $(this).parents('.max-min-wrapper').find('.min-val-input');
+    if($(this)[0].checked) {
+      if (min_el.val() < 1) {
+        min_el.val(1);
+      }
+    } else {
+      if (min_el.val() > 0) {
+        min_el.val(0);
+      }
+    }
+  });
+
+}
+</script>
+{% endmacro %}
+
+

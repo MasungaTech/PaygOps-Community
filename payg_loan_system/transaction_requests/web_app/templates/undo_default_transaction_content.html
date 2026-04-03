@@ -1,0 +1,51 @@
+{% extends 'transaction_base.html' %}
+
+{% block title %}{{ ftext('Undo Default (Re-Register)') }}{% endblock %}
+
+{% block form %}
+    {% if not contracts.first().has_not_delivered_addon_device %}
+        {{ transaction.device_selector_macro(prefix='contract') }}
+        {% if not GlobalSetting('ContractDeviceRestrictions') == 'no_device' %}
+            <div id="device-selector">{{ transaction.device_selector_macro(request_code=true, new_device=true) }}</div>
+        {% endif %}
+        {{ forms.input('note', 'Note', type="textarea", size=6 if lead is defined else 12, max=40) }}
+    {% else %}
+        {{ui.info_card(text=ftext('There are Add-ons for which the stock-items are undelivered, you can go to the Add-Ons list on the {} page to assign stock items to them', ui.contract_link(contracts.first(), text='contract')), color='secondary', uicon='info')}}
+    {% endif %}
+{% endblock %}
+
+{% block button %}
+    {% if not contracts.first().has_not_delivered_addon_device %}
+        {{ ui.button('Undo Default', color='danger', class='transaction_action', action="validateAndSubmit('/api/v1/transaction_requests/undo_default/');") }}
+    {% else %}
+        {{ui.button('Go to back to contract page', color='danger', class='btn-danger', link=url_for('contract.view_contract', contract_reference=contracts.first().reference))}}
+    {% endif %}
+{% endblock %}
+
+{% block transaction_script %}
+<script>
+$().ready(function() {
+    updateDeviceSelector();
+    $('#contractdevice').on('select2:select', function(e) {
+        updateDeviceSelector();
+    })
+});
+function updateDeviceSelector(){
+    var $selected = $('#contractdevice.select_2').find(':selected');
+    var offerRequireDevice = $selected.data('offerRequireDevice') || $selected.attr('data-offer-require-device');
+    var hasDevice = $selected.data('hasdevice') || $selected.attr('data-hasdevice');
+    if (offerRequireDevice === 'true' || offerRequireDevice === true) {
+        if (hasDevice === 'None' || hasDevice === null || hasDevice === undefined) {
+            showForm("#device-selector");
+            $("#device").prop('required', true);
+        } else {
+            hideForm("#device-selector");
+            $("#device").prop('required', false);
+        }
+    } else {
+        hideForm("#device-selector");
+        $("#device").prop('required', false);
+    }
+}
+</script>
+{% endblock %}
