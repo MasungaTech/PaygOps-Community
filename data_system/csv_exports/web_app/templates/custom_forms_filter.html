@@ -1,0 +1,20 @@
+{% extends "macros/base.html" %}
+{% import 'macros/form_macros.html' as forms with context %}
+{% import 'macros/general_macros.html' as ui with context %}
+
+{% block title %}{{ ftext('Custom Forms Exports') }}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('Admin', 'Custom Forms Export') }}{% endblock %}
+
+{% block content %}
+<div {{ui.card_start()}}>
+    <form id="filter_custom_forms" method="GET" action="{{ forms_url }}" class="row">
+        <input type="hidden" name="key" value="{{api_key}}">
+        <input type="hidden" name="email_user_id" value="{{current_user.id}}">
+        {{ forms.input('from', 'From Date', type='datepicker', uicon='date', size=6) }}
+        {{ forms.input('to', 'To Date', type='datepicker', uicon='date', size=6) }}
+        {{ forms.select('form_id', forms_data, uicon='forms', labeltag='Choose Form', required=true, size=6, translate=false) }}
+        {{ forms.button('Request CSV Export by E-Mail', size=6, inline=true, fit=true, type='action') }} 
+    </form>
+</div {{ui.card_end()}}>
+{% endblock %}

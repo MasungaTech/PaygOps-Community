@@ -1,0 +1,23 @@
+{% extends "macros/list_base.html" %}
+
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'macros/form_macros.html' as forms with context %}
+{% import 'macros/filter_macros.html' as filter with context %}
+{% import 'list_addons_macros.html' as fields_macros with context %}
+{% import 'macros/pagination.html' as pagination_nav with context %}
+
+{% block title %}{{ ftext('Add-Ons List') }}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('Add-ons','List') }} {% endblock %}
+
+{% block page_actions %}
+    {{ filter.special_views_filter(views, view) }}
+{% endblock %}
+
+{% block content %}
+    {{ filter.entities_navigation_filter(entity) }}
+
+    <div {{ ui.card_start() }}>
+        {{ fields_macros.addons_tabs(tabs, paginations, active_tab=active_tab) }}
+    </div {{ ui.card_end() }}>
+{% endblock %}

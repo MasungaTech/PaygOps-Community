@@ -1,0 +1,71 @@
+{% macro contract_event_table(contract) -%}
+  {% import 'macros/general_macros.html' as ui with context %}
+  {% import 'macros/pagination.html' as pagination_nav with context %}
+
+  <table {{ ui.table_start() }}>
+      <thead>
+      <tr>
+        {% if not is_custom_app %}
+          {{ ui.table_header('ID') }}
+          {{ ui.table_header('Date') }}
+          {{ ui.table_header('Type') }}
+          {{ ui.table_header('Approver') }}
+          {{ ui.table_header('Additional Info') }}
+          {{ ui.table_header('Contract Payment') }}
+          {{ ui.table_header(uicon='notes', tooltip='Note') }}
+        {% else %}
+          {{ ui.table_header('Date') }}
+          {{ ui.table_header('Type') }}
+          {{ ui.table_header('Additional Info') }}
+          {{ ui.table_header(uicon='notes', tooltip='Note') }}
+        {% endif %}
+      </tr>
+      </thead>
+      <tbody>
+      {% for event in contract.contract_events|sort(attribute='time', reverse=true) %}
+          <tr>
+          {% if not is_custom_app %}
+            <th>{{ event.id }}</th>
+            <td sorttable_customkey="{{ ui.sortabledate(event.time) }}">{{ ui.date(event.time) }}</td>
+            <td class="truncate-hoverable">{{ ftext(event.type) }}</td>
+            <td class="truncate-hoverable">{{ ui.user_link(event.approver) }}</td>
+            <td class="truncate-hoverable">
+                {% if event.type == 'Manual Discount' and event.repayment and event.repayment.amount_discounted %}{{ ftext('Discount {}', ui.amount(event.repayment.amount_discounted, true)) }}{% endif %}
+                {% if event.type == 'Overpayment' and event.repayment and event.repayment.amount_discounted %}{{ ftext('Purchasing Addon {}', ui.amount(event.repayment.amount_discounted, true)) }}{% endif %}
+                {% if event.type == 'Manual Delay' and event.repayment and event.repayment.delay_given_in_hours %}{{ ftext('Delay {}d', ui.round_if_needed(event.repayment.delay_given_in_hours/24, 2)) }}{% endif %}
+                {% if event.type == 'Expected Paid Change' %}{{ ftext('Adjusted amount: {}', ui.round_if_needed(event.added_amount, 2)) }}{% endif %}
+                {% if event.type == 'Device Swap' %}{{ftext('Old: {} - New: {}', ui.device_link(event.old_device), ui.device_link(event.new_device), novar=true) }}{% endif %}
+                {% if event.type == 'Offer Change' %}{{ftext('Old: {} - New: {}', ui.offer_link(event.old_offer), ui.offer_link(event.new_offer), novar=true) }}{% endif %}
+                {% if event.type == 'Repossession' %}{{ftext('Old Device: {}', ui.device_link(event.old_device), novar=true)}}{% endif %}
+                {% if event.type == 'Cancellation' %}{% endif %}
+                {% if event.type in ['Reference Pricing Change', 'Duration Change', 'Value Change']%}{% if event.addons %} {% for addon in event.addons %} {{ftext('Add-on: {}', addon.reference)}} {% endfor %} {% endif %}{% endif %}
+                {% if event.type == 'Pause' %}{{ ftext('Next payment due date: {}', ui.date(event.contract.get_repayment_due_time(event.time)), novar=true) }}{% endif %}
+                {% if event.type == 'Add-on Device' %}{{ ftext('Add-on: {} / Device: {}', event.device_addon.reference, ui.device_link(event.new_device), novar=true) }}{% endif %}
+                {% if event.type == 'Add-on Device Removal' %}{{ ftext('Add-on: {} / Device: {}', event.device_addon.reference, ui.device_link(event.new_device), novar=true) }}{% endif %}
+            </td>
+            <td class="truncate-hoverable">{% if event.repayment %}{{ event.repayment.id }}{% else %}-{% endif %}</td>
+            <td>{% if event.note %}{{ ui.table_icon('notes', color='main', tooltip=event.note|notranslate) }}{% else %}{{ ui.table_icon('notes', color='grey', tooltip=event.note) }}{% endif %}</td>
+          {% else %}
+            <td sorttable_customkey="{{ ui.sortabledate(event.time) }}">{{ ui.date(event.time) }}</td>
+            <td class="truncate-hoverable">{{ ftext(event.type) }}</td>
+            <td class="truncate-hoverable">
+                {% if event.type == 'Manual Discount' and event.repayment and event.repayment.amount_discounted %}{{ ftext('Discount {}', ui.amount(event.repayment.amount_discounted, true)) }}{% endif %}
+                {% if event.type == 'Overpayment' and event.repayment and event.repayment.amount_discounted %}{{ ftext('Purchasing Addon {}', ui.amount(event.repayment.amount_discounted, true)) }}{% endif %}
+                {% if event.type == 'Manual Delay' and event.repayment and event.repayment.delay_given_in_hours %}{{ ftext('Delay {}d', ui.round_if_needed(event.repayment.delay_given_in_hours/24, 2)) }}{% endif %}
+                {% if event.type == 'Expected Paid Change' %}{{ ftext('Adjusted amount: {}', ui.round_if_needed(event.added_amount, 2)) }}{% endif %}
+                {% if event.type == 'Device Swap' %}{{ftext('Old: {} - New: {}', ui.device_link(event.old_device), ui.device_link(event.new_device), novar=true) }}{% endif %}
+                {% if event.type == 'Offer Change' %}{{ftext('Old: {} - New: {}', ui.offer_link(event.old_offer), ui.offer_link(event.new_offer), novar=true) }}{% endif %}
+                {% if event.type == 'Repossession' %}{{ftext('Old Device: {}', ui.device_link(event.old_device), novar=true)}}{% endif %}
+                {% if event.type == 'Cancellation' %}{% endif %}
+                {% if event.type in ['Reference Pricing Change', 'Duration Change', 'Value Change']%}{% if event.addons %} {% for addon in event.addons %} {{ftext('Add-on: {}', addon.reference)}} {% endfor %} {% endif %}{% endif %}
+                {% if event.type == 'Pause' %}{{ ftext('Next payment due date: {}', ui.date(event.contract.get_repayment_due_time(event.time)), novar=true) }}{% endif %}
+                {% if event.type == 'Add-on Device' %}{{ ftext('Add-on: {} / Device: {}', event.device_addon.reference, ui.device_link(event.new_device), novar=true) }}{% endif %}
+                {% if event.type == 'Add-on Device Removal' %}{{ ftext('Add-on: {} / Device: {}', event.device_addon.reference, ui.device_link(event.new_device), novar=true) }}{% endif %}
+            </td>
+            <td>{% if event.note %}{{ ui.table_icon('notes', color='main', tooltip=event.note|notranslate) }}{% else %}{{ ui.table_icon('notes', color='grey', tooltip=event.note) }}{% endif %}</td>
+          {% endif %}
+          </tr>
+      {% endfor %}
+      </tbody>
+  </table>
+{%- endmacro %}

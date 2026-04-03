@@ -1,0 +1,318 @@
+
+
+{% macro lead_status_badge(s, cat) %}
+<div
+        class="dropPlaceHolder mt-2"
+        id="status-{{s.id}}"
+        style="display: inline-block; transition: padding-left 0.2s"
+        ondrop="drop(event, 'status')"
+        ondragenter="dragIn(event, 'status')"
+        ondragover="allowDrop(event)"
+        ondragleave="dragOut(event, 'status')"
+      >
+        <input
+          type="hidden"
+          class="id-field"
+          name="{{cat_codes[cat]}}[][id]"
+          value="{{s.id}}"
+        />
+        <input
+          type="hidden"
+          class="name-field"
+          name="{{cat_codes[cat]}}[][name]"
+          value="{{s.name}}"
+        />
+        <input
+          type="hidden"
+          class="color-field"
+          name="{{cat_codes[cat]}}[][color]"
+          value="{{s.color}}"
+        />
+        <div
+          class="badge bg-label-secondary {{s.color}}-badge tooltipped"
+          data-leads="{{s.leads.count()}}"
+          href="#edit-status-modal"
+          style="cursor: pointer"
+          onclick="update_editor(this)"
+          draggable="true"
+          ondragstart="drag(event)"
+          ondragend="endDrag(event)"
+          data-bs-toggle="tooltip"
+          title="ID: {{s.id}}"
+        >
+          <b><var>{{s.name}}</var></b>
+        </div>
+      </div>
+      <div
+        class="dropPlaceHolder"
+        style="
+          display: inline;
+          transition: padding-left 0.2s;
+          padding: 5px 0 10px 0;
+        "
+        ondrop="drop(event, 'arrow')"
+        ondragenter="dragIn(event, 'arrow')"
+        ondragover="allowDrop(event)"
+        ondragleave="dragOut(event, 'arrow')"
+      >
+        {{ui.icon('keyboard_arrow_right', 'tiny', style="top: 3px;position:
+        relative;")}}
+      </div>
+{% endmacro %}
+
+{% macro add_badge() %}
+<div
+    class="dropPlaceHolder mt-2"
+    id="status-new"
+    style="display: inline-block; transition: padding-left 0.2s"
+    ondrop="drop(event, 'status')"
+    ondragenter="dragIn(event, 'status')"
+    ondragover="allowDrop(event)"
+    ondragleave="dragOut(event, 'status')"
+    >
+    <div
+        class="badge bg-label-secondary red-badge px-1 py-1"
+        href="#add-status-modal"
+        style="cursor: pointer"
+        onclick="update_editor(this)"
+    >{{ui.icon('add', 'status-add-icon')}}</div>
+</div>
+{% endmacro %}
+
+{% macro status_badge_template() %}
+<div class="hide statusTemplate">
+    <div
+      class="dropPlaceHolder mt-2"
+      id="status-NEW_ID"
+      style="display: inline-block; transition: padding-left 0.2s"
+      ondrop="drop(event, 'status')"
+      ondragenter="dragIn(event, 'status')"
+      ondragover="allowDrop(event)"
+      ondragleave="dragOut(event, 'status')"
+    >
+      <input type="hidden" class="id-field" value="NEW_ID" />
+      <input
+        type="hidden"
+        class="name-field"
+        name="CATEGORY[][name]"
+        value=""
+      />
+      <input
+        type="hidden"
+        class="color-field"
+        name="CATEGORY[][color]"
+        value=""
+      />
+      <div
+        class="badge bg-label-secondary"
+        data-leads="0"
+        href="#edit-status-modal"
+        style="cursor: pointer"
+        onclick="update_editor(this)"
+        draggable="true"
+        ondragstart="drag(event)"
+        ondragend="endDrag(event)"
+      >
+        <b></b>
+      </div>
+    </div>
+    <div
+      class="dropPlaceHolder"
+      style="
+        display: inline;
+        transition: padding-left 0.2s;
+        padding: 5px 0 10px 0;
+      "
+      ondrop="drop(event, 'arrow')"
+      ondragenter="dragIn(event, 'arrow')"
+      ondragover="allowDrop(event)"
+      ondragleave="dragOut(event, 'arrow')"
+    >
+      {{ui.icon('keyboard_arrow_right', 'tiny', style="top: 3px;position:
+      relative;")}}
+    </div>
+</div>
+{% endmacro %}
+
+
+{% macro edit_status_modal(new=false) %}
+{% set action = 'add' if new else 'edit' %}
+<div {{ ui.modal_start(action+'-portfolio', action.capitalize()+' Status') }}>
+    <form>
+        <div class="modal-body row">
+            <input type="hidden" id="{{action}}_status_id" value="">
+            {{ forms.input(action+'_status_name', label='Status Name', value='', type='text', required=true, id=action+'_status_name', icon='status', size=12) }}
+            {{ forms.color_select(action+'_status_color', id=action+'_status_color', label='Status Color', value='', icon='palette', size=12) }}
+        </div>
+        <div class="modal-footer">
+            {{ ui.modal_close_button() }}
+            {{ ui.button(uicon='delete', label='Delete Status', type='action', id=action+'-delete-status-button', action='delete_status()', visible=not new) }}
+            {{ ui.button(uicon='save', label=action.capitalize()+' Status', type='action', action="update_status('"+action+"')") }}
+        </div>
+    </form>
+</div {{ ui.modal_end() }}>
+{% endmacro %}
+
+{% macro lead_status_scripts(last_id) %}
+<style>
+  .dropPlaceHolder.dragging * {
+    pointer-events: none;
+  }
+</style>
+<script>
+    function getDest(ev, d) {
+        if (d == 'arrow') return $(ev.target).is('.dropPlaceHolder') ? $(ev.target) : $(ev.target).parents('.dropPlaceHolder');
+        var chip = $(ev.target).is('.dropPlaceHolder') ? $(ev.target) : $(ev.target).parents('.dropPlaceHolder');
+        return chip.prev('.dropPlaceHolder')
+    }
+    function allowed(dest) {
+        return (!dest.is('.beingDragged') && dest.parents('.cat-wrapper')[0] == $('.beingDragged').parents('.cat-wrapper')[0]) ? true : false;
+    }
+    function allowDrop(ev) {
+        if (allowed(getDest(ev, 'arrow'))) ev.preventDefault();
+    }
+    function dragOut(ev, d) {
+        var dest = getDest(ev, d);
+        if (allowed(dest)) setTimeout(function () {$(dest).css('padding-left', '')}, 200);
+    }
+    function dragIn(ev, d) {
+        var dest = getDest(ev, d);
+        if (allowed(dest)) $(dest).css('padding-left', '60px');
+    }
+    function drop(ev, d) {
+        var status = $('#'+ev.dataTransfer.getData("text/plain"));
+        var dest = getDest(ev, d);
+        var next = status.next('.dropPlaceHolder');
+        var prev = status.prev('.dropPlaceHolder');
+        $('.dropPlaceHolder').css('padding-left', '');
+        if (dest[0] == next[0] || dest[0] == prev[0]) return false;
+        !next.length ? prev.insertAfter(dest) : next.insertAfter(dest);
+        status.insertAfter(dest)
+        $('.dropPlaceHolder').removeClass('dragging');
+        $('#lead-statuses-form button').removeClass('disabled');
+    }
+    function endDrag(ev) {
+        $('.dropPlaceHolder').removeClass('dragging beingDragged');
+    }
+    function drag(ev) {
+        ev.dataTransfer.setData("text/plain", $(ev.target).parents('.dropPlaceHolder')[0].id);
+        $(ev.target).parent('.dropPlaceHolder').addClass('beingDragged')
+        $('.dropPlaceHolder:not(.beingDragged)').addClass('dragging');
+        ev.stopPropagation();
+    }
+    function save_lead_statuses() {
+        var data = $('#lead-statuses-form').serializeJSON();
+        debug_log('status data', data)
+        $.ajax({
+            url: 'sales/lead_statuses',
+            type: "POST",
+            data: JSON.stringify(data),
+            contentType: "application/json",
+            success: function (result) {
+                $('#lead-statuses-form button').addClass('disabled');
+                success_toast(PaygOps_LNG["LEAD_STATUS_SAVED"]);
+                reloadPage();
+            },
+            error: function (result, ajaxOptions, thrownError) {
+                var txt = result.responseJSON ? result.responseJSON.error_message : PaygOps_LNG["SAVING_ERROR"]+result.statusText;
+                error_toast(txt);
+            }
+        });
+    }
+    function update_status(action) {
+        if (action == 'add') {
+            lastID++;
+            var id = lastID;
+            var cat = $('#add_status_id').val();
+            var newStatus = $('.statusTemplate').clone();
+            newStatus.find('#status-NEW_ID').attr('id','status-'+id);
+            newStatus.find('.id-field').val(id);
+            newStatus.find('input[name*=CATEGORY]').each(function() {$(this).attr('name',$(this).attr('name').replace('CATEGORY',cat.replace('cat-','')))});
+            newStatus.contents().insertBefore($('#'+cat+' .dropPlaceHolder:last-child'));
+            closeModal($('#add-portfolio'))
+        } else {
+            var id = $('#edit_status_id').val();
+            closeModal($('#edit-portfolio'))
+        }
+        $('#status-'+id+' .name-field').val($('#'+action+'_status_name').val());
+        $('#status-'+id+' .badge').text($('#'+action+'_status_name').val());
+        $('#status-'+id+' .badge').removeClass($('#status-'+id+' .color-field').val()+'-badge').addClass($('#'+action+'_status_color').val()+'-badge');
+        $('#status-'+id+' .color-field').val($('#'+action+'_status_color').val());
+        $('#lead-statuses-form button').removeClass('disabled');
+    }
+    function delete_status() {
+        $('#status-'+$('#edit_status_id').val()).next().remove();
+        $('#status-'+$('#edit_status_id').val()).remove();
+        $('#lead-statuses-form button').removeClass('disabled');
+        closeModal($('#edit-portfolio'))
+    }
+    function update_editor(el) {
+        if ($(el).parents('#status-new').length) {
+            showModal($('#add-portfolio'))
+            $('#add_status_id').val($(el).parents('.cat-wrapper').attr('id'));
+            $('#add_status_name').val('');
+            $('#add_status_color').val('gray');
+        } else {
+            showModal($('#edit-portfolio'))
+            var id = $(el).siblings('.id-field').val();
+            var name = $('#status-'+id+' .name-field').val();
+            var color = $('#status-'+id+' .color-field').val();
+            $('#edit_status_id').val(id);
+            $('#edit_status_name').val(name);
+            $('#edit_status_color').val(color);
+            if (el.dataset['leads']>0 || $(el).parent().siblings('.dropPlaceHolder').length<3) {
+                $('#edit-delete-status-button').addClass('disabled')
+            } else {
+                $('#edit-delete-status-button').removeClass('disabled')
+            }
+        }
+        refreshAllFormsElements();
+    }
+    var lastID = {{last_id}};
+  </script>
+{% endmacro %}
+
+{% macro status_restriction_badge(s, dest_status, form='') %}
+<div class="badge bg-label-secondary {{ dest_status.color }}-badge me-1 mb-2">
+    {{dest_status.name}}
+    <input type="hidden" name="statusTransitionRestrictions[{{(s.id | int)-1 }}][]:number" value="{{dest_status.id}}" form="{{form}}" />
+    {{ui.icon('close', 'badge-icon', onclick='toggleColumn(this)')}}
+ </div>
+{% endmacro %}
+
+{% macro lead_status_restriction_scripts() %}
+<script>
+    function toggleColumn(el){
+      let chip = $(el).parents('.badge'), col = ".allowed_statuses", form = "";
+      if (chip.parents('.allowed_statuses').length) {
+        col = ".restricted_statuses";
+        form = "status-transition-restrictions";
+      }
+      let new_chip = chip.clone();
+      let dest_column = chip.parents('.status-restrictions-row').find(col);
+      new_chip.find('input').attr("form", form);
+      dest_column.append(new_chip);
+      chip.remove();
+      enableElement($('.status_transition_submit'))
+    }
+    function saveStatusRestriction(router_button) {
+        SubmitForm(router_button, '/settings', {
+            "success_action": "message",
+            "success_message": "Settings saved!",
+            "postprocess_data": postprocess_restriction_settings,
+        })
+    }
+    function postprocess_restriction_settings(router_data) {
+        router_data['statusTransitionRestrictions'] = CleanArray(router_data['statusTransitionRestrictions'])
+        return router_data
+    }
+    function CleanArray(arr){
+        arr = $(arr) // Needed to use .length
+        var obj = {};
+        for(var i = 0; i < arr.length; i++){
+            obj[(i+1).toString()] = arr[i];
+        }
+        return obj
+    }
+</script>
+{% endmacro %}

@@ -1,0 +1,266 @@
+spec:
+  name: paygops-community
+  region: nyc3
+  envs:
+    - key: SECRET_KEY
+      scope: RUN_TIME
+      type: SECRET
+    - key: INITIAL_ADMIN_EMAIL
+      scope: RUN_TIME
+    - key: INITIAL_ADMIN_PASSWORD
+      scope: RUN_TIME
+      type: SECRET
+  services:
+    - name: web
+      image:
+        registry_type: GHCR
+        registry: masungatech
+        repository: paygops-community
+        tag: latest
+      http_port: 8000
+      routes:
+        - path: /
+      instance_count: 1
+      instance_size_slug: apps-s-1vcpu-2gb
+      run_command: bash -lc "mkdir -p /setup_data && touch /setup_data/ready && /crm/entrypoint.sh start_web_app"
+      envs:
+        - key: ENV_VAR
+          value: PROD
+        - key: MAIN_DB_NAME
+          value: db
+        - key: SMS_DB_NAME
+          value: db
+        - key: ACCOUNTING_DB_NAME
+          value: db
+        - key: AUDIT_DB_NAME
+          value: db
+        - key: ANALYTICAL_DB_NAME
+          value: analyticaldb
+        - key: PAYG_URL
+          value: ${APP_URL}
+        - key: PG_HOST
+          value: ${db.HOSTNAME}
+        - key: PG_PORT
+          value: ${db.PORT}
+        - key: PG_USER
+          value: ${db.USERNAME}
+        - key: PG_PASSWORD
+          value: ${db.PASSWORD}
+          type: SECRET
+        - key: PGSSLMODE
+          value: require
+        - key: REDIS_SERVER_ADDRESS
+          value: redis
+        - key: ANALYTICAL_DB_HOST
+          value: ${analyticaldb.HOSTNAME}
+        - key: ANALYTICAL_DB_PORT
+          value: ${analyticaldb.PORT}
+        - key: ANALYTICAL_DB_USER
+          value: ${analyticaldb.USERNAME}
+        - key: ANALYTICAL_DB_PASSWORD
+          value: ${analyticaldb.PASSWORD}
+          type: SECRET
+    - name: api
+      image:
+        registry_type: GHCR
+        registry: masungatech
+        repository: paygops-community
+        tag: latest
+      http_port: 6789
+      routes:
+        - path: /api/v1
+      instance_count: 1
+      instance_size_slug: apps-s-1vcpu-2gb
+      run_command: bash -lc "mkdir -p /setup_data && touch /setup_data/ready && /crm/entrypoint.sh start_api_app"
+      envs:
+        - key: ENV_VAR
+          value: PROD
+        - key: MAIN_DB_NAME
+          value: db
+        - key: SMS_DB_NAME
+          value: db
+        - key: ACCOUNTING_DB_NAME
+          value: db
+        - key: AUDIT_DB_NAME
+          value: db
+        - key: ANALYTICAL_DB_NAME
+          value: analyticaldb
+        - key: PAYG_URL
+          value: ${APP_URL}
+        - key: PG_HOST
+          value: ${db.HOSTNAME}
+        - key: PG_PORT
+          value: ${db.PORT}
+        - key: PG_USER
+          value: ${db.USERNAME}
+        - key: PG_PASSWORD
+          value: ${db.PASSWORD}
+          type: SECRET
+        - key: PGSSLMODE
+          value: require
+        - key: REDIS_SERVER_ADDRESS
+          value: redis
+        - key: ANALYTICAL_DB_HOST
+          value: ${analyticaldb.HOSTNAME}
+        - key: ANALYTICAL_DB_PORT
+          value: ${analyticaldb.PORT}
+        - key: ANALYTICAL_DB_USER
+          value: ${analyticaldb.USERNAME}
+        - key: ANALYTICAL_DB_PASSWORD
+          value: ${analyticaldb.PASSWORD}
+          type: SECRET
+  workers:
+    - name: celery-worker
+      image:
+        registry_type: GHCR
+        registry: masungatech
+        repository: paygops-community
+        tag: latest
+      instance_count: 1
+      instance_size_slug: apps-s-1vcpu-2gb
+      run_command: bash -lc "mkdir -p /setup_data && touch /setup_data/ready && /crm/entrypoint.sh start_worker"
+      envs:
+        - key: ENV_VAR
+          value: PROD
+        - key: MAIN_DB_NAME
+          value: db
+        - key: SMS_DB_NAME
+          value: db
+        - key: ACCOUNTING_DB_NAME
+          value: db
+        - key: AUDIT_DB_NAME
+          value: db
+        - key: ANALYTICAL_DB_NAME
+          value: analyticaldb
+        - key: PAYG_URL
+          value: ${APP_URL}
+        - key: PG_HOST
+          value: ${db.HOSTNAME}
+        - key: PG_PORT
+          value: ${db.PORT}
+        - key: PG_USER
+          value: ${db.USERNAME}
+        - key: PG_PASSWORD
+          value: ${db.PASSWORD}
+          type: SECRET
+        - key: PGSSLMODE
+          value: require
+        - key: REDIS_SERVER_ADDRESS
+          value: redis
+        - key: ANALYTICAL_DB_HOST
+          value: ${analyticaldb.HOSTNAME}
+        - key: ANALYTICAL_DB_PORT
+          value: ${analyticaldb.PORT}
+        - key: ANALYTICAL_DB_USER
+          value: ${analyticaldb.USERNAME}
+        - key: ANALYTICAL_DB_PASSWORD
+          value: ${analyticaldb.PASSWORD}
+          type: SECRET
+    - name: celery-heavy-worker
+      image:
+        registry_type: GHCR
+        registry: masungatech
+        repository: paygops-community
+        tag: latest
+      instance_count: 1
+      instance_size_slug: apps-s-1vcpu-2gb
+      run_command: bash -lc "mkdir -p /setup_data && touch /setup_data/ready && /crm/entrypoint.sh start_heavy_worker"
+      envs:
+        - key: ENV_VAR
+          value: PROD
+        - key: MAIN_DB_NAME
+          value: db
+        - key: SMS_DB_NAME
+          value: db
+        - key: ACCOUNTING_DB_NAME
+          value: db
+        - key: AUDIT_DB_NAME
+          value: db
+        - key: ANALYTICAL_DB_NAME
+          value: analyticaldb
+        - key: PAYG_URL
+          value: ${APP_URL}
+        - key: PG_HOST
+          value: ${db.HOSTNAME}
+        - key: PG_PORT
+          value: ${db.PORT}
+        - key: PG_USER
+          value: ${db.USERNAME}
+        - key: PG_PASSWORD
+          value: ${db.PASSWORD}
+          type: SECRET
+        - key: PGSSLMODE
+          value: require
+        - key: REDIS_SERVER_ADDRESS
+          value: redis
+        - key: ANALYTICAL_DB_HOST
+          value: ${analyticaldb.HOSTNAME}
+        - key: ANALYTICAL_DB_PORT
+          value: ${analyticaldb.PORT}
+        - key: ANALYTICAL_DB_USER
+          value: ${analyticaldb.USERNAME}
+        - key: ANALYTICAL_DB_PASSWORD
+          value: ${analyticaldb.PASSWORD}
+          type: SECRET
+    - name: redis
+      image:
+        registry_type: DOCKER_HUB
+        registry: library
+        repository: redis
+        tag: "7-alpine"
+      instance_count: 1
+      instance_size_slug: apps-s-1vcpu-1gb
+  jobs:
+    - name: runtime-setup
+      kind: PRE_DEPLOY
+      instance_count: 1
+      image:
+        registry_type: GHCR
+        registry: masungatech
+        repository: paygops-community
+        tag: latest
+      run_command: /crm/entrypoint.sh runtime_setup
+      envs:
+        - key: ENV_VAR
+          value: PROD
+        - key: MAIN_DB_NAME
+          value: db
+        - key: SMS_DB_NAME
+          value: db
+        - key: ACCOUNTING_DB_NAME
+          value: db
+        - key: AUDIT_DB_NAME
+          value: db
+        - key: ANALYTICAL_DB_NAME
+          value: analyticaldb
+        - key: PG_HOST
+          value: ${db.HOSTNAME}
+        - key: PG_PORT
+          value: ${db.PORT}
+        - key: PG_USER
+          value: ${db.USERNAME}
+        - key: PG_PASSWORD
+          value: ${db.PASSWORD}
+          type: SECRET
+        - key: PGSSLMODE
+          value: require
+        - key: REDIS_SERVER_ADDRESS
+          value: redis
+        - key: ANALYTICAL_DB_HOST
+          value: ${analyticaldb.HOSTNAME}
+        - key: ANALYTICAL_DB_PORT
+          value: ${analyticaldb.PORT}
+        - key: ANALYTICAL_DB_USER
+          value: ${analyticaldb.USERNAME}
+        - key: ANALYTICAL_DB_PASSWORD
+          value: ${analyticaldb.PASSWORD}
+          type: SECRET
+  databases:
+    - name: db
+      engine: PG
+      production: false
+      version: "16"
+    - name: analyticaldb
+      engine: PG
+      production: false
+      version: "16"

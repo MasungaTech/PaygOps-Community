@@ -1,0 +1,13 @@
+Level 0,Level 1,Level 2,Level 3,Level 4,User In Charge ID,GPS Longitude,GPS Latitude,Administrative Contact Name,Administrative Contact Number,Population,Description
+,,,Zone 1,,1,,,,,,
+,,Hub 1,Zone 1,,,45.325488,12.64357,,,,
+,Cluster 1,Hub 1,Zone 1,,,,,,,,
+Village 1,Cluster 1,Hub 1,Zone 1,,,,,,,,
+Village 2,Cluster 1,Hub 1,Zone 1,,,,,,,,
+,Cluster 2,Hub 1,Zone 1,,,,,,,,
+Village 1,Cluster 2,Hub 1,Zone 1,,,60.325389,15.54657,,,,
+Village 2,Cluster 2,Hub 1,Zone 1,,,,,,,,
+,,,Zone 2,,1,,,,,,
+,,Hub 1,Zone 2,,,,,,,,
+,Cluster 1,Hub 1,Zone 2,,,,,,,,
+Village 1,Cluster 1,Hub 1,Zone 2,,,,,,,,
