@@ -1,0 +1,15 @@
+{% extends "macros/base.html" %}
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'macros/form_macros.html' as forms %}
+{% import 'macros/filter_macros.html' as filters with context %}
+
+{% block page_title %}{{ ui.page_title('Dashboards', ftext("Home"|safe)) }}{% endblock %}
+
+{% block content %}
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5>Welcome {{user.full_name}}!</h5>
+        </div>
+        
+    </div>
+{% endblock %}

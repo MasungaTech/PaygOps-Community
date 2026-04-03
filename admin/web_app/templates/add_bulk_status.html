@@ -1,0 +1,81 @@
+{% import 'macros/form_macros.html' as forms with context %}
+{% import 'macros/general_macros.html' as ui with context %}
+{% set in_progress = false %}
+{% set analysis = task.analysis %}
+{% if task.status != 'ready' %}<div {{ ui.card_start() }}>{% endif %}
+{% if task.status == 'completed' %}
+    <h4 style="text-align: center;">{{ftext('Bulk {name} upload executed successfully', name=task.display_name) if not task.processing_errors else ftext('Bulk {name} upload executed with some errors', name=task.display_name)}}</h4>
+    {% if task.processing_errors %}
+        {{ ui.info_card('The following rows could not be executed due to an unexpected error. Find more information about each error below. The rest of the lines where executed correctly', type="warning")}}
+        <ul>
+        {% for error in task.processing_errors %}
+            <li>{{ error|safe }}</li>
+        {% endfor %}
+        </ul>    
+    {% endif %}
+    <form method="POST">
+        <input type="hidden" name="cancel" value="true" />
+        {{forms.button('Finish', type='action', disabled=false)}}
+    </form>
+{% elif task.status == 'processing' %}
+    {% set in_progress = true %}
+    <h3 style="text-align: center;">Processing {{task.display_name}} upload</h3>
+    {% if task.processing_progress %}
+        {% set progress = ((task.processing_progress.current * 100) / task.processing_progress.total) if task.processing_progress.total > 0 else 0 %}
+        <div class="m-3 pt-3">
+            <div class="row">
+                <div class="col s12">
+                    {{ ui.animated_progress(progress, progress) }}
+                    <p class="center-align pt-3">{{ task.processing_progress.phase }}</p>
+                </div>
+            </div>
+        </div>
+    {% else %}
+        {{ ui.indeterminate_progress() }}
+    {% endif %}
+    <form method="POST" class="mt-3">
+    <input type="hidden" name="cancel" value="true" />
+    {{forms.button('Cancel', type='action', disabled=false)}}
+    </form>
+{% elif task.status == 'ready' %}
+    {% include 'bulk_upload_summaries/' + task.entity + '.html' %}
+{% elif task.status == 'analysing' %}
+    {% set in_progress = true %}
+    <h3 style="text-align: center;">Analysing file</h3>
+    <div class="m-2 pt-3">
+        {% if task.analysis_progress %}
+            {% set progress = ((task.analysis_progress.current * 100) / task.analysis_progress.total) if task.analysis_progress.total > 0 else 0 %}
+            <div class="row">
+                <div class="col s12">
+                    {{ ui.animated_progress(progress, progress) }}
+                    <p class="center-align pt-3">{{ task.analysis_progress.phase }}</p>
+                </div>
+            </div>
+        {% else %}
+            {{ ui.indeterminate_progress() }}
+        {% endif %}
+    </div>
+    <form method="POST">
+    <input type="hidden" name="cancel" value="true" />
+    {{forms.button('Cancel', style="float: right;", type='action', disabled=false)}}
+    </form>
+{% elif task.status == 'error' %}
+    <h4 style="text-align: center;">There was an unexpected error</h4>  
+    <div class="row">
+        <div class="col s12 center">If the issue continues please contact support</div>
+    </div>
+    <form method="POST">
+        <input type="hidden" name="cancel" value="true" />
+        <input type="hidden" name="action" value="{{action}}" />
+        <input type="hidden" name="subaction" value="{{subaction}}" />
+        {{forms.button('Retry', style="float: right;", type='action', disabled=false)}}
+    </form>
+{% endif %}
+{% if task.status != 'ready' %}</div {{ ui.card_end() }}>{% endif %}
+{% if in_progress is defined and in_progress %}
+<script>
+setTimeout(function () {
+    $('#task_status_wrapper').load('{{url_for('admin.add_bulk_status', uuid=task.uuid)}}');
+}, 5000)
+</script>
+{% endif %}

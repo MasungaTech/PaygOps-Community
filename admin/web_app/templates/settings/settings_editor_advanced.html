@@ -1,0 +1,443 @@
+{% extends "macros/base.html" %}
+{% import 'settings/settings_editor_macros.html' as settings_forms with context %}
+
+{% block title %}{{ ftext('Advanced Settings') }}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('Settings', 'Advanced') }} {% endblock %}
+
+{% block content %}
+
+<div {{ ui.collapsible_card_start(uicon='workspace_premium', title='Platform Type and Features', active=false) }}>
+    <form class="row card-row">
+            {{ forms.select('PlatformType',
+                        config.PLATFORM_TYPES,
+                        value=GlobalSetting('PlatformType'),
+                        required=true,
+                        onchange="selectToggleFormsMap(this, 'value', {'features-package': '.show-for-features-flags', 'new-premium': '.show-for-new-premium'})",
+                        labeltag="Platform Type", size=6) }}
+       
+            {# This is there to ensure the feature toggles are not reset when not in feature package mode #}
+            {% for toggle in GlobalSetting('FeatureToggles') %}
+                <input type="hidden" name="FeatureToggles[{{toggle}}]:boolean" value={{GlobalSetting('FeatureToggles').get(toggle)}}>
+            {% endfor %}
+            
+            <div class="row show-for-features-flags {%if GlobalSetting('PlatformType') != 'features-package' %}hiddenform{%endif%}">
+            {{ ui.divider('Main Features', small=true) }}
+
+            {{ ui.info_card(uicon='warning', in_card=true, class='mt-3', text='Disabling some of those features might permanently delete some configuration such as Payment Router settings or Custom Lead statuses, enabling it again will leave them as they are when the feature is disabled to avoid disruptions, it will NOT revert them to their previous state.') }}
+
+            {{ forms.checkbox('FeatureToggles[SalesFeatures]:boolean', size=6,
+                checked=GlobalSetting('FeatureToggles').get('SalesFeatures'),
+                value='true',
+                id="SalesFeaturesCheckbox",
+                label='Enable Leads', labeltag='Leads',
+                onchange="toggleSalesFeaturesDependentFields(this.checked)") }}
+
+            {{ forms.checkbox('FeatureToggles[LumpSumContracts]:boolean', size=6,
+                checked=GlobalSetting('FeatureToggles').get('LumpSumContracts'),
+                value='true',
+                id="OneoffPayments",
+                label='Enable Lump-Sum Contracts', labeltag='One-off Payments') }}
+            
+            {{ forms.checkbox('FeatureToggles[LoanAndSubscriptionContracts]:boolean', size=6,
+                checked=GlobalSetting('FeatureToggles').get('LoanAndSubscriptionContracts'),
+                value='true',
+                id="EnableLoanAndSubscriptionContractsCheckbox",
+                label='Enable Loan & Subscription Contracts', labeltag='Credit & Subscription Payments') }}
+
+            {{ forms.checkbox('FeatureToggles[AfterSales]:boolean', size=6,
+                checked=GlobalSetting('FeatureToggles').get('AfterSales'),
+                value='true',
+                id="EnableAfterSalesCheckbox",
+                label='Enable Ticketing (After-Sales)', labeltag='Ticketing') }}
+
+            {{ forms.checkbox('FeatureToggles[Inventory]:boolean', size=6,
+                checked=GlobalSetting('FeatureToggles').get('Inventory'),
+                value='true',
+                id="EnableInventoryCheckbox",
+                label='Enable Inventory', labeltag='Inventory') }}
+
+            {{ ui.divider('Extra Features', small=true) }}
+
+            {{ forms.checkbox('FeatureToggles[BillingAnalytics]:boolean',
+                checked=GlobalSetting('FeatureToggles').get('BillingAnalytics'),
+                labeltag='Analytics',
+                label='Enable Analytics',
+                id='BillingAnalyticsFeaturePackage',
+                size=6,
+            ) }}
+
+            {{ forms.checkbox('FeatureToggles[OfflineMobileApp]:boolean',
+                checked=GlobalSetting('FeatureToggles').get('OfflineMobileApp'),
+                labeltag='Offline Agent App',
+                label='Enable Offline Agent App',
+                id='OfflineAgentAppFeaturePackage',
+                size=6,
+            ) }}
+
+            {{ forms.checkbox('FeatureToggles[ClientGroup]:boolean',
+                checked=GlobalSetting('FeatureToggles').get('ClientGroup'),
+                labeltag='Client Groups',
+                label='Enable Client Groups',
+                id='clientgroups',
+                size=6,
+            ) }}
+            
+            {{ forms.checkbox('FeatureToggles[SSO]:boolean',
+                checked=GlobalSetting('FeatureToggles').get('SSO'),
+                labeltag='SSO (Single Sign On)',
+                label='Enable SSO (Single Sign On)',
+                id='SSO-Single',
+                tooltip='This allows the login of users via Google or the creation of login tokens',
+                size=6,
+            ) }}
+
+            {{ forms.checkbox('FeatureToggles[MobileSSO]:boolean',
+                checked=GlobalSetting('FeatureToggles').get('MobileSSO'),
+                labeltag='Mobile SSO (Single Sign On)',
+                label='Enable SSO (Single Sign On) on mobile app',
+                id='SSO-mobile',
+                tooltip='This allows the login of users via Google in the mobile app',
+                size=6,
+            ) }}
+
+            {{ forms.checkbox('FeatureToggles[AuditLogs]:boolean',
+                checked=GlobalSetting('FeatureToggles').get('AuditLogs'),
+                labeltag='Audit Logs',
+                label='Enable Audit Logs',
+                id='AuditLogs',
+                size=6,
+            ) }}
+
+            {{ forms.checkbox('FeatureToggles[PaymentManagement]:boolean',
+                checked=GlobalSetting('FeatureToggles').get('PaymentManagement'),
+                labeltag='Payment Integration & Routing',
+                label='Enable Payment Integration & Routing',
+                id='PaymentManagement',
+                tooltip='This includes payment router, automatic reversal handling, cash collection limits, etc.',
+                size=6,
+            ) }}
+
+            {{ forms.checkbox('FeatureToggles[ApiAccess]:boolean',
+                checked=GlobalSetting('FeatureToggles').get('ApiAccess'),
+                labeltag='API Access',
+                label='Enable Api Access',
+                id='ApiAccess',
+                size=6,
+            ) }}
+
+            {{ forms.checkbox('FeatureToggles[TaskSystem]:boolean',
+                checked=GlobalSetting('FeatureToggles').get('TaskSystem', false),
+                labeltag='Task System',
+                label='Enable Task System',
+                id='TaskSystem',
+                size=6,
+            ) }}
+
+            {{ forms.checkbox('FeatureToggles[BillingPaygOpsSMS]:boolean',
+                checked=GlobalSetting('FeatureToggles').get('BillingPaygOpsSMS'),
+                labeltag='Automated Messages & SMS',
+                label='Enable Automated Messages & SMS',
+                id='BillingPaygOpsSMSFeaturePackage',
+                tooltip='It should be enabled if the platform is using PaygOps Bulk SMSs service',
+                size=6,
+            ) }}
+            
+            </div>
+
+            {# ========== NEW PREMIUM SECTIONS ========== #}
+            <div class="row show-for-new-premium {%if GlobalSetting('PlatformType') != 'new-premium' %}hiddenform{%endif%}">
+            
+            {{ ui.divider('Extra Paid Features', small=true) }}
+
+            {{ forms.checkbox('FeatureToggles[BillingAnalytics]:boolean',
+                checked=GlobalSetting('FeatureToggles').get('BillingAnalytics'),
+                labeltag='Analytics',
+                label='Enable Analytics',
+                id='BillingAnalytics',
+                size=6,
+            ) }}
+
+            {{ forms.checkbox('FeatureToggles[OfflineMobileApp]:boolean',
+                checked=GlobalSetting('FeatureToggles').get('OfflineMobileApp'),
+                labeltag='Offline Agent App',
+                label='Enable Offline Agent App',
+                id='OfflineAgentApp',
+                size=6,
+            ) }}
+
+            {{ forms.checkbox('FeatureToggles[BillingPaygOpsSMS]:boolean',
+                checked=GlobalSetting('FeatureToggles').get('BillingPaygOpsSMS'),
+                labeltag='Automated Messages & SMS',
+                label='Enable Automated Messages & SMS',
+                id='BillingPaygOpsSMS',
+                tooltip='It should be enabled if the platform is using PaygOps Bulk SMSs service',
+                size=6,
+            ) }}
+
+            </div>
+
+            {{ ui.divider('Vertical Specific Features', small=true) }}
+
+            {{ forms.checkbox('FeatureToggles[PaygoDevices]:boolean',
+                checked=GlobalSetting('FeatureToggles').get('PaygoDevices'),
+                labeltag='Paygo Devices',
+                label='Enable Paygo Devices',
+                id='PaygoDevices',
+                size=6,
+            ) }}
+
+            {{ forms.checkbox('FeatureToggles[OffTaking]:boolean',
+                checked=GlobalSetting('FeatureToggles').get('OffTaking', false),
+                labeltag='Offtaking (Purchasing Add-Ons) (BETA)',
+                label='Enable Offtaking (Purchasing Add-Ons)',
+                id='OffTaking',
+                size=6,
+            ) }}
+
+            {{ forms.checkbox('FeatureToggles[NoValueLoanContracts]:boolean',
+                checked=GlobalSetting('FeatureToggles').get('NoValueLoanContracts', false),
+                labeltag='0 Value Loan Contracts (BETA)',
+                label='Enable 0 Value Loan Contracts',
+                id='NoValueLoanContracts',
+                size=6,
+            ) }}
+
+            <div class="col col-12 col-md-6 show-for-sales-features {%if not GlobalSetting('FeatureToggles').get('SalesFeatures') %}hiddenform{%endif%}">
+                {{ forms.select('ContractDeviceRestrictions',
+                config.CONTRACT_DEVICE_RESTRICTIONS,
+                labeltag="Allow Contract Without Stock Item (BETA)",
+                label="Select the device restrictions for contracts.",
+                value=GlobalSetting('ContractDeviceRestrictions') ,
+                size=12,
+                translate=false
+                ) }}
+            </div>
+
+            {{ ui.divider('Studio (BETA)', small=true) }}
+
+            {{ forms.checkbox('FeatureToggles[user_journey_editor]:boolean',
+                checked=GlobalSetting('FeatureToggles').get('user_journey_editor', false),
+                labeltag='User Journey Editor (BETA)',
+                label='Enable User Journey Editor',
+                id='UserJourneyEditor',
+                size=6,
+            ) }}
+
+            {{ forms.checkbox('FeatureToggles[CustomAppDesigner]:boolean',
+                checked=GlobalSetting('FeatureToggles').get('CustomAppDesigner', false),
+                labeltag='Custom App Designer (BETA)',
+                label='Enable Custom App Designer',
+                id='CustomAppDesigner',
+                size=6,
+            ) }}
+
+            {{ forms.checkbox('FeatureToggles[automations]:boolean',
+                checked=GlobalSetting('FeatureToggles').get('automations', false),
+                labeltag='Automations (BETA)',
+                label='Enable Automations',
+                id='Automations',
+                size=6,
+            ) }}
+
+            {{ forms.checkbox('FeatureToggles[PackageInstaller]:boolean',
+                checked=GlobalSetting('FeatureToggles').get('PackageInstaller', false),
+                labeltag='Package Installer (BETA)',
+                label='Enable Package Installer',
+                id='PackageInstaller',
+                tooltip='If enabled, Package Installer menu will be available to Admin users. Super Admin users always have access.',
+                size=6,
+            ) }}
+
+            {{ ui.divider('Internal Tools', small=true) }}
+
+            {{ forms.checkbox('FeatureToggles[EnableUserGuiding]:boolean', size=6,
+                checked=GlobalSetting('FeatureToggles').get('EnableUserGuiding'),
+                value='true',
+                id="EnableUserGuidingCheckbox",
+                label='Enable UserGuiding', labeltag='UserGuiding') }}
+
+            {{ forms.checkbox('FeatureToggles[Paquita]:boolean',
+                checked=GlobalSetting('FeatureToggles').get('Paquita', false),
+                labeltag='AI Assistant (BETA)',
+                label='Enable AI Assistant',
+                id='Paquita',
+                size=6,
+            ) }}
+
+            
+        {{ settings_forms.save_button() }}
+    </form>
+</div {{ ui.collapsible_card_end() }}>
+
+<div {{ ui.collapsible_card_start(uicon='settings', title='Miscellaneous', active=false) }}>
+    <form class="row card-row">
+
+        {{ forms.input('OnlineTrainingUrl',
+            label="Online Training URL",
+            placeholder="Must be in the format https://www.youtube.com/playlist?list=XXX",
+            value=GlobalSetting('OnlineTrainingUrl'), 
+            size=6
+        ) }}
+
+        {{ forms.input('APIBannedUsers',
+                        label="API banned users",
+                        value=GlobalSetting('APIBannedUsers'), size=6) }}
+
+        {{ forms.input('OdysseyFinancingID',
+                        label="Odyssey Financing ID",
+                        value=GlobalSetting('OdysseyFinancingID'),
+                        size=6) }}
+
+        {{ forms.input('ForcedCurrencyCode',
+            label="Forced Currency Code",
+            value=GlobalSetting('ForcedCurrencyCode'), size=6) }}
+
+        {{ forms.input('ForcedCurrencyExchangeRate',
+            label="Forced Currency Exchange Rate (0 for disabled)",
+            value=GlobalSetting('ForcedCurrencyExchangeRate'), size=6) }}
+
+        {{ forms.select('DefaultConflictResolution',
+            config.CONFLICT_RESOLUTION_OPTIONS,
+            value=GlobalSetting('DefaultConflictResolution'),
+            required=false,
+            size=6,
+            label="Choose Default Conflict Resolution for Mobile App...",
+            labeltag="Mobile App Default Conflict Resolution") }}
+        
+        {{ settings_forms.save_button() }}
+    </form>
+</div {{ ui.collapsible_card_end() }}>
+
+<div {{ ui.collapsible_card_start(uicon='chat', title='Banners', active=false) }}>
+    <form class="row card-row">
+
+        {{ forms.input('BannerMessage',
+            label="Banner Message (leave empty to remove)",
+            value=GlobalSetting('BannerMessage'), size=6) }}
+
+        {{ forms.input('MobileBannerMessage',
+            label="Mobile Banner Message (leave empty to remove)",
+            value=GlobalSetting('MobileBannerMessage'), size=6) }}
+
+        {{ forms.input('StressModeBanner',
+            label="Stress Mode Banner Message",
+            value=GlobalSetting('StressModeBanner'), size=6) }}
+
+        {{ settings_forms.save_button() }}
+    </form>
+</div {{ ui.collapsible_card_end() }}>
+
+<div {{ ui.collapsible_card_start(uicon='send', title='Gateway Sending Settings', active=false) }}>
+    <form class="row card-row">
+        {{ forms.checkbox('GatewaySendingEnabled', size=6,
+            checked=GlobalSetting('GatewaySendingEnabled'),
+            value='true',
+            id="GatewaySendingEnabledCheckbox",
+            label="Deliver SMS to Gateway", labeltag='SMS Settings') }}
+        {{ forms.checkbox('GatewaySendingAsynchronous', size=6,
+            checked=GlobalSetting('GatewaySendingAsynchronous'),
+            value='true',
+            id="GatewaySendingAsynchronousCheckbox",
+            label='Asynchronous', labeltag='Asynchronous Sending') }}
+        {{ settings_forms.save_button() }}
+    </form>
+</div {{ ui.collapsible_card_end() }}>
+
+<div {{ ui.collapsible_card_start(uicon='device', title='Device Integration Settings', active=false) }}>
+    <form class="row">
+        <div class="device_api_list">
+            {% for key,values in GlobalSetting('AllDeviceAPIS').items() -%}
+                {{ settings_forms.DeviceIntegrationAPI(key,values,AvailableOfferTypeList.get(key)) }}
+            {%- endfor %}
+        </div>
+
+        <div class="hiddenform newdeviceinteg">
+            {{ settings_forms.DeviceIntegrationAPI('',{
+                'device_api_full_name': '',
+                'supported_units': '',
+                'device_api_type': '',
+                'device_api_version': '',
+                'offline_mode': '',
+                'supports_monitoring_data': '',
+                'device_api_url': '',
+                'supported_offer_type': '',
+                'device_api_key': ''
+            },config.AVAILABLE_SUPPORTED_OFFER_TYPES, GlobalSetting('AllDeviceAPIS').keys()) }}
+        </div>
+
+        {{ ui.button(uicon='add', label='Add New Integration', type='action', fit=true, size=6, action='showForm(".newdeviceinteg");disableElement($(this));') }}
+        {{ ui.button(uicon='save', label='Save Settings', type='action', fit=true, size=6, id='settings_save',
+                        action='async_post', async_url='/settings', success_message='Settings saved', success_action='message') }}
+    </form>
+</div {{ ui.collapsible_card_end() }}>
+
+<div {{ ui.collapsible_card_start(uicon='money', title='Auto-Reconcile Payments', active=false) }}>
+    <form class="row card-row" id="reconcile_payments_form">
+        {{ forms.input('from_date', 'From', type='datepicker', uicon='insert_invitation', size='6') }}
+        {{ forms.input('to_date', 'To', type='datepicker', uicon='insert_invitation', size='6') }}
+        {{ forms.checkbox('not_exclude_reverted', 'Included', size='12', labeltag='Include reverted payments')}}
+
+        {{ ui.button(label='Auto-Reconcile Payments Now', type='action', fit=true, size=6, center=true,
+                        action='reconcileCall()', disabled=reconcile_orphaned_payment_is_running) }}
+    </form>
+</div {{ ui.collapsible_card_end() }}>
+
+
+<div {{ ui.collapsible_card_start(uicon='dashboard', title='Metabase Configuration', active=false) }}>
+    <form class="row card-row">
+        {{ forms.input('MetabaseURL',
+            uicon="link",
+            label="Metabase URL (e.g. https://xxx.paygops.com/metabase)",
+            value=GlobalSetting('MetabaseURL')) }}
+        {{ forms.input('MetabaseKey',
+            uicon="key",
+            label="Metabase Secret Key (e.g. 0aa1ac3cac...)",
+            value=GlobalSetting('MetabaseKey')) }}
+
+        {{ settings_forms.save_button() }}
+    </form>
+</div {{ ui.collapsible_card_end() }}>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function reconcileCall() {
+        toast(PaygOps_LNG["STARTING_PROCESS"]);
+        reconcile_form = $('#reconcile_payments_form')
+        reconcile_form.find('button').addClass('disabled')
+        form_data = reconcile_form.serializeJSON({useIntKeysAsArrayIndex: true})
+        $.ajax({
+            url: "{{ url_for('admin.auto_reconcile_payments') }}",
+            type: "POST",
+            data: JSON.stringify(form_data),
+            contentType: "application/json",
+            success: function (result) {
+                toast(PaygOps_LNG["PROCESSING_1"]+result.count+PaygOps_LNG["PROCESSING_2"])
+            },
+            error: function (xhr, ajaxOptions, thrownError) {
+                error_toast(thrownError);
+            }
+        });
+    }
+    
+    function toggleSalesFeaturesDependentFields(enabled) {
+        if (enabled) {
+            $('.show-for-sales-features').removeClass('hiddenform');
+            // Re-enable the field when SalesFeatures is enabled
+            $('.show-for-sales-features input, .show-for-sales-features select').prop('disabled', false);
+        } else {
+            $('.show-for-sales-features').addClass('hiddenform');
+            // Disable the field so it's not submitted (disabled fields are not sent in form submission)
+            $('.show-for-sales-features input, .show-for-sales-features select').prop('disabled', true);
+        }
+    }
+    
+    // Initialize on page load
+    $(document).ready(function() {
+        var salesFeaturesEnabled = $('#SalesFeaturesCheckbox').is(':checked');
+        toggleSalesFeaturesDependentFields(salesFeaturesEnabled);
+    });
+</script>
+{% endblock %}

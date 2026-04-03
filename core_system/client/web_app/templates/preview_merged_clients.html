@@ -1,0 +1,42 @@
+
+{% import 'macros/form_macros.html' as forms with context %}
+{% import 'macros/general_macros.html' as ui with context %}
+
+{% macro data_item(check, label, icon, val1, val2, br=false) %}
+{% if check == true or (check is string and GlobalSetting('LeadInfoSettings')[check]['visible']) %}
+{% if val1 != val2 %}{% set value = (val1 or '') + (' <var class="line-through">'|safe+val2+'</var>'|safe if val2 else '') + ('<br>'|safe if br else '') %}{% else %}{% set value = val1 %}{% endif %}
+{{ ui.report_field(label, value|safe, icon, size=6, nospace=br) }}
+{% endif %}
+{% endmacro %}
+
+<div {{ ui.card_start(title='Merged Client Information', uicon='client', body_class='row') }}>
+    {% set person = original_client.person %}
+    {% set old_person = selected_client.person %}
+    {{data_item('first_name', 'First Name', 'account_circle', person.name, old_person.name)}}
+    {{data_item('surname', 'Surname', 'account_circle', person.surname, old_person.surname)}}
+    {{data_item('birthdate', 'Age', 'assignment_ind', person.getAge(), old_person.getAge())}}
+    {{data_item(GlobalSetting('CustomIdEnabled'), GlobalSetting('CustomId'), 'badge', person.custom_id or '-', old_person.custom_id or '-')}}
+    {{data_item(true, 'Registration Date', 'insert_invitation', ui.date(original_client.RegistrationDate), ui.date(selected_client.RegistrationDate))}}
+    {% set langs = ui.isnone(person.get_sms_language_name()) + " / "+  ui.isnone(person.verbal_language or none) %}
+    {% set old_langs = ui.isnone(old_person.get_sms_language_name()) + " / "+  ui.isnone(old_person.verbal_language or none) %}
+    {% set show_langs = GlobalSetting('LeadInfoSettings')['preferred_sms_language']['visible'] or GlobalSetting('LeadInfoSettings')['verbal_language']['visible'] %}
+    {{data_item(show_langs, 'Language (SMS / Verbal)', 'language', langs, old_langs)}}
+    {{data_item(true, 'Earliest payment due', 'alarm', ui.days_remaining(original_client.get_earliest_payment_due()), ui.days_remaining(selected_client.get_earliest_payment_due()))}}
+    {{data_item('gender', 'Gender', 'wc', person.get_gender_name(), old_person.get_gender_name())}}
+    {{data_item(true, GlobalSetting('OperationalEntities')[0].name, 'home', ui.entity_link_ancestors(original_client.person.village), ui.entity_link_ancestors(selected_client.person.village), br=true)}}
+    {{data_item(true, 'Client Group', 'groups', ui.client_group_link(person.client_group), ui.client_group_link(old_person.client_group))}}
+    {{data_item('gps_coordinates', 'Location', 'room', ui.gps_coords(person.GPSLat, person.GPSLon), ui.gps_coords(old_person.GPSLat, old_person.GPSLon))}}
+    {{data_item(true, 'Agent in charge', 'supervised_user_circle', ui.user_link(original_client.get_user_in_charge()), ui.user_link(selected_client.get_user_in_charge()))}}
+    {% if GlobalSetting('LeadInfoSettings')['phone_number']['visible'] %}
+        <p><strong>{{ ui.icon('phone', 'tiny middle') }} {{ ftext('Phones:') }}</strong>
+            {% for phone in phone_numbers%}
+                <var>
+                    {% if phone == person.contactPhone %}<strong><i>{% endif %}{{ phone.number }}{% if phone == person.contactPhone %}</i></strong>{% endif %}
+                {% if not loop.last %}, {% endif %}
+                </var>
+            {% endfor %}
+        </p>
+    {% endif %}
+
+    {{ ui.report_field('Merged Notes', original_client.Assets+" "+selected_client.Assets, 'note')}}
+</div {{ ui.card_end() }}>

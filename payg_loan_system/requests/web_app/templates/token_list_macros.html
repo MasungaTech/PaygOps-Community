@@ -1,0 +1,49 @@
+{% macro token_list_core(tokens, pagination=none, more=none) %}
+<thead>
+    <tr>
+        {% if is_custom_app %}
+            {{ ui.sortable_header('time', 'Date', pagination=pagination, class='ps-4') }}
+            {{ ui.table_header('Token') }}
+            {{ ui.table_header('Expiration Date') }}
+            {{ ui.sortable_header('token_type', 'Token Type', pagination=pagination) }}
+        {% else %}
+            {{ ui.sortable_header('id', 'UUID', pagination=pagination, class='ps-4') }}
+            {{ ui.sortable_header('time', 'Time', pagination=pagination) }}
+            {{ ui.table_header('Token') }}
+            {{ ui.sortable_header('token_type', 'Token Type', pagination=pagination) }}
+            {{ ui.sortable_header('credit_value', 'Credit Value', pagination=pagination) }}
+            {{ ui.sortable_header('client', 'Client', pagination=pagination) }}
+            {{ ui.sortable_header('device', 'Device', pagination=pagination, class='pe-3') }}
+        {% endif %}
+    </tr>
+</thead>
+<tbody>
+{% for token in tokens %}
+<tr>
+    {% if is_custom_app %}
+        <td class="ps-4">{{token.time.strftime("%d %b") if token.time else '-'}}</td>
+        <td>{{ token.token }}</td>
+        <td>{{ token.expiration_time.strftime("%d %b") if token.expiration_time else '-' }}</td>
+        <td>{{ token.token_type or '-' }}</td>
+    {% else %}
+        <td class="ps-4">
+            <a style="cursor:pointer" onclick="clipboardWrite('{{token.uuid}}', 'UUID')">{{ ui.table_icon('fingerprint', tooltip=ftext('{} <br> (Click to copy)', token.uuid)) }}</a>
+        </td>
+        <td>{{ ui.datetime(token.time) }}</td>
+        <td>{{ token.token }}</td>
+        <td>{{ token.token_type or '-' }}</td>
+        {% if token.credit_value %} 
+            <td>{{ token.credit_value }} {{ token.credit_unit }}</td>
+        {% else %}
+            <td>{{ ui.datetime(token.expiration_time) }}</td>
+        {% endif %}
+        <td class="truncate-hoverable">{{ ui.client_link(token.device.contract.client) if token.device.contract else  '-'}}</td>
+        <td class="truncate-hoverable pe-3">{{ ui.device_link(token.device)}}</td>
+    {% endif %}
+</tr>
+{% else %}
+    {{ ui.no_results_row(3 if is_custom_app else 7, 'No Token Requests with the selected filters.' if pagination else 'No Token Requests for that device') }}
+{% endfor %}
+{% if more %}<tr><td colspan="{{ 3 if is_custom_app else 7 }}" style="text-align: center;"><a href="{{more}}">{{ftext('More tokens...')}}</a></td></tr>{% endif %}
+</tbody>
+{% endmacro %}

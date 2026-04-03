@@ -1,0 +1,28 @@
+{% import 'macros/error_view.html' as error with context %}
+{% extends "macros/base.html" %}
+{% import 'macros/general_macros.html' as ui with context %}
+
+{% block title %}{{ ftext('An issue occurred ({})', error_code, novar=true) }}{% endblock %}
+
+{% block content %}
+{% set support_text = 'The issue might be due to invalid data, our servers being under excessive load or an issue within PaygOps. <br>The issue details and associated data have been sent to our team who will look into it as soon as possible. <br>' %}
+{% if config.SUPPORT_URL %}
+{% set support_text = support_text ~ 'Visit our <a href="' ~ config.SUPPORT_URL|string ~ '" target="_blank">support platform</a> or ' %}
+{% endif %}
+{% set support_text = support_text ~ 'contact <a href="mailto:' ~ config.SUPPORT_EMAIL|string ~ '">' ~ config.SUPPORT_EMAIL|string ~ '</a> if the issue is urgent or if you need assistance.' %}
+<div {{ ui.card_start(title=ftext('An issue occured ({})', error_code), uicon='warning', icon_color='red', actions=ui.button(uicon='bug_report', tooltip='View Issue Details (Advanced)', permission='SuperAdmin', type='card-action', modal='error-details')) }}>
+    {{ ui.info_card(uicon='bug_report', class='mt-4', color='danger', text='An issue occurred and the page could not be displayed. <br> We are very sorry for the inconvenience. ') }}
+    {{ ui.info_card(uicon='info', color='secondary', text=support_text) }}
+</div {{ ui.card_end() }}>
+
+<div {{ ui.modal_start('error-details', ftext('Error Details: {}', error_log['time']), large=true) }}>
+    <form>
+        <div class="modal-body">
+            {{ error.web_error(error_log) }}
+        </div>
+        <div class="modal-footer">
+            {{ ui.modal_close_button() }}
+        </div>
+    </form>
+</div {{ ui.modal_end() }}>
+{% endblock %}

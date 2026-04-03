@@ -1,0 +1,127 @@
+{% extends "macros/list_base.html" %}
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'macros/form_macros.html' as forms with context %}
+{% import 'macros/filter_macros.html' as filter with context %}
+{% import 'lead_table_macro.html' as lead_table with context %}
+
+{% block title %}{{ ftext('Leads List') }}{% endblock %}
+
+
+{% block page_title %}{{ ui.page_title('Leads','List') }}{% endblock %}
+
+{% block page_actions %}
+    {{ ui.button(link=url_for('admin.bulk_upload_task_view', entity="edit_leads"), uicon="edit_note", tooltip="Bulk Edit Leads", permission="EditLeads", type='header-action', visible=true if not is_custom_app else false)}}
+    {{ ui.button(link=url_for('.add_lead'), uicon="add", label="Add Lead" if is_custom_app else "", tooltip="Add Lead", permission="AddLeads", type='header-action') }}
+    {% if not is_custom_app %}
+        {{ filter.special_views_filter(views, view) }}
+    {% endif %}
+{% endblock %}
+
+{% block header %}
+    {% if not is_custom_app %}
+        {{ filter.entities_navigation_filter(entity) }}
+    {% endif %}
+
+    <div {{ ui.collapsible_card_start(title='Filters', uicon='filter', icon_color='', active=any_filter([pagination.search, selected_status, portfolio, client_group, contract_offer, offer_type, lead_generator])) }}>
+    <form id="filter_form_v2" action="" method="get" class="row">
+        {{forms.input('search', "Search Leads", size=6, 
+            value=pagination.search, tooltip=ftext("You can search by ID, name, phone number")+(ftext(" or {}", GlobalSetting('CustomId')) if GlobalSetting('CustomIdEnabled') else ""))}}
+
+        {{forms.select('status', status_categoty_filter_values, labeltag="Filter by status",
+            size=6, values=selected_status, option_classes=option_classes, extra_choices={'all': ftext('All')}, translate=false, max_answers=max_selected_statuses)}}
+        {% if not is_custom_app %}
+            {{forms.searchable_select('portfolio_id', portfolios, 'All', labeltag="Filter by portfolio", 
+                size=4, value=portfolio.id if portfolio else none, source="portfolios")}}
+            {{forms.searchable_select('client_group_id', client_groups, 'All', labeltag="Filter by client group", 
+            size=4, value=client_group.id if client_group else none, source="client_groups")}}
+            {{forms.searchable_select('lead_generator_id', lead_generators, 'All', labeltag="Filter by lead generator", 
+            size=4, value=lead_generator.id if lead_generator else none, source="lead_generators")}}
+
+            {{ forms.input('from_delivery_date', 'Filter from this delivery date', type='datepicker', icon='date', size='4', value=from_delivery_date or none, tooltip='This filters by the delivery date of the different add-ons within the contract') }}
+            {{ forms.input('to_delivery_date', 'Filter to this delivery date', type='datepicker', icon='date', size='4', value=to_delivery_date or none, tooltip='This filters by the delivery date of the different add-ons within the contract') }}
+            {{ forms.searchable_select('contract_offer_id', contract_offers, 'All', labeltag="Filter by offer", 
+            size=6, value=contract_offer.id if contract_offer else none, source="contract_offers")}}
+            {{ forms.searchable_select('offer_type', offer_types, 'All', labeltag="Filter by offer type", 
+            size=4, value=offer_type if offer_type else none)}}
+        {% endif %}
+        {{ filter.filter_buttons() }}
+    </form>
+    </div {{ ui.collapsible_card_end() }}>
+{% endblock %}
+
+{% block table %}
+    {{ lead_table.lead_table(pagination, columns_to_filter) }}
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+    $(function () {
+        const categoryChildren = JSON.parse('{{ status_category_children|tojson|safe }}');
+        const statusToCategory = JSON.parse('{{ status_to_category|tojson|safe }}');
+        const $statusSelect = $('#status');
+        let suppress = false;
+
+        function applySelection(values) {
+            suppress = true;
+            $statusSelect.val(values);
+            $statusSelect.trigger('change');
+            suppress = false;
+        }
+
+        function withoutAll(values) {
+            return (values || []).filter(value => value !== 'all');
+        }
+
+        $statusSelect.on('select2:select', function (event) {
+            if (suppress) {
+                return;
+            }
+            const value = event.params.data.id;
+            if (value === 'all') {
+                return;
+            }
+            let current = $statusSelect.val() || [];
+
+            if (categoryChildren.hasOwnProperty(value)) {
+                const additions = categoryChildren[value];
+                const merged = Array.from(new Set(withoutAll(current).concat(additions).concat([value])));
+                applySelection(merged);
+            } else {
+                current = withoutAll(current);
+                applySelection(current);
+            }
+        });
+
+        $statusSelect.on('select2:unselect', function (event) {
+            if (suppress) {
+                return;
+            }
+            const value = event.params.data.id;
+            let current = $statusSelect.val() || [];
+
+            if (categoryChildren.hasOwnProperty(value)) {
+                const removals = new Set(categoryChildren[value].concat([value]));
+                const filtered = current.filter(item => !removals.has(item));
+                applySelection(filtered);
+                return;
+            }
+
+            const category = statusToCategory[value];
+            if (!category) {
+                return;
+            }
+
+            const remaining = current.filter(item => item !== value);
+            const stillHasSiblings = (categoryChildren[category] || []).some(id => id !== value && remaining.includes(id));
+
+            if (!stillHasSiblings) {
+                const filtered = remaining.filter(item => item !== category);
+                applySelection(filtered);
+            } else if (remaining.length !== current.length) {
+                applySelection(remaining);
+            }
+        });
+    });
+</script>
+{% endblock %}
