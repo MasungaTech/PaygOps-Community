@@ -1,0 +1,152 @@
+{% macro transaction_script_macro() %}
+<script>
+var uuid = "{{ this_uuid }}";
+var reloadAfterCloseModal = false;
+
+function return_function(result, showSendToClient, thisUUID) {
+    var new_modal_id = get_new_modal_id();
+    var content_el = $("#core_content")
+    if (new_modal_id) {
+      content_el = $('#'+new_modal_id+'_content');
+    }
+    content_el.html("<p><strong>"+result+"</strong></p>");
+    if (showSendToClient) {
+      $(".send_to_client").removeClass('hide');
+      $(".send_to_client").data('uuid', thisUUID)
+    } else {
+      $(".send_to_client").addClass('hide');
+    }
+    $(".dismiss-btn").removeClass("hide");
+    $(".transaction_action").addClass('hide');
+    window.onbeforeunload = null;
+    $('.transaction_modal').on('hide.bs.modal', (e) => reloadPage());
+    reloadAfterCloseModal = true;
+}
+
+function get_new_modal_id() {
+  new_modal = $("#core_content").parents('.new-modal');
+  if (new_modal.length) {
+    return new_modal.data('new-modal');
+  }
+  return false;
+}
+
+function validateAndSubmit(request_url) {
+     var thisForm = $("#MainForm");
+     if(thisForm.valid()) {
+        formElems = $(thisForm[0].elements).filter(":not(.skip):not(.hiddenform)").filter(function() {
+          // We remove any input if they are child of a div with .hiddenform
+          return $(this).parents('.hiddenform').length <= 0;
+        })
+         var json_data = JSON.stringify(formElems.serializeJSON({useIntKeysAsArrayIndex: true}));
+         debug_log('Transaction request data: ', json_data)
+         showLoadingTransaction()
+         submitTransactionRequestAndGetAnswer(json_data, request_url, uuid, return_function);
+     }
+}
+
+function showLoadingTransaction(new_modal_id) {
+  var new_modal_id = get_new_modal_id();
+  var content_div = $("#core_content")
+  if(new_modal_id) {
+    showModal($('#'+new_modal_id));
+    content_div = $('#'+new_modal_id+'_content');
+  }
+  $(".transaction_action").prop("disabled",true);
+  $(".dismiss-btn").addClass("hide");
+  content_div.html('{{ui.skeleton_placeholder()|replace("\n", "")}}');
+  // We turn on reloading of the page after the modal is closed since the transaction has now been sent
+  $('.transaction_modal').on('hide.bs.modal', (e) => false);
+
+  window.onbeforeunload = () => '';
+}
+
+$(function() {
+  refreshSelects();
+  $('.tooltipped').tooltip();
+});
+</script>
+<script type="text/javascript" src="/static/js/transaction_request_sender.v1.1.js"></script>
+{% endmacro %}
+
+{% macro device_selector_macro(request_code=false, new_device=false, prefix='', prefix_label='', only_time_based=false, size='', force_ajax=false, force_nonpayg=false) %}
+{% if  GlobalSetting('FeatureToggles').get('Inventory') %}
+<div class="{{ ui.col_size(size) }} pt-1">
+<label for="{{prefix}}device" class="form-label">Contract/Device</label>
+<div class="input-group input-group-merge select-input-group">
+  {% if new_device %}
+  <select name="{{prefix}}device_serial" id="{{prefix}}device" class="select_2 reqselect {{all_devices_ajax if all_devices_ajax is defined else ''}}" required data-source="all_devices" {# This has a single dash on purpose #} data-ajax-url="{{all_devices_url if all_devices_url is defined else ''}}">
+    {% if not force_nonpayg %}<option value="default" disabled selected>Choose {{prefix_label}} Device to Link*</option>{% endif %}
+    {% if show_nonpayg %}<option value="NON_PAYG_DEVICE" {% if force_nonpayg %}selected{% endif %}>Non-PAYG Device</option>{% endif %}
+    {% if this_lead is defined and this_lead.allocated_device %}
+    <option value="{{this_lead.allocated_device.composed_serial}}" data-apitype="{{ this_lead.allocated_device.api_type() }}" selected>{{this_lead.allocated_device.composed_serial}}</option>
+    {% endif %}
+    {% if not force_ajax %}
+    {% for device in all_devices %}
+    <option value="{{ device.composed_serial }}" data-apitype="{{ device.api_type() }}"
+    {% if this_contract is defined and this_contract and this_contract.linked_device %}
+            {% if this_contract.linked_device == device %}selected{% else %}disabled{% endif %}{% endif %}
+    {% if this_lead is defined and this_lead and this_lead.allocated_device == device %}selected{% endif %}
+    >{{ device.get_display_name() }}</option>
+    {% endfor %}
+    {% endif %}
+  </select>
+  {% else %}
+  <select name="contract_reference" id="{{prefix}}device" class="device-selector select_2 reqselect" required>
+      <option value="" disabled {% if contracts.count() != 1 %}selected{% endif %}>Choose Contract*</option>
+      {% for contract in contracts %}
+          {% set monthly_offer = contract.offer.type == 'Time Based'%}
+          {% if not only_time_based or (only_time_based and contract.offer.type != 'Usage Based') %}
+          <option value="{{ contract.reference }}" data-apitype="{{ contract.linked_device.api_type() if contract.linked_device else '' }}" data-offertype="{{ contract.offer.type }}" data-dayofmonth="{{ contract.offer.payment_day_of_month if monthly_offer else '' }}" data-paymentFrequency="{{ contract.offer.payment_frequency if monthly_offer else '' }}" data-hasDevice="{{ contract.linked_device }}" data-offer-require-device="{{ 'true' if (contract.offer and contract.offer.linked_to_product) else 'false' }}" {% if contracts.count() == 1 %}selected{% endif %}>{{ contract.reference }}{% if contract.linked_device %} (Device: {{ contract.linked_device.composed_serial }}){% endif %}</option>
+          {% endif %}
+      {% endfor %}
+  </select>
+  {%  endif %}
+</div>
+</div>
+{% if request_code %}
+<div id="{{prefix}}request_input">{{ forms.input(prefix+'request_code', prefix_label+' Request code') }}</div>
+<script>
+$().ready(function() {
+    $('#{{prefix}}request_input').hide();
+    $("#MainForm").validate({
+      ignore: ':hidden:not("select")',
+      invalidHandler: function(event, validator) {
+        var errors = validator.numberOfInvalids();
+
+        if (errors) {
+          var message = errors == 1
+            ? '<i class="material-icons tiny">error</i>  There is <var>1</var> error in the entry. It has been highlighted. '
+            : '<i class="material-icons tiny">error</i>  There is <var>' + errors + '</var> errors in the entry. They have been highlighted above. ';
+          $("#errorbox").html(message);
+          $("#errorbox").show();
+        } else {
+          $("#errorbox").hide();
+        }
+      }
+    });
+
+    $('#{{prefix}}device.select_2').find(':selected').each(function (e) {
+        var selected_api_type = this.dataset.apitype;
+        if (selected_api_type === 'TWO_WAY_CODE') {
+            $('#{{prefix}}request_input').show();
+        }
+    });
+    $('#{{prefix}}device').on('select2:select', function (e) {
+        var data = e.params.data;
+        var mkdata = e.target.selectedOptions[0].dataset.apitype;
+        var selected_api_type = mkdata || data.data.apitype;
+        console.log(selected_api_type);
+        if (selected_api_type === 'TWO_WAY_CODE') {
+          $('#{{prefix}}request_input').show();
+        } else {
+          $('#{{prefix}}request_input').hide();
+        }
+    });
+});
+</script>
+{% endif %}
+{% else %}
+    <input type="hidden" name="{{prefix}}device_serial" id="hidden-input" value="NON_PAYG_DEVICE"/>
+{% endif %}
+{% endmacro %}

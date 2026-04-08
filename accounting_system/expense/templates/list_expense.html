@@ -1,0 +1,21 @@
+{% extends "macros/list_base.html" %}
+{% import 'macros/form_macros.html' as forms with context %}
+{% import 'macros/general_macros.html' as ui with context %}
+{% import "list_expense_macro.html" as list_expense with context %}
+
+
+{% block title %}{{ ftext('Expenses') }}{% endblock %}
+{% block page_title %}{{ ui.page_title('Expenses', 'View') }}{% endblock %}
+
+{% block page_actions %}
+    {{ ui.button(link=url_for('.add_expense'), uicon='add', tooltip='Add an Expense', type='header-action') }}
+{% endblock %}
+
+
+{% block table %}
+  {{ list_expense.expenses_table(pagination)|replace('\n','') }}
+{% endblock %}
+
+{% block content %}
+  {{ super() }}
+{% endblock %}

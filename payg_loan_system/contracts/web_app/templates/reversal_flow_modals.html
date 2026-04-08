@@ -1,0 +1,124 @@
+{%- macro format_reconciliations(reconciliations) -%}[{%- for r in reconciliations -%}
+{%- if r.repayment -%}"Contract Payment for Client {{r.repayment.contract.client.full_name.replace('"', " ")}} (#{{r.repayment.contract.client.id}})"
+{%- elif r.contract_pending_repayment -%}"Contract Payment (pending) for Client {{r.contract_pending_repayment.client.full_name.replace('"', " ")}} (#{{r.contract_pending_repayment.client.id}})"
+{%- elif r.lead -%}"Downpayment for Lead {{r.lead.full_name.replace('"', " ")}} (#{{r.lead.id}})"
+{%- elif r.person -%}"Payment pending reconciliation for Client {{r.person.client.full_name.replace('"', " ")}} (#{{r.person.client.id}})"{% endif %}
+{%- if not loop.last -%},{%- endif -%}{%- endfor -%}]
+{%- endmacro -%}
+
+{% macro reverse_repayment_confirmation(syncable=true) -%}
+<div {{ ui.modal_start('confirm_repayment_reversal', 'Reverse Contract Payment #<var class="repayment_id"></var>'|safe) }}>
+  <form>
+      <div class="modal-body">
+        {{ ftext('Are you sure you want to reverse this contract payment? This action cannot be reverted.') }}
+        {% if npg is defined %}
+        {{ ftext('<br><br><strong>Important: After the reversal, a new token should be generated to update the device status.</strong>') }}
+        {% endif %}
+      </div>
+      <div class="modal-footer">
+          {{ ui.modal_close_button('Cancel') }}
+          {{ ui.button(label='Reverse', action="reverseRepayment($('#confirm_repayment_reversal .repayment_id').text())", type='action') }}
+      </div>
+  </form>
+</div {{ ui.modal_end() }}>
+<script>
+  function reverseRepayment(id) {
+    sendDataToAPI({"repayment_id": id}, "/transaction_requests/reverse_repayment/{{ this_uuid }}", {transaction: true})  
+  }
+</script>
+{%- endmacro %}
+
+{% macro reverse_pending_reconciled_confirmation(title='Contract Pending Payment') -%}
+<div {{ ui.modal_start('confirm_pending_reconciled_reversal', 'Reverse '+title+' #<var class="reconciled_id"></var>'|safe) }}>
+  <form>
+      <div class="modal-body">
+        {{ ftext('Are you sure you want to reverse this {}? This action cannot be reverted.', ftext(title)) }}
+      </div>
+      <div class="modal-footer">
+          {{ ui.modal_close_button('Cancel') }}
+          {{ ui.button(label='Reverse', action="reversePendingPayment($('#confirm_pending_reconciled_reversal .reconciled_id').text())", type='action') }}
+      </div>
+  </form>
+</div {{ ui.modal_end() }}>
+<script>
+  function reversePendingPayment(id) {
+    sendDataToAPI({}, "/payment_reconciliations/"+parseInt(id), {"method": "DELETE"})  
+  }
+</script>
+{%- endmacro %}
+
+
+{% macro reconciliation_reversal_modal() %}
+<div {{ ui.modal_start('reconciliation_reversal_modal', 'Payment Reversal Blocked') }}>
+  <form>
+      <div class="modal-body">
+        {{ ftext('The payment you are trying to reverse (Reference: <var class="payment_reference"></var>) was already used. In oder to reverse the payment, the afftected reconciliations need to be reverted first.
+        This action will be automatically done when reversing the payment. Do you want to continue? The reconciliations that will be reverted are:'|safe) }}
+        <ul class="reconciliations_list"></ul>
+      </div>
+      <div class="modal-footer">
+          {{ ui.modal_close_button('Cancel') }}
+          {{ ui.button(label='Go to payment reversal', type='action', modal='confirm_payment_reversal') }}
+      </div>
+  </form>
+</div {{ ui.modal_end() }}>
+<script>
+  function update_reconciliation_reversal_modal(reconciliations) {
+    list = $('#reconciliation_reversal_modal .reconciliations_list')
+    list.html('')
+    reconciliations.forEach(function(reconciliation){if(reconciliation){list.append('<li><b>'+reconciliation+'</b></li>')}});
+  }
+</script>
+{% endmacro %}
+
+
+{% macro reverse_payment_confirmation() -%}
+<div {{ ui.modal_start('confirm_payment_reversal', 'Reverse Payment #<var class="payment_reference"></var>'|safe) }}>
+  <form>
+      <div class="modal-body">
+        {{ ftext('Are you sure you want to reverse this payment? This action cannot be reverted.
+          The amount of the payment will be taken from the wallet and any effect of the payment will be annulled.
+          However, the payment information will not be removed.') }}
+      </div>
+      <input type="hidden" value="" name="payment_transaction_id" id="payment_reference_field" />
+      <input type="hidden" value="" name="wallet_operator" id="wallet_operator_field" />
+      <input type="hidden" value="true" name="manual_action"/>
+      <div class="modal-footer">
+          {{ ui.modal_close_button('Cancel') }}
+          {{ ui.button(label='Reverse Payment', type='action', disabled=false, action='async_post', async_url='/payment_reversals') }}
+      </div>
+  </form>
+</div {{ ui.modal_end() }}>
+<script>
+  function update_reverse_payment_confirmation(reference, wallet_operator) {
+    $('#reconciliation_reversal_modal .payment_reference').text(reference)
+    $('#confirm_payment_reversal .payment_reference').text(reference)
+    $('#wallet_operator_field').val(wallet_operator)
+    $('#payment_reference_field').val(reference)
+  }
+</script>
+{%- endmacro %}
+
+{% macro reverse_downpayment_confirmation() %}
+<div {{ ui.modal_start('confirm_downpayment_reversal', 'Reverse Downpayment #<var class="downpayment_id"></var>'|safe) }}>
+  <form>
+      <div class="modal-body">
+        {% if GlobalSetting('EnableContractPaymentsForReversedDownpayments') %}
+        {{ ftext('Are you sure you want to reverse this downpayment? This action will modify the contract progression and metrics. Please note that reversing the downpayment also reverses the downpayment of the add-ons.') }}
+        {% else %}
+        {{ ftext('Are you sure you want to reverse this downpayment? New payments will not generate activation time and the next expected payment date will not be pushed forward until the downpayment is fully paid.') }}
+        {% endif %}
+      </div>
+      <div class="modal-footer">
+          {{ ui.modal_close_button('Cancel') }}
+          {{ ui.button(label='Reverse', action="reverseDownpayment($('#confirm_downpayment_reversal .downpayment_id').text())", type='action') }}
+      </div>
+  </form>
+</div {{ ui.modal_end() }}>
+<script>
+  function reverseDownpayment(id) {
+    sendDataToAPI({"repayment_id": id}, "/transaction_requests/reverse_repayment/{{ this_uuid }}", {transaction: true})  
+  }
+</script>
+{%- endmacro %}
+

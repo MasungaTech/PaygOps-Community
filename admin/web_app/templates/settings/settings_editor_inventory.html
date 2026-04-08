@@ -1,0 +1,176 @@
+{% extends "macros/base.html" %}
+{% import 'settings/settings_editor_macros.html' as settings_forms with context %}
+{% import 'macros/filter_macros.html' as filter with context %}
+{% import 'macros/form_macros.html' as forms with context %}
+{% import 'macros/general_macros.html' as ui with context %}
+
+
+{% block title %}{{ ftext('Product Configuration') }}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('Settings', 'Inventory') }} {% endblock %}
+
+{% block page_actions %}
+    {{ ui.button('New Product Sub-type', 'add', modal='add-subtype-modal', size='6', fit=true, size_class='pt-2', type='header-action', permission="ConfigureProductAdmin") }}
+{% endblock %}
+
+
+{% block content %}
+<div {{ ui.modal_start('add-subtype-modal','Add New Product Sub-type') }}>
+    <form action="" method="POST">
+        <div class="modal-body">
+            <div class="row">
+                {{ forms.select('device_type', product_types, id='device-type-new', size='', labeltag='Product type', value='NPG', translate=false, required=true, onchange="selectToggleFormsMap(this, 'value', {'NPG': '.serialized_field'})") }}
+                {{ forms.input('name', size='', required=true, placeholder='Enter Sub-type name', label='Product Sub-type name') }}
+                {{ forms.input('sku', size='', placeholder='Enter SKU', label='SKU', max=12) }}
+                {% if current_user.can_access('ManageQuantityViewStock') %}
+                {{ forms.select('is_serialized:boolean', [('false', 'Not Serialized'), ('true', 'Serialized')], value=false, labeltag='Mark as', required=true, translate=false, selector_class='serialized_field') }}
+                {% else %}
+                <input type="hidden" name="is_serialized:boolean" value="true" />
+                {% endif %}
+            </div>
+        </div>
+        <div class="modal-footer">
+            {{ ui.modal_close_button() }}
+            {{ forms.button(uicon='save', label='Save', color='danger', tooltip='Save new product sub-type', action='async_post', async_url='/product_sub_types') }}
+        </div>
+    </form>
+</div {{ ui.modal_end() }}>
+
+{% for subtype in product_sub_types %}
+<div {{ ui.modal_start('edit-subtype-model-' + subtype.id|string, ftext('Edit {}', subtype.name)|notranslate) }}>
+    <form action="" method="POST">
+        <div class="modal-body">
+            <div class="row">
+                {{ forms.select('device_type', product_types, id='device-type-'+subtype.id|string, size='', value=subtype.device_type, labeltag='Product type', translate=false, required=true, disabled=not subtype.is_serialized) }}
+                {{ forms.input('name', size='', required=true, placeholder='Enter sub-type name', label='Product Sub-type name', value=subtype.name) }}
+                {{ forms.input('sku', size='', placeholder='Enter SKU', label='SKU', value=subtype.sku, max=12) }}
+                {% if current_user.can_access('ManageQuantityViewStock') %}
+                {{ forms.select('is_serialized:boolean', [('false', 'Not Serialized'), ('true', 'Serialized')], id='is-serialized-'+subtype.id|string, size='', value=subtype.is_serialized, labeltag='Mark as', translate=false, required=true, disabled=true) }}
+                {%endif%}
+            </div>
+        </div>
+        <div class="modal-footer">
+            {{ ui.modal_close_button() }}
+            {{ forms.button(uicon='save', type='action', label='Edit Product Sub-type', tooltip='Save changes to product sub-type', action='async_post', async_url='/product_sub_types/' + subtype.id|string) }}
+        </div>
+    </form>
+</div {{ ui.modal_end() }}>
+{% endfor %}
+
+{% for subtype in product_sub_types %}
+    <div {{ ui.modal_start('delete-subtype-model-' + subtype.id|string, 'Confirm Deletion') }}>
+        <form action="" method="POST">
+            <div class="modal-body">
+                <p>Are you sure you want to delete the product sub-type "{{ subtype.name }}" with SKU "{{ subtype.sku }}"?</p>
+            </div>
+            <div class="modal-footer">
+                {{ ui.modal_close_button() }}
+                {{ forms.button(uicon='delete', label='Delete', type='action', tooltip='Delete product sub-type', action='async_delete', async_url='/product_sub_types/' + subtype.id|string) }}
+            </div>
+        </form>
+    </div {{ ui.modal_end() }}>
+{% endfor %}
+<div {{  ui.collapsible_card_start(title='Product Configuration', active=false) }}>
+    <table {{ ui.table_start() }}>
+        <thead>
+        <tr>
+            {{ui.sortable_header('id', "ID", class='ps-4')}}
+            {{ui.sortable_header('product_sub_type', "Product Sub-Type")}}
+            {{ui.sortable_header('item_type', "Product Type")}}
+            {{ui.sortable_header('sku', "SKU")}}
+            {% if current_user.can_access('ManageQuantityViewStock') %}
+            {{ui.sortable_header('is_serialized', "Serialized")}}
+            {%endif%}
+            {{ui.table_header("Actions")}}
+        </tr>
+        </thead>
+        <tbody>
+        
+        {% for subtype in product_sub_types %}
+            <tr>
+                <td class="ps-4">{{ subtype.id }}</a></td>
+                <td>{{ subtype.name }}</td>
+                <td>{{ subtype.device_type }}</td>
+                <td>{{ subtype.sku or '-' }}</td>
+                {% if current_user.can_access('ManageQuantityViewStock') %}
+                <td>{{ ui.yes_no(subtype.is_serialized) }}</td>
+                {%endif%}
+                <td>
+                    {% set modal_name = 'edit-subtype-model-' + subtype.id|string %}
+                    {{ ui.button(uicon='edit', type='card-action', modal=modal_name, tooltip='Edit') }}
+
+                    {% set delete_modal_name = 'delete-subtype-model-' + subtype.id|string %}
+                    {{ ui.button(uicon='delete', type='card-action', modal=delete_modal_name, tooltip='Delete') }}
+                </td>  
+            </tr>
+        {% else %}
+        <tr><td colspan="5" class="text-center">{{ ftext('No product sub-types') }}</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div {{ ui.collapsible_card_end() }}>
+
+{% if current_user.can_access('ConfigureOperationalEntitiesAdmin') %}
+<div {{ ui.collapsible_card_start(title='Stock Management', active=false, body_class='table-responsive') }}>
+
+    {{ ui.info_card('Enabling stock management at an operational entity level allows users to Filter by entities, add and adjust stock at this operational entity level.', uicon='info') }}
+  
+    {{ ui.info_card('To disable an active Operational Level Entity, all Stock Items must first be moved to another Entity.', color='secondary',uicon='info') }}
+    <form class="row">
+    <table {{ ui.table_start(sortable=false) }}>
+        <thead>
+        <tr>
+            {{ui.table_header("Operational Entity level")}}
+            {{ui.table_header( "Stock Management")}}
+        </tr>
+        </thead>
+        <tbody>
+            {% set enabled_levels = GlobalSetting('OperationalEntitiesInventory') or [true, false, false, false, false] %}
+            {% for entity_config in GlobalSetting('OperationalEntities') %}
+            <tr>
+                <td>{{ entity_config['name'] }}
+                </td>
+                <td>
+                    {{ forms.checkbox('OperationalEntitiesInventory['+(loop.index-1)|string+']:boolean', 'Enabled', checked=enabled_levels[loop.index-1] and entity_config.get('enabled', true), size=12, id="inventory-level-"+loop.index|string, disabled=not entity_config.get('enabled', true))}}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {{ui.divider('Other Settings', small=true)}}
+    {{ forms.checkbox('EnableStockMovementsOnMobileApp:boolean', size=6,
+        checked=GlobalSetting('EnableStockMovementsOnMobileApp'),
+        tooltip='Enabling this setting allows stock movements to be made on the mobile app',
+        labeltag="Stock movements on mobile app",
+        label='Display Stock Movements menu on the Mobile App',
+    ) }}
+    {{ forms.checkbox('AllowUsersToReceiveStock:boolean', size=6,
+        checked=GlobalSetting('AllowUsersToReceiveStock'),
+        tooltip='Enabling this setting allows users to Approve Stock movements sent to them',
+        labeltag="Request users to Approve Stock movements sent to them",
+        label='Request users to accept or reject stock movements ',
+    ) }}
+
+
+    {{ ui.info_card(type='info', in_card=true, class='mt-3', text='- When adding non serialised stock items to a lead or a contract the quantity will be subtracted from the location selected. 
+<br>- If the stock item is linked to a purchasing add-on, then the quantity will be instead added to the location selected. 
+<br>- Defaulting or canceling these addons will result in a reverse stock movement : from client to selected location in case of regular addons ; from selected location to client in case of purchasing addons.')}}
+    {{ forms.select('OriginOfNonSerializedStockItems[origin]',
+    config.NON_SERIALIZED_ITEMS_ORIGIN,
+    value=GlobalSetting('OriginOfNonSerializedStockItems').get('origin'),
+    required=true,
+    onchange="selectToggleFormsMap(this, 'value', {'operational-entities': '.show-for-operational-level'})",
+    labeltag="Origin of non serialized stock items added to a lead or a contract", size=6) }}
+
+    {{ forms.select('OriginOfNonSerializedStockItems[level]',
+    config.ENTITIY_LEVEL_SELECT,
+    value=GlobalSetting('OriginOfNonSerializedStockItems').get('level'),
+    required=true,
+    labeltag="Entity Level", size=6, selector_class='show-for-operational-level ' + (' hiddenform' if not GlobalSetting('OriginOfNonSerializedStockItems').get('level') else '') ) }}
+    {{ settings_forms.save_button() }}
+    </form>
+
+</div {{ ui.collapsible_card_end() }}
+{%endif%}
+
+{% endblock %}

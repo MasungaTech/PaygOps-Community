@@ -1,0 +1,111 @@
+{% macro question(Q, form_answer=none, group=none, language=1, name=none) -%}
+
+{% if not name %}{% set name = 'answers[q'+Q.id|string+']' %}{% endif %}
+{% set required = Q.isRequired() %}
+{% if Q.multipleAnswersAllowed() %}
+    {% set min_answers = Q.minAnswers %}
+    {% set max_answers = Q.maxAnswers or 100 %}
+{% else %}
+    {% set min_answers = 1 if required else 0 %}
+    {% set max_answers = 1 %}
+{% endif %}
+{% set variableName = Q.getVariableName(language)|notranslate %}
+{% set text = Q.getText(language)|notranslate %}
+{% set icon = Q.getIcon() %}
+{% set unit = Q.getUnit()|notranslate %}
+{% set type = Q.getType() %}
+{% set min = Q.question.minValue %}
+{% set max = Q.question.maxValue %}
+{% set regex = Q.getRegex() %}
+{% set picture_type = Q.question.additional_data.get("picture_type") if Q.question.additional_data else '' %}
+{% set picture_instructions = Q.question.additional_data.get("picture_instructions") if Q.question.additional_data else '' %}
+
+{# This is to handle overly long question text #}
+{% if text|length > 70 and Q.getType() != QuestionType.note %}
+    {% set tooltip=text %}
+    {# {% if not icon %}{% set icon='info' %}{% endif %} #}
+    {% set questionText = (text[:60]+'... ')|notranslate %}
+{% else %}
+    {% set tooltip='' %}
+    {%- if text != '' -%}
+        {% set questionText = text|notranslate %}
+    {%- else %}
+        {% set questionText = variableName|notranslate %}
+    {% endif %}
+{% endif %}
+
+{% if form_answer is not none %}
+    {% if group is none %}
+        {% set answers = Q.getAnswersInSurveyAnswer(form_answer)[:] %}
+    {% else %}
+        {% set answers = Q.getAnswersInSubQuestion(form_answer, group)[:] %}
+    {% endif %}
+    {% set answers = answers|answers_value if type != QuestionType.group else answers %}
+{% else %}
+    {% set answers = [] %}
+{% endif %}
+
+{% if Q.protected and not current_user.can_access_in_any('AnswerProtectedQuestionForms') %}
+    {% set disabled=true %}
+    {% if type != QuestionType.group and not answers %}{% set name=name+':skip' %}{% endif %}
+{% else %}
+    {% set disabled=false %}
+{% endif %}
+
+{% set answercount = answers|length %}
+{% if Q.minAnswers > 1 %}{% set instances=Q.minAnswers %}{% else %}{% set instances=1 %}{% endif %}
+{% if answercount <= instances %}{% set instances = instances-answercount %}{% else %}{% set instances = 0 %}{% endif %}
+
+{% if type in [QuestionType.text, QuestionType.numeric, QuestionType.long_text, QuestionType.date, QuestionType.date_time, QuestionType.url, QuestionType.checkbox, QuestionType.picture, QuestionType.gps, QuestionType.signature, QuestionType.gps_surface, QuestionType.regex] %}   
+    {{ forms.input(name=name, label=questionText, values=answers, 
+        placeholder=variableName, icon=icon, tooltip=tooltip, 
+        type=QuestionType._input_type.get(type, type), min=min, max=max,
+        min_answers=min_answers, max_answers=max_answers, picture_type=picture_type, picture_instructions=picture_instructions, disabled=disabled, suffix=unit if unit else none,
+        data='data-regex-validate="'+ regex|string +'"') }}
+{% elif type in [QuestionType.choice_text, QuestionType.choice_numeric, QuestionType.yes_no] %}
+    {{ forms.select(name=name, placeholder=variableName, labeltag=questionText, clearable=true,
+        icon=icon, choices=Q.get_choices_list(language), min_answers=min_answers, max_answers=max_answers,
+        values=answers, translate=false if type != QuestionType.yes_no else true, disabled=disabled) }}
+{% elif type == QuestionType.l0_entity %}
+    {{ forms.select(
+        name=name, 
+        placeholder=variableName, 
+        labeltag=questionText, 
+        clearable=true,
+        icon=icon, 
+        choices=[], 
+        min_answers=min_answers, 
+        max_answers=max_answers,
+        values=answers, 
+        translate=false, 
+        disabled=disabled,
+        ajax_url=url_for('custom_forms.get_l0_entities_ajax'),
+        source='l0_entities',
+        ajax=true
+    ) }}
+{% elif type == QuestionType.note %}
+    {{ ui.info_card(uicon=icon, text=questionText, color='secondary', class='mt-3 mb-2', markdown=true, in_card=true) }}
+{% elif type == QuestionType.group %}
+    {{ ui.divider(Q.getVariableName(language)|notranslate, small=true) }}
+    {% for value in answers %}{% set i = loop.index0 %}
+        {{ group_question(Q, name, i, language, form_answer, value) }}
+    {%- endfor %}
+    {% for x in range(instances) %}{% set i = x+(answers|length) %}
+        {{ group_question(Q, name, i, language, form_answer) }}
+    {%- endfor %}
+    {% if max_answers > 1 and not disabled %}{{ forms.multi_input_buttons(name, current_index=instances+(answers|length)-1, min_answers=min_answers, max_answers=max_answers) }}{% endif %}
+{% endif %}
+
+{% endmacro %}
+
+
+{% macro group_question(Q, name, i, language, form_answer=none, value=none) %}
+    {% set base_name = name+'['+i|string+']' %}
+    <div id="input_{{base_name}}" class="row subrow">
+    {% for S in Q.getSubQuestions() %}
+        {% set sub_name = base_name+'[q'+S.id|string+']' %}
+        {{ question(S, name=sub_name, group=value.grouping if value else none, form_answer=form_answer) }}<br>
+    {% endfor %}
+    {{ ui.divider(small=true) }}
+    </div>
+{% endmacro %}

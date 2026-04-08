@@ -1,0 +1,16 @@
+{% extends 'transaction_base.html' %}
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'macros/form_macros.html' as forms with context %}
+
+{% block title %}{{ ftext('Pause Contract') }}{% endblock %}
+
+{% block form %}
+    {{ ui.info_card(uicon='warning', text='Putting the contract in the Paused status will pause all payment transactions, payment reminders and metrics.',)}}
+    {{ transaction.device_selector_macro(request_code=true) }}
+    {{ forms.input('note', 'Type note') }}
+    {{ forms.checkbox('send_sms:boolean', 'Send SMS to client')}}
+{% endblock %}
+
+{% block button %}
+    {{ ui.button('Pause Contract', color='danger', class='transaction_action', action="validateAndSubmit('/api/v1/transaction_requests/pause/');") }}
+{% endblock %}

@@ -1,0 +1,8 @@
+{% import 'custom_forms_macros.html' as custom_form with context %}
+{% if render == 'view' %}
+{{ custom_form.custom_form_view_content(this_form_answer) }}
+{% elif render == 'edit' %}
+{{ custom_form.custom_form_edit_content(form_answer=this_form_answer, lead=lead) }}
+{% elif render == 'update' %}
+{{ custom_form.custom_form_edit_content(form_answer=this_form_answer, update=true, lead=lead, discussed_topic=discussed_topic) }}
+{% endif %}
