@@ -1,0 +1,567 @@
+{% extends "macros/base.html" %}
+{% import 'macros/form_macros.html' as forms with context %}
+{% import 'macros/pagination.html' as pagination_nav with context %}
+{% import 'macros/filter_macros.html' as filter with context %}
+
+
+{% macro get_field(name, pagination=false, addon=false, class=None) -%}
+
+{%- if name == 'checkbox' -%}
+    {%- if not addon -%}
+    <th><input id="bulk_action" type="checkbox" class="form-check-input mt-0 me-2 table-checkbox" name="bulk_action" value="true"></th>
+    {%- else -%}
+    <th>
+        <input 
+        id="ticker[{{addon.id|string}}]" 
+        type="checkbox" 
+        class="form-check-input mt-0 me-2 tickable table-checkbox" 
+        name="ticker[{{addon.id|string}}]" 
+        value="true"
+        
+        {%- if addon.offer_version.offer.get_required_device_type is not none -%}
+            {%- if addon.device and addon.device.composed_serial -%}
+                data-device-id="{{ addon.device.composed_serial }}"
+            {%- else -%}
+                data-device-id=""
+            {%- endif -%}
+            {%- if addon.offer_version.offer.is_serialized -%}
+                data-serialized="true"
+            {%- else  -%}
+                data-serialized="false"
+            {%- endif -%}
+            {%- if addon.offer_version.offer.linked_to_product -%}
+                data-linked-to-product="true"
+            {%- else  -%}
+                data-linked-to-product="false"
+            {%- endif -%}
+
+        {%- endif -%}
+
+
+        
+        data-contract-addon-reference="{{ addon.reference }}" 
+    />
+    </th>
+    {%- endif -%}
+
+{%- elif name == 'id' -%}
+    {%- if not addon -%}
+        {{ui.sortable_header('id', "ID", pagination=pagination)}}
+    {%- else -%}
+        <th>{{ addon.id }}</th>
+    {%- endif -%}
+
+{%- elif name == 'reference' -%}
+    {%- if not addon -%}
+        {{ui.sortable_header('reference', "Reference", pagination=pagination)}}
+    {%- else -%}
+        <td class="truncate-hoverable"><a href="{{ url_for('contract.view_addon', addon_reference=addon.reference) }}#addons">{{ addon.reference }}</a></td>
+    {%- endif -%}
+
+{%- elif name == 'offer' -%}
+    {%- if not addon -%}
+        {{ui.sortable_header('offer', "Offer", pagination=pagination)}}
+    {%- else -%}
+        <td class="truncate-hoverable">{{ui.addon_offer_version_link(addon.offer_version)}}</a></td>
+    {%- endif -%}
+
+{%- elif name == 'client' -%}
+    {%- if not addon -%}
+        {{ui.sortable_header('client', "Client/Lead", pagination=pagination)}}
+    {%- elif addon.contract -%}
+        <td class="truncate-hoverable">{{ui.client_link(addon.contract.client)}}</td>
+    {%- elif addon.lead -%}
+        <td class="truncate-hoverable">{{ui.lead_link(addon.lead)}}</td>
+    {%- endif -%}
+
+{%- elif name == 'contract' -%}
+    {%- if not addon -%}
+        {{ui.sortable_header('contract', "Contract", pagination=pagination)}}
+    {%- else -%}
+        <td><a href="{{ url_for('contract.view_contract', contract_reference=addon.contract.reference) }}">{{ addon.contract.reference }}</a></td>
+    {%- endif -%}
+
+    {%- elif name == 'total_addon_value' -%}
+    {%- if not addon -%}
+        {{ui.sortable_header('total_value', ftext('Total Value ({})', GlobalSetting('CurrencySymbol')), pagination=pagination)}}
+    {%- else -%}
+        <td>{{ ui.amount(addon.total_amount) }} {{ ui.icon('info', 'tiny', 'lightgrey', tooltip=addon.quantity_sold|string+' x '+ui.amount(addon.offer_version.price)) }}</td>
+    {%- endif -%}
+
+{%- elif name == 'already_paid' -%}
+    {%- if not addon -%}
+        {{ui.sortable_header('already_paid', ftext('Already paid ({})', GlobalSetting('CurrencySymbol')), pagination=pagination)}}
+    {%- else -%}
+        <td>{{ ui.amount(addon.already_paid) }}</td>
+    {%- endif -%}
+
+{%- elif name == 'loan_value' -%}
+    {%- if not addon -%}
+        {{ui.table_header(ftext('Loan Value ({})', GlobalSetting('CurrencySymbol')))}}
+    {%- elif addon.contract -%}
+        <td>{{ ui.amount(addon.contract.get_total_value()) }}</td>
+    {%- elif addon.lead -%}
+        <td>{{ ui.amount(addon.lead.future_contract_value) }}</td>
+    {%- endif -%}
+
+{%- elif name == 'loan_mode' -%}
+    {%- if not addon -%}
+        {{ ui.table_header('Contract Change Type') }}
+    {%- else -%}
+    <td>
+        {% if addon.loan_mode %}
+            {{ addon.loan_mode }}
+        {% elif addon.offer_version.offer.purchasing_addon %}
+            Purchasing
+        {% else %}
+            Duration and Reference Pricing
+        {% endif %}
+    </td>
+    
+    {%- endif -%}
+
+{%- elif name == 'progression' -%}
+    {%- if not addon -%}
+        {{ ui.table_header(uicon='progression', tooltip='Progression') }}
+    {%- else -%}
+        <td>{{ui.isnone(addon.contract.get_percentage_repaid() if addon.contract else 0, percent=true, decimals=0, suffix='%')}}</td>
+    {%- endif -%}
+
+{%- elif name == 'extension' -%}
+    {%- if not addon -%}
+        {{ ui.table_header('Extension') }}
+    {%- else -%}
+    <td class="{{class}} truncate-hoverable">
+        {% if addon.offer_version.offer.type != AddOnType.lump_sum  %}
+        {% if addon.loan_mode == AddOnLoanExtensionMode.duration or addon.offer_version.offer.type == AddOnType.loan_duration_change %}
+        {{ ui.extension_days(addon.extension_days) }}
+        {% if addon.offer_version.offer.type not in [AddOnType.loan_duration_change, AddOnType.deposit_change] %}
+        {{ ui.icon('info', 'tiny', 'lightgrey', tooltip='This is the time by which the loan is extended and the client is expected to continue making repayments. <br>Calculation: (Addon Price - Addon Downpayment) / (Offer reference pricing / Reference frequency)') }}
+        {% elif addon.offer_version.offer.type == AddOnType.deposit_change %}
+        {{ ui.icon('info', 'tiny', 'lightgrey', tooltip='This add-on transforms some amount of the deposit into '+addon.loan_mode|lower+' without adding value to the contract.') }}
+        {% else %}<br>
+        {% endif %}
+        {% endif %}
+        {% if addon.loan_mode == AddOnLoanExtensionMode.amount or addon.offer_version.offer.type == AddOnType.loan_duration_change %}
+        {% set rep_change = addon.repayment_increase or addon.calculate_current_repayment_increase() %}
+        {% if rep_change > 0%}+{%endif%}{{ ui.amount(rep_change, include_currency=true) }} 
+        {% if addon.offer_version.offer.type != AddOnType.loan_duration_change %}
+        {{ ui.icon('info', 'tiny', 'lightgrey', tooltip='This amount increases the reference pricing that the client is expected to pay at each repayment. <br>Calculation: (Addon Price - Addon Downpayment) / ((Loan Duration - grace period) / Reference frequency)') }}
+        {% endif %}
+        {% endif %}
+        {% else %}-{% endif %}
+    </td>
+    {%- endif -%}
+{%- elif name == 'downpayment' -%}
+    {%- if not addon -%}
+        {{ui.table_header(ftext('Downpayment ({})', GlobalSetting('CurrencySymbol')))}}
+    {%- else -%}
+    <td class="{{class}}">
+        {% if addon.offer_version.offer.type != AddOnType.lump_sum %}
+        {{ ui.amount(addon.downpayment) }}
+        {% else %}
+        {{ ui.amount(addon.total_amount) }}
+        {% endif %}
+    </td>
+    {%- endif -%}
+{%- elif name == 'final_value' -%}
+    {%- if not addon -%}
+        {{ui.table_header(ftext('Final Value ({})', GlobalSetting('CurrencySymbol')))}}
+    {%- else -%}
+    <td>
+        {% if addon.offer_version.offer.type == AddOnType.loan %}
+        {%- if addon.contract -%}
+        {{ ui.amount(addon.contract.get_total_value()+addon.total_amount) }}
+        {%- elif addon.lead -%}
+        {{ ui.amount(addon.lead.future_contract_value+addon.total_amount) }}
+        {% endif %}
+        {% else %}-{% endif %}
+    </td>
+    {%- endif -%}
+
+{%- elif name == 'time_paid' -%}
+    {%- if not addon -%}
+        {{ui.sortable_header('time_paid', "Paid On", pagination=pagination)}}
+    {%- else -%}
+    <td>
+        {{ ui.datetime(addon.time_created) if addon.free else ui.datetime(addon.time_paid) }}
+    </td>
+    {%- endif -%}
+
+{%- elif name == 'time_created' -%}
+    {%- if not addon -%}
+        {{ui.sortable_header('time_created', "Added On", pagination=pagination)}}
+    {%- else -%}
+        <td>{{ ui.date(addon.time_created) }}</td>
+    {%- endif -%}
+
+{%- elif name == 'time_cancelled' -%}
+    {%- if not addon -%}
+        {{ui.sortable_header('time_cancelled', "Cancelled On", pagination=pagination)}}
+    {%- else -%}
+    <td>
+        {{ ui.datetime(addon.cancelled_addon.time_canceled if addon.cancelled_addon else addon.time_canceled) }}
+    </td>
+    {%- endif -%}
+
+{%- elif name == 'unit_price' -%}
+    {%- if not addon -%}
+        {{ui.sortable_header('unit_price', "Unit Price", pagination=pagination)}}
+    {%- else -%}
+        <td>{{ ui.amount(addon.offer_version.price, true) }}</td>
+    {%- endif -%}
+
+{%- elif name == 'note' -%}
+    {%- if not addon -%}
+        {{ui.table_header(uicon='notes', tooltip="Notes")}}
+    {%- else -%}
+        <td>{{ ui.table_icon('notes', color='red' if addon.note else 'grey', tooltip=addon.note|replace('&', '&amp;')|replace('\n', '<br>'), translate_tooltip=false) }}</td>
+    {%- endif -%}
+
+{%- elif name == 'delivery_status' -%}
+    {%- if not addon -%}
+        {{ui.table_header(uicon='inventory', tooltip="Delivery Status")}}
+    {%- else -%}
+        <td>{{ ui.table_icon('inventory', color='green' if (addon.delivered and addon.can_be_delivered()) else ('red' if addon.can_be_delivered() else 'grey'), tooltip=ui.date(addon.delivery_date_with_default(), false) if addon.delivery_date_with_default() else ('Not Delivered' if addon.can_be_delivered() else 'Nothing to Deliver')) }}</td>
+    {%- endif -%}
+
+{%- elif name == 'delivery_date' -%}
+    {%- if not addon -%}
+        {{ui.table_header('Delivery Date')}}
+    {%- else -%}
+        <td>{{ ui.date(addon.delivery_date_with_default()) }}</td>
+    {%- endif -%}
+
+{%- elif name == 'planned_delivery_date' -%}
+    {%- if not addon -%}
+        {{ui.table_header('Planned Delivery')}}
+    {%- else -%}
+        <td>{{ ui.datetime(addon.planned_delivery_date) }}</td>
+    {%- endif -%}
+
+{%- elif name == 'quantity_sold' -%}
+    {%- if not addon -%}
+        {{ui.sortable_header('quantity_sold', "Quantity/product", pagination=pagination)}}
+    {%- else -%}
+        <td>{{ ui.device_link(addon.device) if addon.device else addon.quantity_sold }}</td>
+    {%- endif -%}
+
+{%- elif name == 'sold_by' -%}
+    {%- if not addon -%}
+        {{ui.sortable_header('sold_by', "Sold By", pagination=pagination)}}
+    {%- else -%}
+        <td>{{ ui.user_link(addon.sale_made_by) }}</td>
+    {%- endif -%}
+
+{%- elif name == 'approved_by' -%}
+    {%- if not addon -%}
+        {{ui.sortable_header('approved_by', "Approved By", pagination=pagination)}}
+    {%- else -%}
+        <td class="truncate-hoverable">{{ ui.user_link(addon.sale_approved_by) }}</td>
+    {%- endif -%}
+
+{%- elif name == 'canceled_by' -%}
+    {%- if not addon -%}
+        {{ui.sortable_header('canceled_by', "Cancelled By", pagination=pagination)}}
+    {%- else -%}
+        <td class="truncate-hoverable">{{ ui.user_link(addon.canceled_by) }}</td>
+    {%- endif -%}
+
+{%- elif name == 'status' -%}
+    {%- if not addon -%}
+        {{ui.sortable_header('status', "Status", pagination=pagination)}}
+    {%- else -%}
+        <td>{{ config.ADDONS_STATUSES_NAMES_ALL.get(addon.status) }}</td>
+    {%- endif -%}
+
+{%- elif name == 'payment_source' -%}
+    {%- if not addon -%}
+        {{ui.table_header('Payment Source')}}
+    {%- else -%}
+    <td class="truncate-hoverable">
+        {%- if addon.reconciled_payments.count() != 0 -%}
+            {%- for p in addon.reconciled_payments -%}
+            {%- if p.linked_payment -%}
+                {{ ui.payment_source_tooltip(p.linked_payment) }}
+                {{ ui.account_link_from_payment(p.linked_payment) }}
+            {%- else -%}
+                {{ ui.wallet_source_tooltip(p.payment_account) }}
+                {{ ui.wallet_link(p.payment_account, short=True) }}
+            {%- endif -%}
+            {%- if not loop.last %}, {% endif -%}
+            {%- endfor -%}
+        {%- elif addon.free -%}
+            Discounted
+        {%- else -%}
+        -
+        {%- endif -%}
+    </td>
+    {%- endif -%}
+{%- endif -%}
+{%- endmacro %}
+
+{% macro action_buttons(actions, addon) -%}
+{% set any = false %}
+<td style="white-space: nowrap;">
+{%- if 'approve' in actions and addon.pending -%}{% set any = true %}
+<a href="#approve-addon-modal"
+class="btn-floating btn-small waves-effect waves-light red tooltipped modal-trigger"
+data-tooltip="Approve addon sale"
+onclick="$('#approved_by_addon_form input[name=addon_reference]').val('{{addon.reference}}')">{{ui.icon('done')}}</a>
+{%- endif -%}
+{%- if 'cancel' in actions and addon.pending -%}{% set any = true %}
+<a href="#cancel-addon-modal"
+class="btn-floating btn-small waves-effect waves-light red tooltipped modal-trigger"
+data-tooltip="Cancel addon sale"
+onclick="$('#cancelled_addon_form input[name=addon_reference]').val('{{addon.reference}}')">{{ui.icon('clear')}}</a>
+{%- endif -%}
+{%- if 'cash_pay' in actions and addon.unpaid -%}{% set any = true %}
+<a href="#cash-pay-addon-modal"
+class="btn-floating btn-small waves-effect waves-light red tooltipped modal-trigger"
+data-tooltip="Collect cash and pay addon"
+onclick="$('#pay_cash_addon_form input[name=addon_reference]').val('{{addon.reference}}')">{{ui.icon('payments')}}</a>
+{%- endif -%}
+{%- if not any %}-{%endif%}
+</td>
+{%- endmacro %}
+
+{% macro addons_tabs(tabs, paginations, active_tab=none, hide_contract=false, contract=none) %}
+<form id="filter_form_v2" action="" method="get" class="row mb-4">
+    {{ forms.searchable_select('offer_type', offer_types, 'All', labeltag="Filter by offer type",
+    size=6, value=offer_type if offer_type else none, source="offer_types")}}
+    {{ forms.searchable_select('offer_id', addon_offers, 'All', labeltag="Filter by offer name",
+    size=6, value=offer_id, source="addon_offers")}}
+    {{ forms.input('from_date', 'From date', type='datepicker', uicon='date', size=3, value=from_date) }}
+    {{ forms.input('to_date', 'To date', type='datepicker', uicon='date', size=3, value=to_date) }}
+    {{forms.input('search', 'Search by reference' if hide_contract else 'Search by reference, client ID or client name', size=4, value=search) }}
+    {{ filter.filter_buttons() }}
+</form>
+{% if not active_tab %}{% set active_tab = 'all' %}{%endif%} 
+<ul {{ ui.tabs_ul() }}>
+    {% for tab in tabs %}
+        {{ ui.tabs_item(ftext(tabs[tab]+' ({})', human_number(paginations[tab].total_count)), tab, active=(tab == active_tab), subtab=hide_contract)}}
+    {% endfor %}
+</ul>
+<div class="tab-content">
+    {% if contract and contract.status == 'Defaulted' %}
+        {% set blocked_contract = true %}
+    {% else %}
+        {% set blocked_contract = false %}
+    {% endif %}
+    {% for tab in tabs %}
+    {% set pagination = paginations[tab] %}
+    <div {{ ui.tabs_pane_div(tab, active=(tab == active_tab), class='table-responsive') }}>
+        {% if tab == 'pending' %}
+        <div class="row mb-3">
+            {% if current_user.can_access_in_any('CancelAddOns') and not blocked_contract %}
+                {{ ui.button('Cancel sale', type='action', size=3, size_class='', fit=true, disabled=false, class='action', data_attributes={'action-name': 'cancelled', 'action-value': true})}}
+            {%endif%}
+            {% if current_user.can_access_in_any('ApproveAddOns') and not blocked_contract %}
+                {{ ui.button('Approve', type='action', size=3, size_class='', fit=true, disabled=false, class='action', data_attributes={'action-name': 'approved', 'action-value': true})}}
+            {%endif%}
+        </div>
+        {% endif %}
+        {% if tab == 'all' %}
+        {% endif %}
+        {% if tab == 'cached_unpaid' %}
+        <div class="row mb-3">
+            {% if current_user.can_access_in_any('CancelAddOns') and not blocked_contract %}
+                {{ ui.button('Cancel sale', type='action', size=3, size_class='', fit=true, disabled=false, class='action', data_attributes={'action-name': 'cancelled', 'action-value': true})}}
+            {%endif%}
+            {% if (contract and current_user.can_access('CollectCashActions', person=contract.client.person)) or (not contract and current_user.can_access_in_any('CollectCashActions')) and not blocked_contract %}
+                {{ ui.button('Mark as paid in cash', type='action', size=3, size_class='', fit=true, disabled=false, class='action', data_attributes={'action-name': 'cash_collection_agent', 'action-value': current_user.id|string})}}
+            {% endif %}
+        </div>
+        {% endif %}
+        {% if tab in ['onloan_not_cancelled', 'cached_paid', 'purchasing'] %}
+        <div class="row mb-3">
+            {% if current_user.can_access_in_any('CancelAddOns') and not blocked_contract %}
+                {{ ui.button('Cancel sale', type='action', size=3, size_class='', fit=true, disabled=false, class='action', data_attributes={'action-name': 'cancelled', 'action-value': true})}}
+            {%endif%}
+        </div>
+        {% endif %}
+        {% if tab == 'delivered' %}
+        <div class="row mb-3">
+            {% if current_user.can_access_in_any('MarkAsUnDeliveredAddOns') %}
+                {{ ui.button('Mark as not delivered', type='action', size=4, size_class='', fit=true, disabled=true, class='action', data_attributes={'action-name': 'delivered', 'action-value': false})}}
+            {%endif%}
+            {% if current_user.can_access_in_any('SwapDeviceActions') %}
+                {{ ui.button('Swap', type='action', action="handleButtonClick(this, 'swap')", size=4, size_class='', fit=true, disabled=true, class='action-swap', data_attributes={'action-name': 'swap', 'action-value': true})}}
+            {%endif%}
+        </div>
+        {% endif %}
+        {% if tab == 'defaulted' %}
+        <div class="row mb-3">
+            {% if current_user.can_access_in_any('MarkAsDeliveredAddOns') %}
+                {{ ui.button('Assign Device', type='action', action="handleButtonClick(this, 'assign')", size=4, size_class='', fit=true, disabled=true, class='action-assign', data_attributes={'action-name': 'assign', 'action-value': true})}}
+            {%endif%}
+        </div>
+        {% endif %}
+        {% if tab == 'not_delivered' %}
+        <div class="row mb-3">
+            {% if current_user.can_access_in_any('MarkAsDeliveredAddOns') %}
+                {{ ui.button('Mark as delivered', type='action', size=4, size_class='', fit=true, disabled=true, class='action', data_attributes={'action-name': 'delivered', 'action-value': true})}}
+                {{ ui.button('Assign Device', type='action', action="handleButtonClick(this, 'assign')", size=4, size_class='', fit=true, disabled=true, class='action-assign', data_attributes={'action-name': 'assign', 'action-value': true})}}
+            {%endif%}
+        </div>
+        {% endif %}
+        <table {{ ui.table_start(pagination, class=tab+'-table addon-table') }}>
+            <thead>
+                <tr>
+                    {% for field in config.ADDONS_TABS_CONFIG[tab] %}{% if field in ['client', 'contract'] and hide_contract %}{% else %}{{ get_field(field, pagination=pagination) }}{%endif%}{% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+            {% for addon in pagination.objects %}
+                <tr {% if addon.time_canceled or addon.cancelled_addon%}class="disabled"{%endif%}>
+                    {% for field in config.ADDONS_TABS_CONFIG[tab] %}{% if field in ['client', 'contract'] and hide_contract %}{% else %}{{ get_field(field, addon=addon) }}{% endif %}{% endfor %}
+                </tr>
+            {% else %}{{ui.no_results_row(config.ADDONS_TABS_CONFIG[tab]|length+1, 'No results')}}
+            {% endfor %}
+            </tbody>
+        </table>
+        <hr class="mt-0">
+        <div class="row mx-2 mt-2">
+            {{ pagination_nav.render_pagination(pagination, tab=tab) }}
+        </div>
+    </div>
+{% endfor %}
+<div id="modal_addon" class="modal fade" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div id="modal_addon_content"></div>
+        </div>
+    </div>
+</div>
+<script src="{{url_for('static', filename='js/bulk_table.js')}}?version={{ COMMIT_SHA }}" type="text/javascript"></script>
+<script type="text/javascript" src="/static/js/transaction_request_sender.v1.1.js"></script>
+<script>
+    var uuid = "{{ this_uuid }}";
+    let old_device_serial = '';
+    function changeListener() {
+        var selectedCheckbox = $('.table-checkbox:checked');
+        if (selectedCheckbox.length) {
+            // Check if at least one selected checkbox has a valid device-id
+            var validDeviceSelected = false;
+            var validSwapDeviceSelected = false;
+            let deviceId = '';
+            let contractAddonReference = '';
+            selectedCheckbox.each(function() {
+                deviceId = $(this).attr('data-device-id');
+                old_device_serial = deviceId
+                contractAddonReference = $(this).attr('data-contract-addon-reference')
+                if (deviceId) {
+                    validSwapDeviceSelected = true; // If any checkbox has a valid device-id, set this to true
+                }
+                if (!deviceId && $(this).attr('data-serialized') == 'true' && $(this).attr('data-linked-to-product') == 'true') {
+                    validDeviceSelected = true;
+                }
+            });
+
+            $('#swap-device-modal #contract-addon-reference').val(contractAddonReference);
+            $('#assign-device-modal #contract-addon-reference').val(contractAddonReference)
+            var ajaxUrl = "{{ url_for('contract.list_addons', contract_addon_reference='') }}";
+            ajaxUrl = ajaxUrl + contractAddonReference;  // Append the dynamically selected contract_reference
+            $('select[name="new_device_serial"]').attr('data-ajax--url', ajaxUrl);
+            
+            $('#swap-device-modal #current-device').val(deviceId);
+    
+            // Enable the action buttons and the swap button based on device-id presence
+            $('.action').removeClass('disabled');
+            if (validSwapDeviceSelected && selectedCheckbox.length === 1) {
+                $('.action-swap').removeClass('disabled');  // Enable swap if valid device is selected
+            } else {
+                $('.action-swap').addClass('disabled');  // Disable swap if no valid device is selected
+            }
+            if (validDeviceSelected) {
+                $('.action').addClass('disabled');
+                if(selectedCheckbox.length === 1) {
+                    $('.action-assign').removeClass('disabled')
+                } else {
+                    $('.action-assign').addClass('disabled')
+                }
+            } else {
+                $('.action').removeClass('disabled');
+                $('.action-assign').addClass('disabled')
+            }
+        } else {
+            // Disable all action buttons and swap button when no checkboxes are selected
+            $('.action').addClass('disabled');
+            $('.action-swap').addClass('disabled');
+            $('.action-assign').addClass('disabled') 
+        }
+    }
+
+    {% for tab in tabs %}
+        {% if 'checkbox' in config.ADDONS_TABS_CONFIG[tab] %}
+        new BulkTable('.{{tab}}-table', { onChange: changeListener });
+        {% endif %}
+    {% endfor %}
+
+    var URL = PAYGAPIURL+"/api/v1/addons";
+    $('.action').click(function () {
+        var bulkObj = $($(this).parents('.tab-pane')[0]).find('.table')[0].BulkTable
+        var action = $(this).attr('data-action-name')
+        var value = $(this).attr('data-action-value')
+        if(value == 'True') {
+            value = true
+        } else if(value == 'False') {
+            value = false
+        }
+        var data = []
+        bulkObj.selection.forEach(function (val) {
+            var item = {'id': val}
+            item[action] = value
+            data.push(item)
+        });
+        sendDataToAPI(data, '/addons', {
+            'method': 'PATCH',
+        })
+    });
+
+    function handleButtonClick(button, actionType) {
+        // Find the selected checkbox
+        var selectedCheckbox = $('.table-checkbox:checked');
+        
+        // If there is at least one selected checkbox, proceed
+        if (selectedCheckbox.length) {
+            var contractAddonReference;
+            
+            // Handle case where "select all" is selected and there is one rows in the table
+            if ($('#bulk_action').prop('value') == 'true' && selectedCheckbox.length === 2) {
+                // If all checkboxes are selected, get the reference from the second row or selected row
+                contractAddonReference = selectedCheckbox.last().data('contract-addon-reference');
+            } else {
+                // Otherwise, get the contractAddonReference from the selected checkbox
+                contractAddonReference = selectedCheckbox.attr('data-contract-addon-reference');
+            }
+    
+            // Ensure contractAddonReference is defined
+            if (contractAddonReference) {
+                // Construct the URL dynamically with contract_addon_reference
+                // Based on the actionType, we build the appropriate URL
+                if (actionType === 'swap') {
+                    url = "{{ url_for('transaction_request.swap_addon_device_transaction_content', contract_addon_reference='') }}";
+                } else if (actionType === 'assign') {
+                    url = "{{ url_for('transaction_request.assign_addon_device_transaction_content', contract_addon_reference='') }}";
+                }
+                // Replace the placeholder in the URL with the actual contract_addon_reference
+                url = url.replace("'", "") + contractAddonReference;
+
+                // Now trigger the function to load content into the modal
+                loadRemoteHTMLInElement(url, $('#modal_addon_content'), true);
+                
+                // Open the modal (Bootstrap 5 syntax)
+                var modal = new bootstrap.Modal(document.getElementById('modal_addon'));
+                modal.show();
+                // Add event listener to refresh page when modal is hidden
+                document.getElementById('modal_addon').addEventListener('hidden.bs.modal', function () {
+                    location.reload();
+                });
+            } else {
+                console.error('contractAddonReference is undefined!');
+            }
+        }
+    }
+</script>
+{% endmacro %}

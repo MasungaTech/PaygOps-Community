@@ -1,0 +1,122 @@
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'macros/form_macros.html' as forms with context %}
+{% set theme = 'light' %}
+{% set EDITION = "oss" if not config.ENABLE_ENTERPRISE_FEATURES else "enterprise" %}
+{# We do this to avoid having to hard reload JS #}
+{% if COMMIT_SHA in ['local', 'NA'] %}{% set COMMIT_SHA = generate_uuid() %}{% endif %}
+<!DOCTYPE html>
+<html
+  lang="en"
+  class="{{theme}}-style layout-navbar-fixed layout-menu-fixed {% if get_cookie('menuBarCollapsed') %}layout-menu-collapsed{% endif %}"
+  dir="ltr"
+  data-theme="theme-default"
+  data-assets-path="/static/"
+  data-template="vertical-menu-template-free"
+>
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
+    <meta name="description" content="PaygOps Web Application">
+    <meta name="robots" content="noindex">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+
+    <title>{% block title %}{% endblock %} - PaygOps</title>
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon-16x16.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="192x192"  href="/static/android-icon-192x192.png">
+    <link rel="apple-touch-icon" sizes="76x76" href="/static/apple-icon-76x76.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/static/apple-icon-180x180.png">
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@48,400,0,200">
+    <link rel="stylesheet" media="print" onload="this.onload=null;this.removeAttribute('media');" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@48,400,0,200" />
+    <link rel="stylesheet" media="print" onload="this.onload=null;this.removeAttribute('media');" href="https://fonts.googleapis.com/css2?family=Public+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&display=swap" />
+
+    <!-- Built CSS -->
+    {% if reload_templates or not config.ENABLE_ENTERPRISE_FEATURES %}
+      {% assets "vendor_css" %}<link rel="stylesheet" href="{{ ASSET_URL }}" />{% endassets %}
+      {% assets "libs_css" %}<link rel="stylesheet" href="{{ ASSET_URL }}" />{% endassets %}
+      {% assets "custom_css" %}<link rel="stylesheet" href="{{ ASSET_URL }}" />{% endassets %}
+    {% else %}
+      <link rel="stylesheet" href="/static/assets_cache/vendor.css?{{ ASSETS_HASHES['vendor.css'] }}" />
+      <link rel="stylesheet" href="/static/assets_cache/libs.css?{{ ASSETS_HASHES['libs.css'] }}" />
+      <link rel="stylesheet" href="/static/assets_cache/custom.css?{{ ASSETS_HASHES['custom.css'] }}" />
+    {% endif %}
+    {# This is apart because the compression breaks some complex CSS #}
+    <link rel="stylesheet" href="/static/custom/css/special.css?version={{COMMIT_SHA}}" />
+    <!-- Head Styles -->
+    {% block styles %}{% endblock %}
+
+    <!-- Head Scripts -->
+    {% block head_scripts %}{% endblock %}
+    <!-- Built JS -->
+    {% if reload_templates or not config.ENABLE_ENTERPRISE_FEATURES %}
+      {% assets "vendor_js" %}<script src="{{ ASSET_URL }}"></script>{% endassets %}
+    {% else %}
+      <script src="/static/assets_cache/vendor.js?{{ ASSETS_HASHES['vendor.js'] }}"></script>
+    {% endif %}
+    <script>
+      const analyticsEdition = {{ EDITION | tojson }};
+      const analyticsVersion = {{ VERSION | tojson }};
+
+      !function(t,e){var o,n,p,r;e.__SV||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}(p=t.createElement("script")).type="text/javascript",p.crossOrigin="anonymous",p.async=!0,p.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r);var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],u.toString=function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e},u.people.toString=function(){return u.toString(1)+".people (stub)"},o="init capture register register_once register_for_session unregister unregister_for_session getFeatureFlag getFeatureFlagPayload isFeatureEnabled reloadFeatureFlags updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures on onFeatureFlags onSessionId getSurveys getActiveMatchingSurveys renderSurvey canRenderSurvey getNextSurveyStep identify setPersonProperties group resetGroups setPersonPropertiesForFlags resetPersonPropertiesForFlags setGroupPropertiesForFlags resetGroupPropertiesForFlags reset get_distinct_id getGroups get_session_id get_session_replay_url alias set_config startSessionRecording stopSessionRecording sessionRecordingStarted captureException loadToolbar get_property getSessionProperty createPersonProfile opt_in_capturing opt_out_capturing has_opted_in_capturing has_opted_out_capturing clear_opt_in_out_capturing debug getPageViewId".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
+      posthog.init('phc_scZANQhmHyRRc2KRw06c3QiUaCBvSR4fydg7ongob7Z', {
+          api_host:'https://eu.i.posthog.com',
+          person_profiles: 'always', // or 'always' to create profiles for anonymous users as well
+          loaded: function(ph) {
+            ph.register({
+              edition: analyticsEdition,
+              version: analyticsVersion
+            });
+          }
+      });
+
+      if (typeof window.gtag === 'function') {
+        window.gtag('set', 'user_properties', {
+          edition: analyticsEdition,
+          version: analyticsVersion
+        });
+      }
+    </script>
+  </head>
+
+  <body{% if is_custom_app %} class="is-custom-app"{% endif %}>
+    {% block body_content %}{% endblock %}
+
+    <!-- Scripts -->
+    <script src="/static/vendor/js/bootstrap.bundle.min.js"></script>
+    {% if reload_templates or not config.ENABLE_ENTERPRISE_FEATURES %}
+      {% assets "core_js" %}<script src="{{ ASSET_URL }}"></script>{% endassets %}
+      {% assets "custom_js" %}<script src="{{ ASSET_URL }}"></script>{% endassets %}
+    {% else %}
+      <script src="/static/assets_cache/core.js?{{ ASSETS_HASHES['core.js'] }}"></script>
+      <script src="/static/assets_cache/custom.js?{{ ASSETS_HASHES['custom.js'] }}"></script>
+    {% endif %}
+    {% block bottom_scripts %}{% endblock %}    
+    <script>
+        // We init the UI elements after the page is loaded
+        $(function() {
+          refreshAllFormsElements();
+          $(this).on('shown.bs.modal', function () {
+            refreshSelects();
+            refreshDatepickers();
+          });
+          // We init the toasts
+          toastr.options.closeButton = true;
+          {% for M in get_flashed_messages() %}
+            {% with errors = get_flashed_messages(category_filter=["error"]) %}
+            {% if errors %}              
+              error_toast("{{ M|safe }}")
+            {% else %}
+              toast("{{ M|safe }}");
+            {% endif %}
+            {% endwith %}
+          {% endfor %}
+        });
+    </script>
+    {% block scripts %}{% endblock %}
+  </body>
+</html>
