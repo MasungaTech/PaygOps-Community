@@ -1,0 +1,393 @@
+{% extends "macros/base.html" %}
+{% import 'macros/general_macros.html' as ui %}
+{% import 'settings/settings_editor_macros.html' as settings_forms with context %}
+{% import 'macros/form_macros.html' as forms with context %}
+
+
+{% block title %}{{ ftext('Payment Settings') }}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('Settings', 'Payments') }}{% endblock %}
+
+
+{% block content %}
+
+{% if current_user.can_access('ConfigureAutomatedMessagesAdmin') %}
+<div {{ ui.collapsible_card_start(title='Payment Confirmations and Reminders' , uicon='message', active=false) }}>
+    <form method="POST" class="row card-row">
+        {{ forms.select('MessageRecipient',
+        config.MESSAGE_RECIPIENT_OPTIONS,
+        value=GlobalSetting('MessageRecipient'),
+        required=true,
+        label="Which phone number should receive the SMS",
+        size=6,
+        labeltag="Phone Number to receive payment confirmation SMS (if both present)") }}
+
+        {{ ui.divider('Automated Payment Reminders', small=true) }}
+
+        {{ forms.checkbox('SendPaymentReminderMessages',
+                        checked=GlobalSetting('SendPaymentReminderMessages'),
+                        value='true',
+                        id="SendPaymentReminderMessagesCheckbox",
+                        labeltag='Send payment reminder messages',
+                        label='Send reminders',
+                        size=6,
+                        onchange='checkBoxToggleForms(this, ".payment_reminder_input")') }}
+
+        {{ forms.input('TimeSendingPaymentReminder',
+                        'Time of the day for sending payment reminder',
+                        type='timepicker',
+                        uicon='time',
+                        required=true,
+                        size=6,
+                        value=ui.formattime(GlobalSetting('TimeSendingPaymentReminder')),
+                        selector_class='payment_reminder_input') }}
+
+        {{ forms.input('paymentReminderDay:skip',
+                    label='Remind when the payment is due',
+                    valid='int',
+                    size=3, selector_class='payment_reminder_input') }}
+        {{ forms.select('paymentReminderBeforeAfter:skip', 
+            {'before': 'Days before', 'after': 'Days after'}, 
+            labeltag='before/after', size=3,
+            btn_action='addPaymentReminder()', btn_icon='add', selector_class='payment_reminder_input')}}
+
+        <div class="{{ ui.col_size(6) }} pt-1 payment_reminder_input">
+            <label class="form-label ">Reminders</label>
+            <div class="row">
+                <div class="{{ui.col_size(4)}} before">
+                    {% for day in GlobalSetting('PaymentRemindersDaysBeforeExpiry')|sort(reverse=true)|reject("le",0) %}
+                        {{ settings_forms.PaymentReminderDayChip(day) }}
+                    {% endfor %}
+                </div>
+                <div class="{{ui.col_size(4)}} duedate">
+                    {% if 0 in GlobalSetting('PaymentRemindersDaysBeforeExpiry') %}
+                        {{ settings_forms.PaymentReminderDayChip(0) }}
+                    {% endif %}
+                </div>
+                <div class="{{ui.col_size(4)}} after">
+                    {% for day in GlobalSetting('PaymentRemindersDaysBeforeExpiry')|sort(reverse=true)|reject("ge",0) %}
+                        {{ settings_forms.PaymentReminderDayChip(day) }}
+                    {% endfor %}
+                </div>
+            </div>                
+        </div>
+
+        {{ settings_forms.save_button(class='payment_reminder_submit') }}
+    </form>
+</div {{ ui.collapsible_card_end() }}>
+{% endif %}
+
+{% if current_user.can_access('ConfigurePaymentManagementAdmin') %}
+<div {{ ui.collapsible_card_start(title='Payment Collection Settings' , uicon='cash', active=false) }}>
+    <form method="POST" class="row card-row">
+        {{ forms.checkbox('CashCollectionLimitEnabled:boolean',
+        checked=GlobalSetting('CashCollectionLimitEnabled'),
+        id="CashCollectionLimitEnabledCheckbox",
+        size=6,
+        labeltag='Enable cash collection limit for agents',
+        label='Enable collection limit',
+        onchange='checkBoxToggleForms(this, ".collection_limit_input")') }}
+
+        {{ forms.input('CashCollectionLimit:number',
+        uicon="cash",
+        label="Default Cash Collection Limit (can be overriden user-wise)",
+        value=GlobalSetting('CashCollectionLimit'),
+        type='number',
+        selector_class='collection_limit_input',
+        size=6)
+        }}
+
+        {{ forms.input('CashCollectionPercentageWarning:number',
+        uicon="cash",
+        label="Warn agents when reaching the following percentage (0 for deactivate)",
+        value=GlobalSetting('CashCollectionPercentageWarning'),
+        type='number',
+        selector_class='collection_limit_input',
+        size=6) }}
+
+        {{ forms.input('CashCollectionAmountWarning:number',
+        uicon="percent",
+        label="Warn agents when reaching the following amount (0 for deactivate)",
+        size=6,
+        selector_class='collection_limit_input',
+        value=GlobalSetting('CashCollectionAmountWarning'),
+        type='number') }}
+
+        {{ settings_forms.save_button() }}
+    </form>
+</div {{ ui.collapsible_card_end() }}>
+{% endif %}
+
+
+{% if current_user.can_access('ConfigurePaymentManagementAdmin') %}
+<div {{ ui.collapsible_card_start(title='Automatic Reversal and Reconciliations' , uicon='manage_history', active=false) }}>
+    <form method="POST" class="row card-row">
+        {{ ui.divider('Reversals', small=true) }}
+        {{ forms.checkbox('AutomaticRepaymentReversal',
+                        checked=GlobalSetting('AutomaticRepaymentReversal'),
+                        size='6',
+                        id="AutomaticRepaymentReversalCheckbox",
+                        labeltag="Automatic Contract Payment reversal",
+                        label='Enabled') }}
+        {{ forms.checkbox('AutomaticPaymentReversal',
+                        checked=GlobalSetting('AutomaticPaymentReversal'),
+                        size='6',
+                        id="AutomaticPaymentReversalCheckbox",
+                        labeltag="Automatic Payment reversal",
+                        label='Enabled') }}
+
+        {{ ui.divider('Reconciliations', small=true) }}
+
+        {{ forms.checkbox('AutomaticAutoReconcile',
+                    checked=GlobalSetting('AutomaticAutoReconcile'),
+                    size='6',
+                    id="AutomaticAutoReconcileCheckbox",
+                    labeltag="Automatically Re-try to reconcile orphaned payments (last 24h)",
+                    label='Autoreconcile orphaned (last 24h)',
+                    tooltip='This will try to reconcile orphaned payments from the last 24h every 5 minutes. This is useful in case of a lead paying before the lead is actually created on PaygOps.') }}
+
+        {{ forms.checkbox('AutomaticAutoReconcileWeek',
+                    checked=GlobalSetting('AutomaticAutoReconcileWeek'),
+                    size='6',
+                    id="AutomaticAutoReconcileWeekCheckbox",
+                    labeltag="Automatically Re-try to reconcile orphaned payments (last week)",
+                    label='Autoreconcile orphaned (last week)', 
+                    tooltip='This will try to reconcile orphaned payments from the last 7 days every 30 minutes. Can be used in complement of the 24h setting.') }}
+
+        {{ forms.checkbox('AutoReconcilePendingPayments',
+                    checked=GlobalSetting('AutoReconcilePendingPayments'),
+                    size='6',
+                    id="AutoReconcilePendingPaymentsCheckbox",
+                    labeltag="Automatically reconcile pending payments from clients with Completed contracts when a new Lead is created from them",
+                    label='Automatically reconcile pending payments to new Lead') }}
+
+        {{ forms.checkbox('AutoLinkAccountWhenPayingDownpayment',
+                    checked=GlobalSetting('AutoLinkAccountWhenPayingDownpayment'),
+                    id="AutoLinkAccountWhenPayingDownpaymentCheckbox",
+                    labeltag='Automatically link the Payment Wallet paying the downpayment to the Lead (if not owned)',
+                    label='Automatically Link payment wallet to lead',
+                    size=6) }}
+        {{ forms.checkbox('EnableContractPaymentsForReversedDownpayments',
+                    checked=GlobalSetting('EnableContractPaymentsForReversedDownpayments'),
+                    id="EnableContractPaymentsForReversedDownpayments",
+                    labeltag='Allow payments as regular contract payments after the downpayment of an active contract is reversed.',
+                    label='Allow contract repayments after downpayment reversal',
+                    tooltip='If disabled after a downpayment is reversed, the next payments won\'t generate any activation time until the downpayment is fully paid. Note, the next expected payment date will not change as well until the downpayment is paid.',
+                    size=6) }}
+        {{ settings_forms.save_button() }}
+    </form>
+</div {{ ui.collapsible_card_end() }}>
+
+<div {{ ui.collapsible_card_start(title='Other Payment Settings' , uicon='cash', active=false) }}>
+    <form method="POST" class="row card-row">
+
+        {{ ui.info_card(uicon='info', in_card=true, class='mt-3 mb-2', color='secondary', 
+            text='The maximum rounding discount is the maximum discount that will be given to a contract close to completion to complete it. It is recommended to set it to the minimum payment that a client can make (e.g. 1), so that the contract gets completed when the client can no longer pay. You can set it to the minimum of 0.01 if you want to force the client to overpay if there is an amount below the minimum possible payment to be paid. If you change this setting while you have active contracts, get in touch with PaygOps support to retroactively apply that setting to existing contracts. ') }}
+
+        {{ forms.input('MaxRoundingDiscount:number',
+                    uicon="cash",
+                    label="Maximum Rounding Discount",
+                    value=GlobalSetting('MaxRoundingDiscount'),
+                    type='number',
+                    min=0.01,
+                    size=6) }}
+
+        {{ settings_forms.save_button() }}
+    </form>
+</div {{ ui.collapsible_card_end() }}>
+{% endif %}
+
+
+{% if current_user.can_access('ConfigurePaymentManagementAdmin') %}
+<div {{ ui.collapsible_card_start(title='Payment Destinations Settings' , uicon='alt_route', active=false) }}>
+    <form method="POST" class="row card-row">
+        {{ forms.checkbox('AllowPayingLeadWithOwnedAccount',
+                        checked=GlobalSetting('AllowPayingLeadWithOwnedAccount'),
+                        id="AllowPayingLeadWithOwnedAccountCheckbox",
+                        labeltag='Allow paying Lead downpayment with a Payment Wallet belonging to someone else',
+                        label='Allow paying downpayment with other wallet',
+                        size=6) }}
+        
+        {{ forms.checkbox('AllowPendingPayments',
+                    checked=GlobalSetting('AllowPendingPayments'),
+                    id="AllowPendingPaymentsCheckbox",
+                    labeltag='Allow payments from clients with Completed contracts as pending payments',
+                    label='Allow payments from completed clients',
+                    size=6) }}
+
+        {{ forms.checkbox('AutomaticAddOnReconciliation',
+                    checked=GlobalSetting('AutomaticAddOnReconciliation'),
+                    id="AutomaticAddOnReconciliationCheckbox",
+                    labeltag='When a payment is going to a contract, pay first unpaid Add-ons on that contract if there is any',
+                    label='Priority Add-On Reconciliation',
+                    size=6) }}
+
+        {{ forms.checkbox('AllowPaymentsFromPausedContractsAsPending',
+                    checked=GlobalSetting('AllowPaymentsFromPausedContractsAsPending'),
+                    id="AllowPaymentsFromPausedContractsAsPending",
+                    labeltag='Allow payments from clients with Paused contracts as pending payments',
+                    label='Allow Payments from Paused contracts',
+                    size=6) }}
+
+        {{ settings_forms.save_button() }}
+    </form>
+</div {{ ui.collapsible_card_end() }}>
+{% endif %}
+
+{% if current_user.can_access('ConfigurePaymentRouterAdmin') %}
+<div {{ ui.collapsible_card_start(title='Payment Router Settings' , uicon='payment_router', active=false) }}>
+    {{ ui.info_card(uicon='info', class='mt-3', in_card=true, color='secondary', text='The rules will be checked in order, if no match is found, then the payment will be marked as orphaned. ') }}
+    {{ ui.info_card(uicon='warning', class='mb-2', in_card=true, text='Allowing multiple persons to have the same phone number may cause payments to end up orphaned if the phone number is the only parameter used to route payments. ') }}
+    {{ ui.divider('Payment Routing Rules', small=true, class='pb-4')}}
+    <form id="payment_router_form" method="POST" class="row" novalidate data-checkbox-false="true">
+        <div class="collection z-depth-1 router_container">
+            {% for order,values in GlobalSetting('FlexiblePaymentRouterSettings').items() %}
+                {{ settings_forms.PaymentRouterRule(order,values) }}
+            {% endfor %}
+        </div>
+
+        {{ ui.button('Add Rule', 'add', size='6', fit=true, size_class='pt-4', action='add_rule()')}}
+        {{ ui.button('Save Settings', 'save', size='6', disabled=true, fit=true, type='action', class='router_save_button submit-btn', size_class='pt-4', action='saveRouterConfig(this)')}}
+    </form>
+    <div class="hide ruleTemplate">
+        {{ settings_forms.PaymentRouterRule('NEW_RULE_ID',{
+            'strict': true,
+            'ignore_prefix': false,
+            'routing_attribute': none,
+            'matching_parameter': none,
+            'validity_check': none,
+            'validity_check_mode': none,
+            'prepend': '',
+            'append': ''
+        }) }}
+    </div>
+</div {{ ui.collapsible_card_end() }}>
+{% endif %}
+
+{% if current_user.can_access('ConfigurePaymentManagementAdmin') %}
+<div {{ ui.collapsible_card_start(title='Payment Sending Settings', uicon='send', active=false) }}>
+  <form method="POST" class="row card-row">
+    <table class="table table-responsive pt-3">
+      <thead>
+        <tr>
+          <th>{{ ftext("Display Name") }}</th>
+          <th>{{ ftext("Integration Name") }}</th>
+          <th>{{ ftext("Payment Sending (B2C) Available") }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for gateway, config in GlobalSetting('PaymentSendingGateways').items() %}
+        <tr>
+          <td>{{ gateway }}</td>
+          <td>{{ config.display_name }}</td>
+          <td>
+            {{ forms.input("PaymentSendingGateways[" ~ gateway ~ "][display_name]",
+                      value=config.display_name,
+                      label='', disabled=true, class='d-none') }}
+            {{ forms.checkbox("PaymentSendingGateways[" ~ gateway ~ "][enabled]:boolean",
+                      label='',
+                      checked=config.enabled) }}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {{ settings_forms.save_button() }}
+  </form>
+</div {{ ui.collapsible_card_end() }}>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+{# Payment reminders scripts #}
+<div id="payment_reminder_template" class="hide">{{ settings_forms.PaymentReminderDayChip() }}</div>
+<script>
+    function removePaymentReminder(elem) {
+        $(elem).parent().remove()
+        enableElement($('.payment_reminder_submit'))
+    }
+    function addPaymentReminder() {
+        var days = $('#paymentReminderDay').val()
+        var zero = (days == '0')
+        var before = $('#paymentReminderBeforeAfter').val()
+        if(!days || (!before && !zero)) {
+            error_toast(PaygOps_LNG["ENTER_NUMBER_OF_DAYS"])
+            return
+        }
+        var days_raw = days
+        if(before == 'after' && !zero) {
+            days = '-'+days
+        }
+        if($('#payment_reminder_'+days).length > 0) {
+            error_toast(PaygOps_LNG["REMINDER_EXISTS"])
+            return
+        }
+        tem = $('#payment_reminder_template').clone()
+        if(zero) {
+            tem = $(tem).html().replace(/%day%/g, days).replace(/%daylabel%/g, 'on due date')
+            $('.duedate').append(tem)
+        } else if (before == 'before') {
+            tem = $(tem).html().replace(/%day%/g, days).replace(/%daylabel%/g, days_raw+' days before')
+            $('.before').append(tem)
+        } else {
+            tem = $(tem).html().replace(/%day%/g, days).replace(/%daylabel%/g, days_raw+' days after')
+            $('.after').append(tem)
+        }
+    }
+</script>
+
+{# Payment router scripts #}
+<script>
+    function saveRouterConfig(router_button) {
+        SubmitForm(router_button, '/settings', {
+            "success_action": "message",
+            "success_message": "Settings saved!",
+            "postprocess_data": postprocess_router_settings,
+        })
+    }
+    function postprocess_router_settings(router_data) {
+        router_data['FlexiblePaymentRouterSettings'] = CleanArray(router_data['FlexiblePaymentRouterSettings'])
+        return router_data
+    }
+    function CleanArray(arr){
+        arr = $(arr) // Needed to use .length
+        var obj = {};
+        for(var i = 0; i < arr.length; i++){
+            obj[(i+1).toString()] = arr[i];
+            if(!obj[(i+1).toString()].hasOwnProperty("strict")) {
+                obj[(i+1).toString()]["strict"] = false;
+            }
+            if(!obj[(i+1).toString()].hasOwnProperty("ignore_prefix")) {
+                obj[(i+1).toString()]["ignore_prefix"] = false;
+            }
+        }
+        return obj
+    }
+    function add_rule() {
+        cloneAndReplace('.ruleTemplate', '.router_container', [[/NEW_RULE_ID/g, bigRandomNumber()]])
+        config_changed();
+        refreshSelects();
+        updateSortable();
+    }
+    function remove_rule(e) {
+        $(e).parents('.rule-card').remove();
+        config_changed()
+    }
+    function config_changed() {
+        enableElement($('.router_save_button'))
+    }
+    function updateSortable() {
+        new Sortable($('.router_container')[0], {
+            handle: 'i',
+            animation: 150,
+            onSort: function (evt) {
+                config_changed()
+            },
+        });
+    }
+    $(document).ready(function () {
+        updateSortable();
+    });
+</script>
+{% endblock %}

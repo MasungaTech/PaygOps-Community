@@ -1,0 +1,63 @@
+{% macro device_type_subtype_coupling(type_id, subtype_id) %}
+const modelTypeMapping = {{device_type_subtype_mapping|safe}}
+function updatedProductSubType() {
+    let device_type_selector = $('{{type_id}}')
+    let model = $('{{subtype_id}}').val();
+    if (model) device_type_selector.val(modelTypeMapping[parseInt(model)]).change();
+}
+function updatedProductType() {
+    var device_type_selector = $('{{type_id}}')
+    var device_subtype_selector = $('{{subtype_id}}')
+    var selected_value = device_type_selector.val()
+    device_subtype_selector.attr('data-device_type', selected_value)
+    let selected_model = device_subtype_selector.val();
+    if (selected_model && selected_value && modelTypeMapping[selected_model] != selected_value) {
+        device_subtype_selector.val('').change();
+    }
+}
+{% endmacro %}
+{% macro quantity_movement_summary_function(
+    display, quantity, pst, from_status, from_entity, from_user, to_status, to_entity, to_user, prefix=''
+) %}
+function getValueIfSelected(f) {
+    return f.val() ? f.find('option:selected').text() : null;
+}
+function getMovementSummaryMsg(q, pst, from_status, from_entity, from_user, to_status, to_entity, to_user, operation) {
+    let origin = from_status;
+    if (from_entity) origin = from_entity;
+    if (from_user) origin = from_user;
+    let destination = to_status;
+    if (to_entity) destination = to_entity;
+    if (to_user) destination = to_user;
+    if (operation == 'add') return `You are now adding ${q} units to the ${pst} stock in ${to_entity}`;
+    if (operation == 'adjust') {
+        return parseInt(q) > 0 ?
+        `You are now adding ${q} ${pst} to ${to_entity}. This will create a stock movement from Lost to ${to_entity}.`
+        : `You are now removing ${-parseInt(q)} ${pst} from ${to_entity}. This will create a stock movement from ${to_entity} to Lost.`;
+    } else if (operation == 'delete') {
+        return `You are now permanently removing ${-parseInt(q)} ${pst} from ${to_entity}. These items will be deleted from the platform.`
+    }
+    return `You are moving ${q} ${pst} from ${origin} to ${destination}`;
+}
+function {{prefix}}updatedMovementSummaryForm(operation) {
+    let q = $('{{quantity}}').val();
+    let pst = getValueIfSelected($('{{pst}}'));
+    let from_status = getValueIfSelected($('{{from_status}}'));
+    let from_entity = getValueIfSelected($('{{from_entity}}'));
+    let from_user = getValueIfSelected($('{{from_user}}'));
+    let to_status = getValueIfSelected($('{{to_status}}'));
+    let to_entity = getValueIfSelected($('{{to_entity}}'));
+    let to_user = getValueIfSelected($('{{to_user}}'));
+    let valid = q && pst && from_status && to_status;
+    if (operation) {
+        valid = q && pst && to_entity;
+    }
+    if (valid) {
+        let msg = getMovementSummaryMsg(q, pst, from_status, from_entity, from_user, to_status, to_entity, to_user, operation);
+        $('{{display}} div.alert-p span').text(msg);
+        $('{{display}}').removeClass('hide')
+    } else {
+        $('{{display}}').addClass('hide')
+    }
+}
+{% endmacro %}

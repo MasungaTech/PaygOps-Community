@@ -1,0 +1,26 @@
+{% macro get_days_or_months(paymentFrequency='') -%}
+{% if paymentFrequency is defined and paymentFrequency == config.MONTHLY_PAYMENT_FREQUENCY -%}<span>months</span>{% else %}<span>days</span>{% endif %}
+{%- endmacro %}
+
+{% macro offline_script_macro() %}
+function updateOfflineVisibility() {
+    var offlineEnabled = false;
+    $('#device_type').find(':selected').each(function (e) {
+        offlineEnabled = this.dataset.offline_enabled;
+    });
+    if(offlineEnabled.toString().toUpperCase() === 'TRUE') {
+        $('#offline_token_config').show();
+    } else {
+        $('#offline_token_config').hide();
+    }
+}
+
+$("#device_type").on('change', function() {
+    updateOfflineVisibility();
+});
+$("#type").on('change', function() {
+    updateOfflineVisibility();
+});
+
+updateOfflineVisibility();
+{% endmacro %}

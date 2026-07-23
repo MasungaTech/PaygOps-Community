@@ -1,0 +1,34 @@
+{% extends 'macros/base.html' %}
+
+{% import 'macros/general_macros.html' as ui with context %}
+
+{% block title %}{{ ftext('Manually Added Messages') }}{% endblock %}
+{% block page_title %}{{ ui.page_title('Messages', 'Manually Added') }}{% endblock %}
+
+{% block content %}
+<div {{ ui.card_start(body_class='table-responsive') }}>
+    <table {{ ui.table_start() }}>
+        <thead>
+        <tr>
+            {{ ui.table_header('From Number', class='ps-4') }}
+            {{ ui.table_header('Body') }}
+            {{ ui.table_header('Time') }}
+            {{ ui.table_header('User') }}
+            {{ ui.table_header('IP', class='pe-3') }}
+        </tr>
+        </thead>
+        <tbody>
+        {% for line in manual_message_logs %}
+            {% set P = json.loads(line) %}
+            <tr>
+                <td class="ps-4">{{ P['from_number'] }}</td>
+                <td class="truncate-hoverable">{{ P['body'] }}</td>
+                <td class="truncate-hoverable">{{ P['time'] }}</td>
+                <td class="truncate-hoverable">{{ P['user_name'] }} ({{ P['user_id'] }})</td>
+                <td class="pe-3">{{ P['user_ip'] }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div {{ ui.card_end() }}>
+{% endblock %}

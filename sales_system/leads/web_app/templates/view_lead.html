@@ -1,0 +1,230 @@
+{% extends "macros/base.html" %}
+{% import 'macros/form_macros.html' as forms with context %}
+{% import 'macros/general_macros.html' as ui with context %}
+
+{% import 'custom_forms_macros.html' as custom_forms with context %}
+{% import 'lead_entry_info_macro.html' as lead_entry_info_macro with context %}
+{% import 'lead_status_macro.html' as status_macro with context %}
+{% import 'lead_general_info_macro.html' as general_info_macro with context %}
+{% import 'lead_decision_macro.html' as decision with context %}
+{% import 'lead_payment_macro.html' as payment with context %}
+{% import 'lead_commission_macro.html' as commission with context %}
+{% import 'list_addons_macros.html' as fields_macros with context %}
+{% import 'lead_addons_macro.html' as addons_macro with context %}
+{% import 'payment_wallet_macros.html' as wallet_macros with context %}
+{% import 'offer_and_device_macros.html' as offer_device_macro with context %}
+{% import 'view_lead_macro.html' as view_lead_macro with context %}
+
+{# globals for the page #}
+{% set show_downpayment = (Lead.awaiting_payment or Lead.has_payment_information) %}
+{% set show_collect_cash = (Lead.awaiting_payment or Lead.awaiting_delivery and not Lead.deposit_paid and Lead.offer_editing_locked and not Lead.cancelled) and current_user.can_access('CollectCashActions', person=Lead.person) %}
+{% set show_register = Lead.awaiting_delivery and current_user.can_access('RegisterActions', person=Lead.person)  %}
+
+
+{% block title %}{{ ftext('View Lead: {}', Lead.full_name, novar=true) }}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('Leads', 'View', object=Lead) }}{% endblock %}
+
+{% block content %}
+{% if not Lead.offer_editing_locked %}{% set locked = true %}{% else %}{% set locked=false %}{% endif %}
+{% set lead_in_restricted_status = true %}
+
+{% if Lead.child_leads %}
+    {{ ui.info_card(uicon='warning', text='This lead was registered but has been cancelled. Go to new <a href="'+url_for("leads.view_lead", lead_id=Lead.child_leads.select().first().id)+'">Lead</a>') }}
+{% endif %}
+
+<div class="row">
+    {% if not is_custom_app %}
+        <div class="{{ui.col_size('2s')}}">
+            <nav {{ ui.side_nav() }}>
+                <ul {{ ui.side_ul() }}>
+                    {{ ui.side_link(text='General Info', subtext='Personal / Entry', uicon='lead', target_id='general') }}
+                    {{ ui.side_link(text='Quick Access', subtext='Links and Actions', uicon='redo', target_id='quick_actions') }}
+                    {{ ui.side_link(text='Status', subtext='Status / Decision', uicon='status', target_id='status') }}
+                    {{ ui.side_link(text='Downpayment', subtext='View / Collect', uicon='payment', target_id='downpayment', visible=show_downpayment) }}
+                    {{ ui.side_link(text='Delivery', subtext='Delivery / Registration', uicon='inventory', target_id='delivery', visible=Lead.awaiting_delivery) }}
+                    {{ ui.side_link(text='Offer', subtext='Offer / Add-Ons', uicon='offer', target_id='offer') }}
+                    {{ ui.side_link(text='Additional Info', subtext='Custom Forms', uicon='info', target_id='additional_info') }}
+                    {{ ui.side_link(text='More', subtext='Wallets, etc.', uicon='more_tag', target_id='extras', last=true) }}
+                </ul>
+            </nav>
+        </div>
+    {% else %}
+        <ul class="nav nav-tabs mb-3" id="leadTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="tab-general" data-bs-toggle="tab" data-bs-target="#general" type="button" role="tab" target-category="general">General</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="tab-status" data-bs-toggle="tab" data-bs-target="#status" type="button" role="tab" target-category="status">Status</button>
+            </li>
+            {# {% if show_downpayment %}
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="tab-downpayment" data-bs-toggle="tab" data-bs-target="#downpayment" type="button" role="tab" target-category="downpayment">Downpayment</button>
+            </li>
+            {% endif %} #}
+            {% if show_downpayment or Lead.awaiting_delivery %}
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="tab-delivery" data-bs-toggle="tab" data-bs-target="#delivery" type="button" role="tab" target-category="register">Register</button>
+            </li>
+            {% endif %}
+            {# <li class="nav-item" role="presentation">
+                <button class="nav-link" id="tab-offer" data-bs-toggle="tab" data-bs-target="#offer" type="button" role="tab" target-category="offer">Offer</button>
+            </li> #}
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="tab-forms" data-bs-toggle="tab" data-bs-target="#additional_info" type="button" role="tab" target-category="more">More</button>
+            </li>
+        </ul>      
+    {% endif %}
+    {% if is_custom_app %}
+        {% set show_collapsible_card = true if not is_custom_app else false%}
+
+        <div class="{{ ui.col_size('10s' if not is_custom_app else '12s') }}">
+            <div id="general" class="hide-in-custom-app" category="general">
+                <div class="general-info">{{ general_info_macro.general_info_display(Lead, locked, active=show_collapsible_card) }}</div>
+                <div class="entry-info">{{ lead_entry_info_macro.lead_entry_info_display(Lead, locked, active=show_collapsible_card) }}</div>
+            </div>
+            <div id="status" class="hide-in-custom-app" category="status">
+                <div class="status-info">{{ status_macro.lead_status_display(Lead, locked, active=show_collapsible_card) }}</div>
+
+                {# decision #}
+                {% if current_user.can_access('ApproveLeads', person=Lead.person) %}
+                    {% if Lead.awaiting_information or Lead.inactive or Lead.to_be_convinced or Lead.discarded %}
+                        {{ decision.lead_decision_display(Lead, active=show_collapsible_card) }}
+                    {% elif Lead.awaiting_decision %}
+                        {{ decision.lead_decision_form(Lead, locked=locked, active=show_collapsible_card) }}
+                    {% endif %}
+                {% endif %}
+            </div>
+
+            {# downpayment #}
+            {% if show_downpayment %}
+                <div id="downpayment" class="hide-in-custom-app" category="register">
+                    {{ payment.lead_downpayment_info(Lead, active=show_collapsible_card) }}
+                    {% if show_collect_cash %}
+                        <div id="collect_cash_content" class="new-modal" data-new-modal="transaction_result_modal"></div>
+                    {%endif%}
+                </div>
+            {% endif %}
+            
+            {% if Lead.awaiting_delivery %}
+                <div id="delivery" class="hide-in-custom-app" category="register">
+                    {# delivery planning #}
+                    {% if current_user.can_access('EditPlannedDeliveryDateLeads', person=Lead.person) %}
+                        {{ payment.delivery_planning_form(Lead, active=show_collapsible_card) }}
+                    {% endif %}
+                    {# registration #}
+                    {% if show_register %}
+                        <div id="registration_content" class="new-modal" data-new-modal="transaction_result_modal"></div>
+                    {% endif %}
+                </div>
+            {% endif %}
+
+            {# offer and allocated device (make sure it matches offer, same in add-lead page) #}
+            <div id="offer" class="hide-in-custom-app" category="general">
+                <div class="offer-info">{{ offer_device_macro.offer_and_device_display(Lead, locked=locked, active=show_collapsible_card) }}</div>
+
+                {# add-ons #}
+                <div {{ ui.collapsible_card_start(uicon='addon', title='Add-Ons', body_class='table-responsive', active=show_collapsible_card) }}>
+                    {{ addons_macro.lead_addons_macro(Lead) }}
+                </div {{ ui.collapsible_card_end() }}>
+
+                {# payment planning #}
+                {% if Lead.offer and Lead.offer.type == OfferType.loan %}
+                    {{ payment.payment_planning_table(Lead, active=show_collapsible_card) }}
+                {% endif %}
+            </div>
+
+            {# custom forms #}
+            <div id="additional_info" class="hide-in-custom-app" category="more">
+            {% if platform_type == 'freemium' and not current_user.is_super_admin() %}
+            {{ ui.info_card(type='warning', text='Additional custom forms available with the premium version.')}}
+            {% else %}
+                <div class="forms">
+                    {% for form_answer in LeadsSurveys %}
+                        {% set form_restricted = restrict_editing and form_answer.surveyAnswered.form.restrict_editing %}
+                        {{ custom_forms.custom_form_view_card(form_answer, edit=true, lead=Lead, is_required=(form_answer.surveyAnswered.form in required_forms), restrict_editing=form_restricted)}}
+                    {% endfor %}
+                    {% for form in extra_surveys if (form.form in required_forms) %}
+                        {% set form_restricted = restrict_editing and form.form.restrict_editing %}
+                        {{ custom_forms.custom_form_edit_card(form, is_required=true, lead=Lead, restrict_editing=form_restricted) }}
+                    {% endfor %}
+                    {% for form in extra_surveys if not (form.form in required_forms) %}
+                        {% set form_restricted = restrict_editing and form.form.restrict_editing %}
+                        {{ custom_forms.custom_form_edit_card(form, is_required=false, lead=Lead, restrict_editing=form_restricted) }}
+                    {% endfor %}
+                </div>
+            {% endif %}
+            </div>
+
+            <div id="extras" class="hide-in-custom-app" category="general">
+                {# payment wallets #}
+                {% if Lead.payment_wallets.count() > 0 %}
+                    {{ wallet_macros.payment_wallet_list(Lead.payment_wallets, active=show_collapsible_card) }}
+                {% endif %}
+
+                {# commissions #}
+                {% if current_user.can_access('SetCommissionLeads', person=Lead.person) %}
+                    {{ commission.commission_form(Lead, active=show_collapsible_card) }}
+                {% endif%}
+            </div>
+
+            {# transaction modal #}
+            <div {{ ui.modal_start(id='transaction_result_modal', class='transaction_modal') }}>
+                <div class="modal-body" id="transaction_result_modal_content"></div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div {{ ui.modal_end() }}>
+        </div>
+    </div>
+    {% else %}
+        {{ view_lead_macro.lead_tab_content(Lead, locked, show_register, show_downpayment, show_collect_cash, LeadsSurveys, extra_surveys, required_forms, restrict_editing, current_user, platform_type) }}
+    {% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    $(document).ready(function () {
+        {% if show_register %}
+            loadRemoteHTMLInElement("/transaction_requests/registration/content/{{ Lead.id }}", $("#registration_content"), true, true);
+        {% endif %}
+        {% if show_collect_cash %}
+            loadRemoteHTMLInElement("/transaction_requests/collect_cash_lead/content/{{ Lead.id }}", $("#collect_cash_content"), true, true);
+        {% endif %}
+        {% if not Lead.offer_editing_locked %}
+            document.getElementById("future-contract-info").scrollIntoView();
+            window.onbeforeunload = function(e) {
+                if (!GLOBAL_bypassLeavePrevention) {
+                    document.getElementById("addons-table-wrapper").scrollIntoView();
+                    return {{ ftext("You have not saved and locked the lead. This will kept the lead blocked. Are you sure you want to leave?") }};
+                }
+            }
+        {% endif %}
+
+        const defaultActiveTabElement = "general";
+
+        function toggleTargetTabElement(targetCategory) {
+            $('.hide-in-custom-app').each(function () {
+                    const category = $(this).attr('category');
+                    if (category !== targetCategory) {
+                        $(this).hide();
+                    } else {
+                        $(this).show();
+                    }
+                });
+        }
+
+        toggleTargetTabElement(defaultActiveTabElement);
+
+        $('#leadTabs button').each(function () {
+            $(this).on('click', (e) => {
+                const targetCategory = $(this).attr("target-category");
+                toggleTargetTabElement(targetCategory);
+            });
+        });
+
+    });
+</script>
+<script type="text/javascript" src="{{ url_for('.static', filename='js/lead_addons.js') }}?v={{COMMIT_SHA}}"></script>
+{% endblock %}
