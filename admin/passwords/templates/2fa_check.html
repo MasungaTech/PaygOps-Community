@@ -1,0 +1,134 @@
+{% extends "macros/base_core.html" %}
+
+{% block styles %}
+<style>
+    body {
+        background-color: #003E51;
+    }
+</style>
+{% endblock %}
+
+{% block title %}2FA Check{% endblock %}
+
+{% block body_content %}
+<div class="row subrow align-items-center vh-100">
+    <div {{ ui.card_start(title='Two Factor Code', uicon='password', icon_color="main", size=5, class='mx-auto login-card') }}>
+        <div class="verification-code-form">  
+            {{ ui.info_card(text='Please enter the 6-digit code from your authenticator app to continue to the login. If you have lost access to your authenticator app, you can <a href="#" onclick="showBackupCodeForm()">click here</a> to login with a backup code.', type='info', in_card=true, class='mt-3') }}
+        <form class="row pt-0" action="" method="post" id="verification_code_form">
+            {{ forms.input('verification_code', 'Verification Code', placeholder='Enter 6-digit code from your app', uicon='pin') }}
+            <div class="col-12 pt-2">
+                {{ ui.button('Verify Code', uicon='check_circle', type='action', size=12, fit=true, id='verify_code_btn') }}
+            </div>
+            </form>
+        </div>
+        <div class="backup-code-form hiddenform">  
+            {{ ui.info_card(text='Please enter the 8-digit backup code to continue to the login. If you have lost access to your authenticator app, you can <a href="#" onclick="showBackupCodeForm()">click here</a> to login with a backup code.', type='info', in_card=true, class='mt-3') }}
+            <form class="row pt-0" action="" method="post" id="backup_code_form">
+                {{ forms.input('backup_code', 'Backup Code', placeholder='Enter 8-digit code from your backup codes', uicon='pin') }}
+                <div class="col-12 pt-2">
+                    {{ ui.button('Verify Code', uicon='check_circle', type='action', size=12, fit=true, id='verify_backup_code_btn') }}
+                </div>
+            </form>
+        </div>
+    </div {{ ui.card_end() }}>
+
+    <!-- Footer -->
+    <footer class="navbar fixed-bottom">
+        <div class="container-xxl d-flex flex-wrap justify-content-between pt-2 flex-md-row">
+          <div class="col-12 col-md-4 d-flex justify-content-center justify-content-md-start">
+              <a id="logo-container" href="http://www.paygops.com">
+                  <img src="/static/img/paygops_bottom_logo-dark.png?2" class="bottom-logo">
+              </a>
+          </div>
+          <div class="footer-text col-12 col-md-4 d-flex justify-content-center dark-footer-theme">
+              <p>Copyright&copy; {{NOW.year}} <a href="https://www.masunga.tech" class="light-text-link">Masunga</a>, formerly Solaris Offgrid</p>
+          </div>
+          <div class="footer-text col-12 col-md-4 d-flex justify-content-center justify-content-md-end dark-footer-theme">
+              <p><a href="https://www.paygops.com/privacy-policy" target="_blank" class="light-text-link">{{ftext('Privacy Policy')}}</a></p>
+          </div>
+        </div>
+    </footer>
+    <!-- / Footer -->
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function showBackupCodeForm() {
+        toggleFormVisibility('.backup-code-form');
+        toggleFormVisibility('.verification-code-form');
+    }
+    $(document).ready(function() {
+        // Auto-focus on verification code input
+        document.getElementById('verification_code').focus();
+        
+        // Auto-format verification code input
+        $('#verification_code').on('input', function() {
+            let value = $(this).val().replace(/\D/g, '');
+            if (value.length > 6) {
+                value = value.substring(0, 6);
+            }
+            $(this).val(value);
+        });
+
+        // Handle Enter key for verification code form
+        $('#verification_code').on('keydown', function(e) {
+            if (e.key === 'Enter' || e.keyCode === 13) {
+                e.preventDefault();
+                // Trigger button click - button will handle validation and submission
+                $('#verify_code_btn').click();
+            }
+        });
+
+        // Handle button click for verification code
+        $('#verify_code_btn').on('click', function(e) {
+            e.preventDefault();
+            const code = $('#verification_code').val();
+            if (code.length === 6) {
+                $('#verification_code_form').submit();
+            } else if (code.length === 0) {
+                // Show error or focus input
+                $('#verification_code').focus();
+            } else {
+                // Code is incomplete, submit anyway to show error message
+                $('#verification_code_form').submit();
+            }
+        });
+
+        // Auto-format backup code input
+        $('#backup_code').on('input', function() {
+            let value = $(this).val().toUpperCase().replace(/[^A-F0-9]/g, '');
+            if (value.length > 8) {
+                value = value.substring(0, 8);
+            }
+            $(this).val(value);
+        });
+
+        // Handle Enter key for backup code form
+        $('#backup_code').on('keydown', function(e) {
+            if (e.key === 'Enter' || e.keyCode === 13) {
+                e.preventDefault();
+                // Trigger button click - button will handle validation and submission
+                $('#verify_backup_code_btn').click();
+            }
+        });
+
+        // Handle button click for backup code
+        $('#verify_backup_code_btn').on('click', function(e) {
+            e.preventDefault();
+            const code = $('#backup_code').val();
+            if (code.length === 8) {
+                $('#backup_code_form').submit();
+            } else if (code.length === 0) {
+                // Show error or focus input
+                $('#backup_code').focus();
+            } else {
+                // Code is incomplete, submit anyway to show error message
+                $('#backup_code_form').submit();
+            }
+        });
+        
+    });
+</script>
+{% endblock %}

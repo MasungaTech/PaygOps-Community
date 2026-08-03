@@ -1,0 +1,175 @@
+{% extends "macros/base.html" %}
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'macros/form_macros.html' as forms with context %}
+{% import 'macros/filter_macros.html' as filter with context %}
+{% import 'macros/js_tricks.html' as js_tricks with context %}
+
+
+{% macro children_header(title) %}
+{{ ui.table_header(title, tooltip='Number of items in <br><i class=\'material-symbols-rounded tiny inline-icon\'>home</i>entity / <i class=\'material-symbols-rounded tiny inline-icon\'>home_pin</i>children entities<br>') }}
+{%endmacro%}
+
+{% macro children_row(entity, children) %}
+<td class="truncate-hoverable pe-4">{{ui.icon('home', 'tiny inline-icon')}}{{ entity }} / {{ui.icon('home_pin', 'tiny inline-icon')}}{{ children }}</td>
+{%endmacro%}
+
+{% macro pst_actions(pst) %}
+<td>
+    {% if pst and not pst.is_serialized %}
+    {{ ui.button(type='tiny-action', uicon='add', modal='addStockModal', action="pickAddProduct("+pst.id|string+")", tooltip='Add Stock') }}
+    {{ ui.button(type='tiny-action', uicon='content_paste_go', modal='adjustStockModal', action="pickAdjustProduct("+pst.id|string+")", tooltip='Adjust Stock') }}
+    {%endif%}
+</td>
+{%endmacro%}
+
+{% block title %}{{ ftext('Stock Count') }}{% endblock %}
+{% block page_title %}{{ ui.page_title('Stock Count', 'List') }}{% endblock %}
+
+{% block content %}
+{{ filter.entities_navigation_filter(entity) }}
+
+<div {{ ui.collapsible_card_start(title='Filters', uicon='filter', icon_color='', active=any_filter([search])) }}>
+    <form id="filter_form_v2" action="" method="get" class="row">
+        {{ forms.input('search', 'Search by product sub-type name', value=search, size="8") }}
+
+        {{ filter.filter_buttons() }}
+    </form>
+</div {{ ui.collapsible_card_end() }}>
+
+<div {{ ui.card_start(body_class='table-responsive') }}>
+    <div class="mb-3">
+        {{ ui.button('Add Stock (Purchase)', modal='addStockModal', uicon='add', tooltip='Add stock when new stock is purchased', type='action', permission='AddMoveStock') }}
+        {{ ui.button('Adjust Stock for discrepancies', modal='adjustStockModal', uicon='content_paste_go', tooltip='Register discrepancies in stock when doing a stock count', type='action', permission=['FromLostMoveStock', 'ToLostMoveStock']) }}
+    </div>
+    <table {{ ui.table_start() }}>
+        <thead>
+            <tr>
+                {{ui.table_header("Product Sub-type")}}
+                {% if entity %}
+                    {{children_header("In Stock")}}
+                    {{children_header("With User")}}
+                    {{children_header("Installed")}}
+                {% else %}
+                    {{ui.table_header("In Stock")}}
+                    {{ui.table_header("With User")}}
+                    {{ui.table_header("Installed")}}
+                    {{ui.table_header("Orphaned")}}
+                    {{ui.table_header("Lost")}}
+                {% endif %}
+                {{ui.table_header("Actions")}}
+            </tr>
+        </thead>
+        <tbody>
+            {% if entity %}
+            {% for (pst, in_stock, in_stock_children, with_user, with_user_children, installed, installed_children) in stock_count %}
+            <tr>
+                <td>{{pst.name if pst else '-'}}</td>
+                {{children_row(in_stock, in_stock_children)}}
+                {{children_row(with_user, with_user_children)}}
+                {{children_row(installed, installed_children)}}
+                {{pst_actions(pst)}}
+            </tr>
+            {% endfor %}
+            {%else%}
+            {% for (pst, in_stock, with_user, installed, orphaned, lost) in stock_count %}
+            <tr>
+                <td>{{pst.name if pst else '-'}}</td>
+                <td>{{in_stock}}</td>
+                <td>{{with_user}}</td>
+                <td>{{installed}}</td>
+                <td>{{orphaned}}</td>
+                <td>{{lost}}</td>
+                {{pst_actions(pst)}}
+            </tr>
+            {% endfor %}
+            {%endif%}
+        </tbody>
+    </table>
+</div {{ ui.card_end() }}>
+
+
+    <!-- Add Stock Modal -->
+    <div {{ ui.modal_start('addStockModal', 'Add Stock') }}>
+        <form id="addStockForm" method="POST" onchange="add_updatedMovementSummaryForm('add')">
+            <div class="modal-body">
+                {{ ui.info_card(uicon='info', color='secondary', text="To add serialized devices that are Non-PAYGO, you can upload them <a href=\""+url_for('admin.bulk_upload_task_view', entity='devices')+"\">here</a>. To add PAYGO ones, ask support.") }}
+                {{ forms.select('product_sub_type_id:number', product_subtypes, value='', labeltag='Product Sub-type', placeholder="Choose Product Sub-type", source='product_subtypes', min_chars=0, id='productSubtypeSelect', required=true) }}
+                {{ forms.select('destination[entity_id]:number', choices=entities, value=entity.id if entity else None, labeltag="Operational Entity", uicon="shop", required=true, source='entities', id="entities_add") }}
+                <input type="hidden" name="destination[status]" value="in_stock" />
+                {{ forms.input('quantity:number', label='Quantity', type='integer', valid="negint", value='', id='quantity-add', required=true, oninput="add_updatedMovementSummaryForm('add')") }}
+                {{ forms.input('note', 'Note', type='textarea', value='', icon='note', size_class='', id="note-add") }}
+                <div class="mt-2 hide" id="summaryDisplayAdd">
+                    {{ ui.info_card(type='info', text='', in_card=true) }}
+                </div>
+            </div>
+            <div class="modal-footer">
+                {{ forms.button(uicon='add', label='Add Stock', type='action', action='async_post', async_url='/quantity_stock_movements') }}
+                {{ ui.modal_close_button() }}
+            </div>
+        </form>
+    </div {{ ui.modal_end() }}>
+    
+    <!-- Adjust Stock Modal -->
+    <div {{ ui.modal_start('adjustStockModal', 'Adjust Stock') }}>
+        <form id="adjustStockForm" method="POST" onchange="adjust_updatedMovementSummaryForm($('#delete-items').is(':checked') ? 'delete' : 'adjust')">
+            <div class="modal-body row">
+                {{ forms.select('product_sub_type_id:number', product_subtypes, value='', labeltag='Product Sub-type', placeholder="Choose Product Sub-type", source='product_subtypes', id='product_subtype_adjust', required=true) }}
+                <input type="hidden" id="dest_status_adjust" name="destination[status]" value="in_stock" />
+                {{ forms.select('destination[entity_id]:number', choices=entities, value=entity.id if entity else none, labeltag="Operational Entity", uicon="shop", required=true, source='entities', id='entity_adjust') }}
+                {{ forms.input('quantity:number', label='Quantity', valid="negint", type='number', id='quantity-adjust', required=true, oninput="updateDeleteCheckbox(this)") }}
+                {# Take into account that for negative quantities origin and destination get swaped #}
+                <input id="move-to-lost" type="hidden" name="origin[status]" value="lost" />
+                {{ forms.checkbox('delete-items:skip', value="true", label='Delete quantities from stock', selector_class="delete-checkbox hiddenform", onchange="updatedDelete(this)", id="delete-items") }}            
+                {{ forms.input('note','Note',type='textarea', icon='note', size_class='', id='note_adjust') }}
+                <div class="mt-2 hide" id="summaryDisplayAdjust">
+                {{ ui.info_card(type='info', text='', in_card=true) }}
+                </div>
+            </div>
+            <div class="modal-footer">
+                {{ forms.button(uicon='save', label='Save Changes', type='action', color='primary', action='async_post', async_url='/quantity_stock_movements') }}
+                {{ ui.modal_close_button() }}
+            </div>
+        </form>
+    </div {{ ui.modal_end() }}>
+{% endblock %}
+{% block scripts %}
+<script>
+    function updateDeleteCheckbox(el) {
+        if ($(el).val() == '-' || parseInt($(el).val()) < 0) {
+            showForm('.delete-checkbox')
+        } else {
+            hideForm('.delete-checkbox')
+            showForm('#move-to-lost')
+            $('.delete-checkbox input[type=checkbox]').prop( "checked", false );
+        }
+        adjust_updatedMovementSummaryForm($('#delete-items').is(':checked') ? 'delete' : 'adjust');
+    }
+    function updatedDelete(el) {
+        if ($(el).is(':checked')) {
+            hideForm('#move-to-lost')
+        } else {
+            showForm('#move-to-lost')
+        }
+    }
+    function pickAddProduct(pst) {
+        $('#productSubtypeSelect').val(pst).change();
+    }
+    function pickAdjustProduct(pst) {
+        $('#product_subtype_adjust').val(pst).change();
+    }
+    {{js_tricks.quantity_movement_summary_function(
+		'#summaryDisplayAdjust', '#quantity-adjust', '#product_subtype_adjust',
+		none, none, none,
+		'#dest_status_adjust', '#entity_adjust', none,
+        'adjust_'
+	)}}
+
+    {{js_tricks.quantity_movement_summary_function(
+		'#summaryDisplayAdd', '#quantity-add', '#productSubtypeSelect',
+		none, none, none,
+		none, '#entities_add', none,
+        'add_'
+	)}}
+
+</script>
+{% endblock %}

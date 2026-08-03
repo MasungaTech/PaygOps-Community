@@ -1,0 +1,131 @@
+{% import 'payment_macros.html' as payment_macros with context %}
+{% import 'macros/pagination.html' as pagination_nav with context %}
+{% import 'reversal_flow_modals.html' as reversal with context %}
+
+
+{% macro incoming_payments_table(pagination, is_cash_collection, is_outgoing=false) %}
+<table {{ ui.table_start(pagination) }}>
+    <thead>
+        <tr>
+            {{ ui.sortable_header('reference', "Transaction ID", class='ps-4', pagination=pagination) }}
+            {{ ui.sortable_header('amount', ftext('Amount ({})', Currency), pagination=pagination) }}
+            {{ ui.sortable_header('received_on', 'Time', pagination=pagination) }}
+            {{ ui.table_header('Memo') }}
+            {{ ui.table_header('Destination' if not is_outgoing else 'Origin') }}
+            {{ ui.table_header('') }}
+        </tr>
+    </thead>
+    <tbody>
+        {% for P in pagination.objects %}
+        <tr {% if P.reversed %}class="disabled"{%endif%}>
+            {% if is_cash_collection %}<td class="truncate-hoverable">{{ P.back_payment.Reference }}</td>{% else %}<td>{{ P.Reference }}</td>{% endif %}
+            <td>{{ ui.amount(P.Amount) }}</td>
+            <td>
+                {{ ui.datetime(P.PaymentReceptionTime) }}
+                {% if P.reversed %}<br>
+                (Reversed on {{ui.datetime(P.reversed_payment.reversed_on)-}})
+                {%endif%}
+            </td>
+            <td>{{ P.memo or '-' }}</td>
+            <td class="truncate-hoverable">{{ payment_macros.payment_destination(P) }}</td>
+            <td>             
+                {% set action = "update_reverse_payment_confirmation('"+(P.Reference or "")+"', '"+(P.wallet_operator or "")+"');update_reconciliation_reversal_modal("+reversal.format_reconciliations(P.not_reversed_reconciliations)+")" %}
+                {% if P.reversable and current_user.can_access("HandleReversedPayments") and not P.reversed %}
+                    {% if P.not_reversed_reconciliations %}
+                        {{ ui.button(uicon='undo', tooltip='Reverse', modal='reconciliation_reversal_modal', type='tiny-action', 
+                            action=action) }}
+                    {% else %}
+                        {{ ui.button(uicon='undo', tooltip='Reverse', modal='confirm_payment_reversal', type='tiny-action', 
+                            action="update_reverse_payment_confirmation('"+(P.Reference or "")+"', '"+(P.wallet_operator or "")+"')") }}
+                    {% endif %}
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+<hr class="mt-0">
+<div class="row mx-2 mt-2">
+    {{ pagination_nav.render_pagination(pagination, 'payments') }}
+</div>
+{{ reversal.reconciliation_reversal_modal() }}
+{{ reversal.reverse_payment_confirmation() }}
+{% endmacro %}
+
+
+{% macro outgoing_payments_table(pagination, is_cash_collection, is_outgoing=true) %}
+<table {{ ui.table_start(pagination) }}>
+    <thead>
+        <tr>
+            {{ ui.sortable_header('reference', "Transaction ID", class='ps-4', pagination=pagination) }}
+            {{ ui.sortable_header('amount', ftext('Amount ({})', Currency), pagination=pagination) }}
+            {{ ui.sortable_header('received_on', 'Time', pagination=pagination) }}
+            {{ ui.table_header('Memo') }}
+            {{ ui.table_header('Destination' if not is_outgoing else 'Origin') }}
+            {{ ui.table_header('') }}
+        </tr>
+    </thead>
+    <tbody>
+        {% for P in pagination.objects %}
+        <tr {% if P.reversed %}class="disabled"{%endif%}>
+            <td class="truncate-hoverable">{{ P.Reference if P.Reference != P.payment_uuid else 'Pending' }}</td>
+            <td>{{ ui.amount(P.Amount) }}</td>
+            <td>
+                {{ ui.datetime(P.PaymentReceptionTime) }}
+                {% if P.reversed %}<br>
+                (Reversed on {{ui.datetime(P.reversed_payment.reversed_on)-}})
+                {%endif%}
+            </td>
+            <td>{{ P.memo or '-' }}</td>
+            <td class="truncate-hoverable">{{ payment_macros.payment_destination(P) }}</td>
+            <td>             
+                {% set action = "update_reverse_payment_confirmation('"+(P.Reference or "")+"', '"+(P.wallet_operator or "")+"');update_reconciliation_reversal_modal("+reversal.format_reconciliations(P.not_reversed_reconciliations)+")" %}
+                {% if P.reversable and current_user.can_access("HandleReversedPayments") and not P.reversed %}
+                    {% if P.not_reversed_reconciliations %}
+                        {{ ui.button(uicon='undo', tooltip='Reverse', modal='reconciliation_reversal_modal', type='tiny-action', 
+                            action=action) }}
+                    {% else %}
+                        {{ ui.button(uicon='undo', tooltip='Reverse', modal='confirm_payment_reversal', type='tiny-action', 
+                            action="update_reverse_payment_confirmation('"+(P.Reference or "")+"', '"+(P.wallet_operator or "")+"')") }}
+                    {% endif %}
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+<hr class="mt-0">
+<div class="row mx-2 mt-2">
+    {{ pagination_nav.render_pagination(pagination, 'outgoing') }}
+</div>
+{{ reversal.reconciliation_reversal_modal() }}
+{{ reversal.reverse_payment_confirmation() }}
+{% endmacro %}
+
+
+{% macro ownership_history_list(Account) %}
+<table {{ ui.table_start() }}>
+    <thead>
+        <tr>
+            {{ ui.table_header('Owner') }}
+            {{ ui.table_header('Since') }}
+            {{ ui.table_header('Approved By') }}
+            {{ ui.table_header('Balance when changed') }}
+        </tr>
+    </thead>
+    <tbody>
+        {% for Owner in Account.owners|sort(attribute="date", reverse=true) %}
+            <tr>
+                {% if Owner.client %}<td>{{ ui.client_link(Owner.client) }} {{ ftext('(Client)') }}</td>
+                {% elif Owner.lead %}<td>{{ ui.lead_link(Owner.lead) }} {{ ftext('(Lead)') }}</td>
+                {% elif Owner.user %}<td>{{ ui.user_link(Owner.user) }} {{ ftext('(User)') }}</td>
+                {% else %}<td>{{ ftext('Orphaned') }}</td>{% endif %}
+                <td>{{ ui.datetime(Owner.date) }}</td>
+                <td>{% if Owner.approver %}{{ ui.user_link(Owner.approver) }}{%else%}{{ftext('Autolinked')}}{%endif%}</td>
+                <td>{{ ui.amount(Owner.balance, true) }}</td>
+            </tr>
+        {% else %}{{ui.no_results_row(4, 'No Owners')}}
+        {% endfor %}
+    </tbody>
+</table>
+{% endmacro %}

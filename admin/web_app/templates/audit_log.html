@@ -1,0 +1,112 @@
+{% extends "macros/list_base.html" %}
+{% import 'macros/form_macros.html' as forms %}
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'macros/filter_macros.html' as filter with context %}
+
+
+{% block title %}{{ ftext('Audit Log') }}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('Audit Log', 'List') }}{% endblock %}
+
+{% block page_actions %}
+    {{ forms.button('Activity Log (Legacy)', uicon='activity_log', link=url_for('admin.legacy_activity_log'), type='action') }}
+{% endblock %}
+
+{% block header %}
+    <div {{ ui.collapsible_card_start(title='Filters', uicon='filter', icon_color='', active=any_filter([from_date, to_date, pagination.search, request_uuid])) }}>
+    <form id="filter_form_v2" action="" method="get" class="row">
+        {{ forms.input('from_date', 'From Date', type='datetimepicker',
+                uicon='date', size=4, value=from_date) }}
+        {{ forms.input('to_date', 'To Date', type='datetimepicker',
+        uicon='date', size=4, value=to_date) }}
+
+        {% set extra_choices = {'NONE': 'No User', user_id: get_user(user_id).full_name} if user_id|int else {'NONE': 'No User'} %}
+        {{ forms.select(name='user_id', labeltag='User', uicon='user',
+        choices=users, value=user_id, size=4, source='users', 
+        extra_choices=extra_choices) }}
+
+        {{ forms.select('action', {
+            'ALL': 'All',
+            'add': 'Add',
+            'edit': 'Edit',
+            'delete': 'Delete'
+        }, value=action, labeltag="Action", size=3) }}
+        {{ forms.select('object_type', object_types, value=object_type, labeltag="Object Type", size=4, translate=false) }}
+        {{ forms.input('object_id', 'Object ID', type='number', size=3, value=object_id, oninput='toggleIfNotEmpty(this, ".search_box")') }}
+        {{ forms.input('request_uuid', 'Request UUID', type='text', size=5, value=request_uuid, icon='fingerprint', tooltip='Filter by API Request UUID') }}
+        {{ forms.input('search_field', 'Search Data: Field Name', type='text', size=5, value=search_field, selector_class='search_box'+' hiddenform' if not object_id else '', icon='info', tooltip='This is the name of the variable that was changed as shown in the details of the audit logs (e.g. \'name\'). If not specified, it will search in the whole object. ') }}
+        {{ forms.input('search_value', 'Search Data: Value', type='text', size=5, value=search_value, selector_class='search_box'+' hiddenform' if not object_id else '', icon='info', tooltip='The words to search in the specific field or in the whole object (e.g. \'John\')') }}
+        
+        {{ filter.filter_buttons() }}
+    </form>
+    </div {{ ui.collapsible_card_end() }}>
+
+    {% if too_many_results %}
+        {{ ui.info_card('The search is too wide. Please narrow it down reducing the time frame to less than 6h, searching with more than 3 characters, selecting a user or the action filter') }}
+    {%endif%}
+{% endblock %}
+
+{% block table %}
+<table {{ ui.table_start(pagination) }}>
+    <thead>
+    <tr>
+        {{ui.sortable_header('time', "Time", pagination=pagination, class='ps-4')}}
+        {{ui.sortable_header('user', "User", uicon="info", tooltip='Filtering will only show items with a user. To see items without users select \'No User\' in the user filter.', pagination=pagination)}}
+        {{ui.sortable_header('object', "Object", pagination=pagination)}}
+        {{ui.sortable_header('action', "Action", pagination=pagination)}}
+        {{ui.table_header('Details')}}
+    </tr>
+    </thead>
+    <tbody>
+        {% for entry in pagination.objects %}
+            <tr>
+                <td class="ps-4">{{ui.datetime(entry.time)}}</td>
+                {% set user = get_user(entry.user_id) %}
+                <td class="truncate-hoverable">{{ ui.user_link(user) if user else 'PaygOps Services' }}</td>
+                <td class="truncate-hoverable">{% if object_type and object_id and (object_type != entry.object_type or object_id != entry.object_id|string) %}{{ ui.icon('info', 'tiny', tooltip=ftext('This object is shown because its changes also affect {} #{}', object_type, object_id)) }}{% endif %}{{ type_name(entry.object_type) }} {% if entry.object_id %}#{{entry.object_id}}{% endif %}</td>
+                <td>{{entry.action}}</td>
+                <td class="pe-4">
+                    {{ ui.button(type='tiny-action', uicon='info', modal='extra-info-'+entry.id|string) }}
+                </td>
+            </tr>
+            <div {{ ui.modal_start('extra-info-'+entry.id|string, 'Additional Info') }}>
+                <form>
+                    <div class="modal-body">
+                         {% set data = ui.audit_log_data(entry.data) %}
+                         {{ ui.report_field('User Agent', entry.user_agent, 'important_devices' ) }}
+                         {{ ui.report_field('IP Address', entry.ip, 'dns') }}
+                         {{ ui.report_field('App', entry.platform, 'apps') }}
+                         {% if entry.request_uuid %}{{ ui.report_field('Request UUID', entry.request_uuid, 'fingerprint') }}{% endif %}
+                         {% if entry.mocked_time %}{{ ui.report_field('Mocked Time', ui.icon('warning', 'inline-icon-small red pe-1', tooltip='The time of this request was mocked via API and does not correspond to the time it was actually sent')+ui.datetime(entry.mocked_time), 'time') }}{% endif %}
+                         {{ ui.report_field('Data', '<br>'|safe+data, 'data_object', nospace=true) }}
+                    </div>
+                    <div class="modal-footer">
+                        {{ ui.modal_close_button() }}
+                    </div>
+                </form>
+            </div {{ ui.modal_end() }}>
+        {% else %}
+            {{ui.no_results_row(8, 'No activity log entries found.')}}
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function toggleIfNotEmpty(elem, shown_if_not_empty, shown_if_empty) {
+        var value = $(elem).val()
+        var shown = shown_if_empty
+        var hidden = shown_if_not_empty
+        if(value) {
+            shown = shown_if_not_empty
+            hidden = shown_if_empty
+        }
+        debug_log('Toggle Input Value: ', value, ' - Shown: ', shown, ' - Hidden: ', hidden)
+        showForm(shown)
+        hideForm(hidden)
+        // We refresh in case there were imbricated classes
+        refreshHiddenElements();
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,52 @@
+{% macro draw_entity(entity, level) %}
+<div class="entity-box l{{level}}">
+    <div class="title">{{entity['name']}}</div>
+    {% for subentity in entity['children']%}
+    {{draw_entity(subentity, level-1)}}
+    {% else %}
+    {% if level > 0 %}
+    <div style="opacity: 0;">{{draw_entity({'name': 'Empty entity', 'children': ''}, level-1)}}</div>
+    {% endif %}
+    {%endfor%}
+</div>
+{% endmacro %}
+
+{% macro entity_styles() %}
+<style>
+    .entity-box {
+        border: 3px solid #003E51; 
+        padding: 8px;
+        display:inline-block;
+        border-radius: 10px;
+        margin-top: 5px;
+    }
+    .entity-box.l4 {
+        background-color: #00222c;
+        color: white;
+    }
+    .entity-box.l3 {
+        background-color: #003E51;
+        color: white;
+    }
+    .entity-box.l2 {
+        background-color: #006d8f;
+        color: white;
+    }
+    .entity-box.l1 {
+        background-color: #22aed8;
+        color: white;
+    }
+    .entity-box.l0 {
+        background-color: #92e6ff;
+        color: #003E51;
+    }
+    .entity-box .title {
+        font-size: 16px;
+        text-align: center;
+        font-weight: bold;
+    }
+    .entity-box .entity-box {
+        margin-top: 10px;
+    }
+</style>
+{% endmacro %}

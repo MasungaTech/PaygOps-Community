@@ -1,0 +1,75 @@
+{% extends "macros/list_base.html" %}
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'macros/form_macros.html' as forms with context %}
+{% import 'contract_table_macros.html' as contract_table with context %}
+{% import 'macros/filter_macros.html' as filter with context %}
+
+{% block title %}{{ ftext('Contracts List') if not task_mode else ftext('Make Plans') }}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('Contracts', 'List') if not task_mode else ui.page_title('Planning', 'Make') }}{% endblock %}
+
+{% block page_actions %}
+    {{ filter.special_views_filter(views, view) }}
+{% endblock %}
+
+{% block header %}
+    {{ filter.entities_navigation_filter(entity) }}
+
+    <div {{ ui.collapsible_card_start(title='Filters', uicon='filter', icon_color='', 
+    active=any_filter([pagination.search, status, portfolio, client_group, addon_offer, min_payment_due, 
+        max_payment_due, min_cumulative_days, max_cumulative_days, contract_offer, 
+        offer_type, from_date, to_date, loan_progress_min, loan_progress_max, tags, with_issues])) }}>
+    <form id="filter_form_v2" action="" method="get">
+    <div class="row">
+        {{ forms.input('tags', type='tags', label='Filter by Tags', placeholder='+Tags', size="4", value=tags, icon='tags') }} 
+        {{ forms.input(
+            'search',
+            label='Search',
+            value=pagination.search,
+            size="8",
+            placeholder=ftext("Search contracts by ID, name, serial, phone ")+(" or "+GlobalSetting('CustomId') if GlobalSetting('CustomIdEnabled') else ""),
+            translate_placeholder=false,
+            icon='search',
+            tooltip=ftext("You can search by ID, name, device serial, phone number")+(" or "+GlobalSetting('CustomId') if GlobalSetting('CustomIdEnabled') else ""),
+            translate_tooltip=false
+        ) }}
+
+        {{forms.searchable_select('status', valid_statuses, size="4", value=status, labeltag="Filter by status")}}
+        {{forms.searchable_select('portfolio_id', portfolios, 'All', labeltag="Filter by portfolio", 
+            size="4", value=portfolio.id if portfolio else none, source="portfolios")}}
+        {{forms.searchable_select('client_group_id', client_groups, 'All', labeltag="Filter by client group", 
+            size="4", value=client_group.id if client_group else none, source="client_groups")}}
+
+        {{forms.searchable_select('delivery_status', {'all': 'All', 'delivered': 'Delivered', 'partially_delivered': 'Partially Delivered'}, size="4", value=delivery_status, labeltag="Filter by delivery status")}}
+        {{ forms.input('from_delivery_date', 'Filter from this delivery date', type='datepicker', icon='date', size='4', value=from_delivery_date or none, tooltip='This filters by the delivery date of the different add-ons within the contract') }}
+        {{ forms.input('to_delivery_date', 'Filter to this delivery date', type='datepicker', icon='date', size='4', value=to_delivery_date or none, tooltip='This filters by the delivery date of the different add-ons within the contract') }}
+
+        {{ forms.searchable_select('addon_offer_id', addon_offers, 'All', labeltag="Filter by add-on offer", 
+            size="4", value=addon_offer.id if addon_offer else none, source="addon_offers")}}
+        {{ forms.searchable_select('contract_offer_id', contract_offers, 'All', labeltag="Filter by offer", 
+            size="4", value=contract_offer.id if contract_offer else none, source="contract_offers")}}
+        {{ forms.searchable_select('offer_type', offer_types, 'All', labeltag="Filter by offer type", 
+            size="4", value=offer_type if offer_type else none)}}
+
+        {{forms.select('with_issues', choices={none: 'From all clients', 'true': 'From clients with open Issues', 'false': 'From clients without open Issues'}, value=with_issues, labeltag='Open Issues', size="4", clearable=true) }}
+
+        {{ forms.input('from_date', 'Min Registration date', type='datepicker', icon='date', size='4', value=from_date or none) }}
+        {{ forms.input('to_date', 'Max Registration date', type='datepicker', icon='date', size='4', value=to_date) }}
+        {{ forms.input('loan_progress_min', type="number", value=loan_progress_min, numeric=true, min=0, max=100, size="4", label="Min Loan progress", tooltip="Only contract above that progress (in percent) will be shown. ")}}
+        {{ forms.input('loan_progress_max', type="number", value=loan_progress_max, numeric=true, min=0, max=100, size="4", label="Max Loan progress", tooltip="Only contract below that progress (in percent) will be shown. ")}}
+
+        {{forms.input('min-payment-due', type="number", value=min_payment_due, size="4", valid="negint", label="Min days before due", tooltip="Filter contracts by next payment due. Use negative days to filter late contracts.")}}
+        {{forms.input('max-payment-due', type="number", value=max_payment_due, size="4", valid="negint", label="Max days before due")}}
+        {{forms.input('min-cumulative-days', type="number", value=min_cumulative_days, size="4", valid="negint", label="Min cumul. days late", tooltip="Filter contracts by cumulative days late.")}}
+        {{forms.input('max-cumulative-days', type="number", value=max_cumulative_days, size="4", valid="negint", label="Max cumul. days late")}}
+
+        {{ filter.filter_buttons() }}
+    </div>
+    </form>
+    </div {{ ui.collapsible_card_end() }}>        
+    
+{% endblock %}
+
+{% block table %}
+    {{ contract_table.table(pagination.objects, task_mode=task_mode) }}
+{% endblock %}

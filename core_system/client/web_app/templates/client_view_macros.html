@@ -1,0 +1,57 @@
+{% import 'macros/general_macros.html' as ui with context %}
+
+
+{% macro quick_action(permission, tooltip, icon=none, id=none, url=none, blank=false, person=none, client=none, contract=none) %}
+{% if not person %}{% set person = client.person if client else contract.client.person %}{% endif %}
+{% if current_user.can_access(permission, person=person) %}
+    {% set href = url if url else '#modal_'+id %}
+    {% if not url %}
+      <div class="quick-action-group">
+        {{ ui.button(uicon=icon, id='button_'+id, color='danger', class='quick-action-button',
+          action="loadRemoteHTMLInElement('"+url_for('transaction_request.'+id+'_transaction_content', client_id=client.id if client else none, contract_id=contract.id if contract else none)+"', $('#modal_"+id+"_content'), true);$('#modal_"+id+"').modal({show:true});",
+          modal='modal_'+id) }}
+          <label for="button_{{ id }}" class="quick-action-text">{{ ftext(tooltip) }}</label>
+      </div>
+      {{ transaction_modal('modal_'+id) }}
+    {% else %}
+      <div class="quick-action-group">
+        {{ ui.button(uicon=icon, id='button_'+permission, color='danger', class='quick-action-button', link=url, link_target_blank=blank) }}
+          <label for="button_{{ permission }}" class="quick-action-text">{{ ftext(tooltip) }}</label>
+      </div>
+    {% endif %}
+{% endif %} 
+{% endmacro %}
+
+{% macro transaction_modal(modal_name) %}
+<div class="modal fade transaction_modal" id="{{ modal_name }}" tabindex="-1" aria-labelledby="{{modal_name}}" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content" id="{{ modal_name }}_content">
+      <div class="modal-body"></div>
+      <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+  $(function() {
+    $('#{{ modal_name }}').on('hidden.bs.modal', function () {
+      $('#{{ modal_name }}_content').html('');
+    });
+  });
+</script>
+{% endmacro %}
+
+{% macro lead_summary(lead) %}
+<div {{ ui.card_start(uicon='lead', title=ftext('Lead Info - {}', lead.id|string), title_link=url_for('leads.view_lead', lead_id=lead.id)) }}>
+  <div class="row off-by-1">
+      {{ ui.report_field('Lead Generation Date', ui.datetime(lead.receptionTime), 'event', size=6) }}
+      {{ ui.report_field('Lead Generator', ui.lead_generator_link(lead.generator, link=false if is_custom_app else true), 'account_box', size=6) }}
+      {{ ui.report_field('Lead Entry Date', ui.datetime(lead.entryDate), 'event', size=6) }}
+      {{ ui.report_field('Lead Entry By', ui.user_link(lead.reporter, link=false if is_custom_app else true), 'account_box', size=6) }}
+      {{ ui.report_field('Status', lead.status.name, 'label', size=6) }}
+      {{ ui.report_field('Offer', ui.offer_link_full(lead.offer, link=false if is_custom_app else true), 'offer', size=6) }}
+  </div>
+</div {{ ui.card_end() }}>
+{% endmacro %}
+

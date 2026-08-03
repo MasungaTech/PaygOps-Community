@@ -1,0 +1,50 @@
+{% extends "macros/base.html" %}
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'entity_structure_macros.html' as entity_macros with context %}
+
+{% block title %}{{ ftext('Entity Level Adjustment Tool') }}{% endblock %}
+{% block page_title %}{{ ui.page_title('Hierarchy', 'Entity Level Change') }}{% endblock %}
+
+{% block styles %}
+{{entity_macros.entity_styles()}}
+{% endblock %}
+
+{% block content %}
+{{ ui.info_card(color='warning', uicon='warning', title='Warning', text='This tool makes changes in the operational entities structure that cannot be reverted, please check carefully before saving changes.') }}
+{{ ui.info_card(color='secondary', uicon='info', title='What is this tool?', text=ftext('This tool allows for moving all of the entities of one level to a higher level, pushing all the higher levels to an even higher level. This is only possible if there is at least one level disabled (or with no more than one entity in that level that will be removed and replaced by the entities of the level below). This works by choosing which level you want to move up ({}), after confirming, the system will start from the highest level enable and enable the level above, then copy the entity from that highest level to the level above (e.g. create a {} from every {} there was), then it will move the entities from the level below up one level (e.g. create a {} for every {} there was) and removing the original entities of that level (the {} that are now {}), this is repeated for each level down to the selected one. The newly moved entities have exactly the same name, user in charge and associated users as previously. ', base_levels.values()|join(", "), GlobalSetting('OperationalEntities')[3].name, GlobalSetting('OperationalEntities')[2].name, GlobalSetting('OperationalEntities')[2].name, GlobalSetting('OperationalEntities')[1].name, GlobalSetting('OperationalEntities')[2].names, GlobalSetting('OperationalEntities')[3].names, novar=true)) }}
+
+{% if disabled %}
+<div {{ui.card_start(title='Entity Level Change', uicon='hierarchy')}}>
+    {{ ui.info_card(color='warning', uicon='warning', text='You cannot moves entities up if all the levels are enabled, disable at lease one level first. ') }}
+</div {{ui.card_end()}}>
+{% else %}
+<div {{ui.card_start(title='Entity Level Change', uicon='hierarchy')}}>
+    <form action="" method="POST" class="row">
+    {{forms.select('level', base_levels, size=6, labeltag="Pick base level from which to start moving up")}}
+    {{forms.button('Save changes', uicon='save', type='action', size=6, fit=true, inline=true)}}
+    </form>
+</div {{ui.card_end()}}>
+
+<div {{ui.collapsible_card_start(title='Current Operational Entities Structure', uicon='hierarchy', active=false)}}>
+    {{ ui.info_card(color='secondary', uicon='info', text='This only shows a subset of your entities (3 per level) for the sake of readability.') }}
+    <div class="current-entities-structure" style="text-align:center;"></div>
+</div {{ui.collapsible_card_end()}}>
+
+<div {{ui.collapsible_card_start(title='Future Operational Entities Structure', uicon='hierarchy')}}>
+    {{ ui.info_card(color='secondary', uicon='info', text='This only shows a subset of your entities (3 per level) for the sake of readability.') }}
+    <div class="preview-entities-structure" style="text-align:center;">{{ ui.info_card(text='Select the starting level to see the preview') }}</div>
+</div {{ui.collapsible_card_end()}}>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    $(document).ready(function () {
+        $('.current-entities-structure').load('{{url_for('admin.preview_entity_adjustment')}}');
+        $('#level').change(function () {
+            $('.preview-entities-structure').load('{{url_for('admin.preview_entity_adjustment')}}?level='+$('#level').val());
+        }); 
+    });
+</script>
+{%endblock%}

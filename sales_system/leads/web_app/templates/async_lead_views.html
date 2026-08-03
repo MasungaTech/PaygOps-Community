@@ -1,0 +1,18 @@
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'macros/form_macros.html' as forms with context %}
+{% if view == 'general_info' %}
+    {% import 'lead_general_info_macro.html' as general_info_macro with context %}
+    {{ general_info_macro.general_info_form(Lead, true, restrict_editing) }}
+{% elif view == 'entry_info' %}
+    {% import 'lead_entry_info_macro.html' as lead_entry_info_macro with context %}
+    {{ lead_entry_info_macro.lead_entry_info_form(Lead, true) }}
+{% elif view == 'status_info' %}
+    {% import 'lead_status_macro.html' as status_macro with context %}
+    {{ status_macro.lead_status_form(Lead, true) }}
+{% elif view == 'offer_form' %}
+    {% import 'offer_and_device_macros.html' as offer_device_macro with context %}
+    {{ offer_device_macro.offer_form(Lead, true) }}
+{% elif view == 'device_form' %}
+    {% import 'offer_and_device_macros.html' as offer_device_macro with context %}
+    {{ offer_device_macro.device_form(Lead, true) }}
+{% endif %}

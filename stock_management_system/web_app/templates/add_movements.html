@@ -1,0 +1,103 @@
+{% extends 'macros/base.html' %}
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'lead_list_table.html' as lead_table with context %}
+{% import 'macros/charts_macros.html' as charts with context %}
+{% import 'macros/js_tricks.html' as js_tricks with context %}
+
+{% block title %}{{ ftext('Add Stock Movements') }}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('Stock Movements', 'Add') }}{% endblock %}
+
+{% block content %}
+<div class="row">
+	<div {{ ui.card_start() }}>
+		{% if current_user.can_access('ManageQuantityViewStock') %}
+		<ul {{ ui.tabs_ul() }}>
+			{{ ui.tabs_item('By Serial Number', 'bySerial', uicon='contract', active=true) }}
+			{{ ui.tabs_item('By Quantity', 'byQuantity', uicon='list') }}
+		</ul>
+		{%endif%}
+		<div class="tab-content">
+			<div {{ ui.tabs_pane_div('bySerial', active=true) }}>
+				<form class="row card-row">
+					{{ forms.select('stock_item_ids', choices=device_code_adder, labeltag='Stock Items to Move',
+					uicon="stock", size=6, source='device_code_adder', min_answers=1, max_answers=100, type='number') }}
+					{{ forms.input('note', 'Movement note', uicon='notes', type='textarea', size=6) }}
+
+					{{ ui.divider('Destination', small=true) }}
+
+					{{ forms.select('destination_status', destinations, labeltag='Destination Status', size=6,
+					required=true, onchange="selectToggleFormsMap(this, 'value', {'with_user': $('#dest_user'),
+					'in_stock': $('#dest_entity')})") }}
+					{{ forms.select('destination_user_id', choices=users, labeltag='Destination User', size=6,
+					source='users', size_class='hiddenform', size_id='dest_user', required=true, type='number') }}
+					{{ forms.select('destination_entity_id', choices=shops, labeltag='Destination Entity', size=6,
+					source='shops', size_class='hiddenform', size_id='dest_entity', required=true, type='number') }}
+
+					{{ forms.button(label='Add Stock Movement', uicon='save', type='action', fit=true, size=6,
+					center=true,
+					action='async_post', async_url='/stock_movements', success_message='Movements added!',
+					redirect_url='/stock/movements/') }}
+				</form>
+			</div>
+			{% if current_user.can_access('ManageQuantityViewStock') %}
+			<div {{ ui.tabs_pane_div('byQuantity') }}>
+				<form class="row card-row" onchange="updatedMovementSummaryForm()">
+					{{ forms.select('product_type:skip', product_types, labeltag='Product Type',
+						size=6, required=true, onchange='updatedProductType()', id="product_type", visible=false) }}
+
+					{{ forms.select('product_sub_type_id:number', product_subtypes, min_chars=0, labeltag='Product Sub-type', size=6, id="product_sub_type",
+						required=true, source='product_subtypes', onchange='updatedProductSubType()', ajax=config.AJAX_SELECT_CLASS) }}
+
+					{{ forms.input('quantity:number', 'Quantity', type='number', size=6, required=true, min=1, id="quantity", oninput="updatedMovementSummaryForm()") }}
+
+					{{ forms.input('note', 'Movement Note', uicon='notes', type='textarea', size=6) }}
+
+					{{ ui.divider('Origin', small=true) }}
+
+					{{ forms.select('origin[status]', destinations, labeltag='Origin Status', size=6, required=true, id="origin_status",
+						onchange="selectToggleFormsMap(this, 'value', {'with_user': $('#origin_user_q'),
+						'in_stock': $('#origin_entity_q')})") }}
+					{{ forms.select('origin[user_id]', choices=users, labeltag='Origin User', size=6,
+					source='users', size_class='hiddenform', size_id='origin_user_q', required=true, type='number') }}
+					{{ forms.select('origin[entity_id]', choices=shops, labeltag='Origin Entity', size=6,
+					source='shops', size_class='hiddenform', size_id='origin_entity_q', required=true, type='number') }}
+
+					{{ ui.divider('Destination', small=true) }}
+
+					{{ forms.select('destination[status]', destinations, labeltag='Destination Status', size=6, id="dest_status",
+					required=true, onchange="selectToggleFormsMap(this, 'value', {'with_user': $('#dest_user_q'),
+					'in_stock': $('#dest_entity_q')})") }}
+					{{ forms.select('destination[user_id]', choices=users, labeltag='Destination User', size=6,
+					source='users', size_class='hiddenform', size_id='dest_user_q', required=true, type='number') }}
+					{{ forms.select('destination[entity_id]', choices=shops, labeltag='Destination Entity', size=6,
+					source='shops', size_class='hiddenform', size_id='dest_entity_q', required=true, type='number') }}
+					
+					<div class="p-3 hide" id="summaryDisplay">
+						{{ui.info_card('XX', uicon="info", type="info")}}
+					</div>
+
+					{{ forms.button(
+						label='Add Stock Movement', uicon='save', type='action', fit=true, size=6, center=true,
+						action='async_post', async_url='/quantity_stock_movements', success_message='Movement added!',
+						redirect_url='/stock/movements/'
+					) }}
+
+				</form>
+			</div>
+			{%endif%}
+		</div>
+	</div>
+</div {{ ui.card_end() }}>
+{% endblock %}
+
+{% block scripts %}
+<script>
+	{{js_tricks.device_type_subtype_coupling('#product_type', '#product_sub_type')}}
+	{{js_tricks.quantity_movement_summary_function(
+		'#summaryDisplay', '#quantity', '#product_sub_type',
+		'#origin_status', '#origin_entity_q select', '#origin_user_q select',
+		'#dest_status', '#dest_entity_q select', '#dest_user_q select'
+	)}}
+</script>
+{% endblock %}
