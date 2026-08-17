@@ -1,0 +1,54 @@
+{% extends "macros/base.html" %}
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'macros/form_macros.html' as forms %}
+{% import 'macros/charts_macros.html' as charts with context %}
+{% import 'macros/filter_macros.html' as filter with context %}
+
+{% block title %}{{ ftext('GOGLA Dashboard') }}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('Dashboards', 'GOGLA') }}{% endblock %}
+
+{% block page_actions %}
+    {{ ui.button(uicon='sync', link=url_for('historical_data.compute_gogla_dashboard'), type='header-action') }}
+{% endblock %}
+
+{% macro gogla_field_macro(id) %}
+<span class="red-text" id="{{id}}"></span> (<span class="red-text" id="{{id}}_date"></span>)
+{% endmacro %}
+
+{% block content %}
+{% if GlobalSetting('StressMode') %}
+    {{ ui.info_card('We are experiencing a high load on the server. Dashboards have been temporarily disabled.')}}
+{% else %}
+<div {{ ui.card_start(uicon='graph_up', title='GOGLA Standard metrics', body_class='row') }}>
+    {{ ui.report_field('Portfolio Size', gogla_field_macro('portfolio_size'), size=6)}}
+    {{ ui.report_field('Average Credit Period (years)', gogla_field_macro('average_credit_period'), size=6)}}
+    {{ ui.report_field('Average Unit Cost', gogla_field_macro('average_unit_cost'), size=6)}}
+    {{ ui.report_field('Avg. downpayment / Unit Cost', gogla_field_macro('deposit_as_proportion_of_cost'), size=6)}}
+    {{ ui.report_field('Standards Compliance', gogla_field_macro('compliance_percentage'), size=6)}}
+    {{ ui.report_field('Churn Rate', gogla_field_macro('churn_rate'), size=6)}}
+    {{ ui.report_field('Avg. Monthly Revenue per User', gogla_field_macro('revenue_average'), size=6)}}
+</div {{ ui.card_end() }}>
+{% endif %}
+{% endblock %}
+
+
+{% block scripts %}
+{% if not GlobalSetting('StressMode') %}
+<script type="text/javascript"
+        src="{{ url_for('historical_data.static', filename='js/gogla_dashboard.js') }}">
+</script>
+<script src="/static/js/chart.min.js"></script>
+<script>
+$(document).ready(function () {
+    portfolioSize();
+    averageCreditPeriod();
+    averageUnitCost();
+    churnRate();
+    revenue_average();
+    standardCompliancePercentage();
+    depositAsProportionCost();
+})
+</script>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,26 @@
+{% macro offline_token_config_view(existing_config, offer=None) -%}
+{% if existing_config %}
+<div {{ ui.card_start(title='Offline Token Config', uicon='device', body_class='table-responsive') }}>
+    <table {{ ui.table_start() }}>
+        <tr>
+            <th>Order</th>
+            <th>Token Type</th>
+            <th>Token Value</th>
+            {% if offer %}<th>Price {{ui.icon('info', 'tiny', tooltip="This price is only indicative and might change if the contract under this offer includes loan extension add-ons")}}</th>{% endif %}
+        </tr>
+        {% for config in existing_config|sort(attribute='order') %}
+        <tr>
+        <td>{{ config.order + 1 }}</td>
+        <td>{{ config.get_type_name() }}</td>
+        <td>{% if config.credit_value %}{{ config.credit_value|int }}{% else %}-{% endif %}</td>
+        {% if offer %}<td>{{ ui.amount(config.get_default_price(), include_currency=true) }}</td>{% endif %}
+        </tr>
+        {%else%}
+        <tr>
+            <td colspan="3">No Offline token configs</td>
+        </tr>
+        {% endfor %}
+    </table>
+</div {{ ui.card_end() }}>
+{% endif %}
+{%- endmacro %}

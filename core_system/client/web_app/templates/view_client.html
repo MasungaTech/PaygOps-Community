@@ -1,0 +1,147 @@
+{% extends "macros/base.html" %}
+{% import 'macros/form_macros.html' as forms with context %}
+{% import 'macros/general_macros.html' as ui with context %}
+
+{% import 'custom_forms_macros.html' as custom_forms with context %}
+{% import 'client_view_macros.html' as client_macros with context %}
+{% import 'payment_wallet_macros.html' as wallet_macros with context %}
+{% import 'contract_summary_macro.html' as contract_macro with context %}
+{% import 'person_macros.html' as person_macros with context %}
+{% import 'repayment_list_macros.html' as timeline_table with context %}
+
+{% block title %}{{ ftext('View Client: {}', Client.full_name, novar=true) }}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('Clients', 'View', object=Client) }}{% endblock %}
+
+{% block page_actions %}
+  {{ ui.button(link=url_for('.edit_client', client_id=Client.id), uicon="edit", tooltip="Edit Client", permission="EditClients", person=Client.person, type='header-action') }}
+{% endblock %}
+
+{% block content %}
+{% set person = Client.person %}
+<div class="row">
+  <!-- Side Nav -->
+  <div class="{{ui.col_size('2s')}}">
+    <nav {{ ui.side_nav() }}>
+      <ul {{ ui.side_ul() }}>
+        {% set show_payments = Client.person.pending_reconciled_payments_filtered or Client.payment_wallets.count() > 0 %}
+        {{ ui.side_link(text='Personal Info', subtext='', uicon='client', target_id='basic_info') }}
+        {{ ui.side_link(text='Quick Access', subtext='Links and Actions', uicon='redo', target_id='access') }}
+        {{ ui.side_link(text='Details', subtext='Notes / Tags', uicon='tags', target_id='notes') }}
+        {{ ui.side_link(text='Payments', subtext='Wallets / Pending', uicon='payment', target_id='payments', visible=show_payments) }}
+        {{ ui.side_link(text='Contracts', subtext='Contract Details', uicon='contract', target_id='contracts') }}
+        {{ ui.side_link(text='Additional Info', subtext='Custom Forms', uicon='info', target_id='additional_info', last=true) }}
+      </ul>
+    </nav>
+  </div>
+  <div class="{{ ui.col_size('10s') }}">
+    <!-- Tab Content -->
+      {% if not GlobalSetting('EnableContractPaymentsForReversedDownpayments') and Client.has_pending_downpayment() %}
+      {{ ui.info_card('This client\'s downpayment is not yet fully paid, payments made will be recorded as pending payments until the downpayment is paid.', uicon='warning')}}
+      {% endif %}
+      <div id="basic_info">
+        <div {{ ui.card_start(uicon='client', title='Personal Information', body_class='row') }}>
+            <div class="{{ ui.col_size(3) }} d-flex justify-content-center align-items-center">
+                <div class="text-center">
+                    {{ ui.picture_square(ui.person_picture(Client.person), 'Client picture') }}
+                    <h4 class="my-2">{{ Client.full_name }}</h4>
+                    {{ ui.badge(Client.get_display_id()|notranslate, 'gray', uicon='client') }}
+                </div>
+            </div>
+            <div class="{{ ui.col_size(9) }} row subcol off-by-1">
+                {{ person_macros.person_info_elements(client=Client) }}
+            </div>
+        </div {{ ui.card_end() }}>
+      </div>
+      <div id="access">
+        {% if not is_custom_app %}
+          <div {{ ui.card_start(uicon='redo', title='Quick Access') }}>
+            <div class="align-items-center justify-content-between">
+              {% if config.ENABLE_ENTERPRISE_FEATURES %}
+              {{ client_macros.quick_action('AddInteractions',  'Add Interaction', icon='interaction', url=url_for('interaction_report.add_interaction_report', client_id=Client.id), client=Client) }}
+              {% endif %}
+              {% if GlobalSetting('AllowMultipleContracts') or Client.eligible_for_new_contract %}
+                {{ client_macros.quick_action('AddLeads',  'Add Lead to Client', icon='lead', url=url_for('leads.add_lead', from_client=Client.id), client=Client) }}
+              {% endif %}
+              {{ client_macros.quick_action('MergeClients', 'Merge clients', 'call_merge',  url=url_for("client.merge_client", client_id=Client.id), client=Client) }}
+              {{ client_macros.quick_action('AddOutgoingMessages', 'Send Message', icon='send', url=url_for('message.list_message', client_id=Client.id, open_send_modal='true', send_message_entity_category='send_message_client', send_message_entity_id=Client.id), client=Client) }}    
+              {{ client_macros.quick_action('ViewMessages', 'Messages', icon='message', url=url_for('message.list_message', client_id=Client.id), client=Client) }}    
+              {{ client_macros.quick_action('ViewPayments', 'Payments', icon='payment', url=url_for('payment.list_payment', client_id=Client.id), client=Client) }}    
+              {# After-sales (Issues & Interactions) are enterprise-only features.
+                 Hide these quick actions when enterprise features are disabled. #}
+              {% if config.ENABLE_ENTERPRISE_FEATURES %}
+              {{ client_macros.quick_action('ViewIssues', 'Issues', icon='issue', url=url_for('issue.list_issue', client_id=Client.id), client=Client) }}    
+              {{ client_macros.quick_action('ViewInteractions', 'Interactions', icon='interaction', url=url_for('interaction_report.list_interaction_report', client_id=Client.id), client=Client) }}    
+              {% endif %}
+              {{ client_macros.quick_action('ViewActions', 'User Requests', icon='support_agent', url=url_for('mentor_request.list_request', client_id=Client.id), client=Client) }}    
+              {{ client_macros.quick_action('ViewActions', 'Token Requests', icon='activation_request', url=url_for('mentor_request.token_list', client_id=Client.id), client=Client) }}
+              {% for button in formattedCustomButtons %}
+                  {{ client_macros.quick_action('ViewCustomButtonActions', button.get('CustomButtonName'), button.get('CustomButtonIcon'), url=button.get('TargetUrl'), blank=true, client=Client) }}
+              {% endfor %}
+            </div>
+          </div {{ ui.card_end() }}>
+      {% endif %}
+
+        <div {{ ui.card_start(uicon='contract', title='Contract Actions') }}>
+          <div class="align-items-center justify-content-between">
+            {% for action in config.QUICK_ACTIONS_SETTINGS %}
+              {% if Client.has_contracts_in_status_and_check(action.statuses, action.extra_check) %}
+                {{ client_macros.quick_action(
+                    action.permission, action.name, action.icon, action.id, client=Client
+                ) }}
+              {% endif %}
+            {% endfor %}
+          </div>
+        </div {{ ui.card_end() }}>
+      </div>
+
+      <div id="notes">
+        <div {{ ui.card_start(body_class='card-row') }}>
+          <form id="client_note_form" action="" method="post" class="row">
+              {{ forms.input('note', 'Notes about the client', value=Client.Assets, type='textarea', size=11, icon='note', disabled=not current_user.can_access('EditClients', person=Client.person), size_class='') }}
+              {{ ui.button(uicon='save', tooltip='Save changes', color='danger', inline=true, align_end=true, size=1, action='async_post', async_url='/clients/'+Client.id|string, disabled=none if current_user.can_access('EditClients', person=Client.person) else true) }}
+          </form>
+        </div {{ ui.card_end() }}>
+
+        <div {{ ui.card_start(body_class='card-row') }}>
+          <form id="client_tag_form" action="" method="post" class="row">
+            {{ forms.input('tags', type='tags', label='Client Tags', placeholder='+Tags', size=11, value=Client.tags, icon='tags', disabled=not current_user.can_access('AddTagsClients', person=Client.person), size_class='') }} 
+            {{ ui.button(uicon='save', tooltip='Save changes', color='danger', inline=true, align_end=true, size=1, action='async_post', async_url='/clients/'+Client.id|string, disabled=none if current_user.can_access('AddTagsClients', person=Client.person) else true) }}
+          </form> 
+        </div {{ ui.card_end() }}>
+      </div>
+      {% if not is_custom_app %}
+        <div id="payments">
+          {% if Client.person.pending_reconciled_payments_filtered %}
+            <div {{ ui.card_start(title='Payments Pending Reconciliation', uicon='payment', body_class='row') }}>
+              {{ timeline_table.client_pending_table(Client) }}
+            </div {{ ui.card_end() }}>
+          {% endif %}
+
+          {% if Client.payment_wallets.count() > 0 %}
+              {{ wallet_macros.payment_wallet_list(Client.payment_wallets) }}
+          {% endif %}
+        </div>
+      {% endif %}
+
+      <div id="contracts">
+        {% for lead in Client.person.lead %}
+          {% if not lead.installed and not lead.cancelled %}{{ client_macros.lead_summary(lead) }}{% endif %}
+        {% endfor %}
+        {% for contract in Client.contracts|sort(attribute='start_time', reverse=true) %}
+          {{ contract_macro.contract_summary_card(contract) }}
+        {% endfor %}
+      </div>
+      {% if not is_custom_app %}
+        <div id="additional_info">
+          {% for surveys in MandatorySurveys %}
+            {{ custom_forms.custom_form_view_card(surveys, edit=true, is_admin=current_user_role)}}
+          {% endfor %}
+          {% for surveys in extra_surveys %}
+            {{ custom_forms.custom_form_edit_card(surveys, is_required=(surveys.form in required_forms), client=Client) }}
+          {% endfor %}
+        </div>
+      {% endif %}
+</div>
+{% endblock %}
+

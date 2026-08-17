@@ -1,0 +1,34 @@
+{% extends "macros/base.html" %}
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'macros/form_macros.html' as forms with context %}
+
+{% block title %}{{ ftext('Owned Devices Sync results') }}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('Admin', 'Owned Devices Sync') }}{% endblock %}
+
+{% block page_actions %}
+  {{ ui.button(link=url_for('admin.sync_owned_all_devices_route'), uicon="sync", tooltip="Synchronise Owned Devices", type="header-action") }}
+{% endblock %}
+
+
+{% block content %}
+
+<div {{ ui.card_start(title='Devices sync results', body_class='table-responsive') }}>
+    <table {{ ui.table_start() }}>
+        <thead>
+            <tr>
+                {{ ui.table_header('Date') }}
+                {{ ui.table_header('Number of Devices Added') }}
+            </tr>
+        </thead>
+        <tbody>
+            {% for sync in device_syncs|sort(attribute='0', reverse=True) %}
+            <tr>
+                <td>{% if sync[0] == date_to_ignore %}Before{% else %}{{ sync[0] }}{% endif %}</td>
+                <td>{{ sync[1] }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div {{ ui.card_end() }}>
+{% endblock %}
