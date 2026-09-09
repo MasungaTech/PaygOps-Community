@@ -1,0 +1,532 @@
+{% import 'macros/general_macros.html' as ui with context %}
+
+{% macro button(label='') -%}
+{{ ui.button(label, **kwargs) }}
+{%- endmacro %}
+
+{% macro picture(name, label, size='', required=false, get_gps=false, placeholder='', icon='', tooltip='', value='', disabled=false, visible=true, picture_type='', picture_instructions='') %}
+{% if visible %}
+{% set uuid = generate_uuid()|string %}
+<div id="input_{{name}}" class="{{ ui.col_size(size) }} pt-1">
+    <label class="form-label" for="{{name}}">{{ftext(label)}}{% if required %}*{% endif %}</label>
+    <div class="input-group{% if disabled %} disabled{% endif %}">
+        {% if icon %}<span class="input-group-text">{{ ui.icon(icon, tooltip=tooltip) }}</span>{% elif tooltip %}<span class="input-group-text">{{ ui.icon('info', tooltip=tooltip) }}</span>{% endif %}
+        <input id="{{name}}" type="file" aria-label="{{ label }}" placeholder="{{placeholder}}" class="form-control picture-input" onchange="uploadPictureAndGetUUID(this, '{{ url_for('file_upload.upload_picture', picture_uuid=None) }}')" {% if required and not value %}required{% endif %}{% if disabled %} disabled{% endif %}>
+        {% if value %}<div class="input-group-text picture-existing">{{ ui.icon('view', tooltip='<img src=\'/files/pictures/'+value+'.jpg\' class=\'picture-tooltip\'>'|safe) }}</div>{% endif %}
+        {% if value %}<div class="input-group-text picture-existing" onclick="clearPicture(this);">{{ ui.icon('delete', tooltip='Delete picture') }}</div>{% endif %}
+        {% if get_gps %}
+        <div class="input-group-text">
+            <input id="get_gps" name="get_gps_from_picture" class="form-check-input mt-0 me-2" type="checkbox" value="true">
+            <span for="get_gps">{{ftext('Use for GPS')}} {{ ui.icon('info', attributes='checkbox-icon', tooltip='The location data embedded in the picture will be used to set the GPS coordinates of the client/lead. ') }}</span>
+        </div>
+        {% endif %}
+        {{ button(uicon='add_a_photo', tooltip='Capture Your Picture', type='action', action="openCameraOverlay('" + (picture_type or '') + "', '" + name + "', '" + (picture_instructions or '') + "')", disabled=false) }}
+    </div>
+    <input name="{{ name }}" class="picture-uploader-input" type="hidden" value="{{ value }}"/>
+</div>
+{% endif %}
+{%- endmacro %}
+
+{% macro file(name, label, size='', required=false, placeholder='', icon='', tooltip='', value='') %}
+<div id="input_{{name}}" class="{{ ui.col_size(size) }} pt-1">
+    <label class="form-label" for="{{name}}">{{ftext(label)}}{% if required %}*{% endif %}</label>
+    <div class="input-group">
+        {% if icon %}<span class="input-group-text">{{ ui.icon(icon, tooltip=tooltip) }}</span>{% elif tooltip %}<span class="input-group-text">{{ ui.icon('info', tooltip=tooltip) }}</span>{% endif %}
+        <input id="input_{{name}}" name="{{name}}" type="file" aria-label="{{ label }}" placeholder="{{placeholder}}" class="form-control" {% if required and not value %}required{% endif %}>
+    </div>
+</div>
+{%- endmacro %}
+
+{% macro signature(name, label, size='', required=false, placeholder='', icon='', tooltip='', value='', disabled=false) %}
+<div id="input_{{name}}" class="{{ ui.col_size(size) }} pt-1">
+    <label class="form-label" for="signature_{{name}}">{{label}}{% if required %}*{% endif %}</label>
+    <div id="signature_{{name}}">
+        {% if value %}<img src="/files/pictures/{{value}}.jpg" class="signature-pad-value">{% endif %}
+        <canvas class="signature-pad {% if value %}hide{%endif%} {% if disabled %}disabled{%endif%}"></canvas>
+        {% if not disabled %}
+        <button type="button" class="btn btn-label-primary signature-clear-button" onclick="clearSignaturePad(this);">Clear</button>
+        {% endif %}
+    </div>
+    <input name="{{ name }}" class="signature-uploader-input {%if required %}reqsignature{% endif %}" type="hidden" value="{{ value }}" {% if required %}required{% endif %}/>
+</div>
+{%- endmacro %}
+
+{% macro input(name, label='', value='', values=[], min_answers=0, max_answers=1, required=false) %}
+    {% set multiple = max_answers > 1 %}
+    {% if value is not none and values == [] %}{% set values=[value] %}{% endif %}
+    {% set value_count = values|length %}
+    {% if min_answers > 1 %}{% set instances=min_answers %}{% else %}{% set instances=1 %}{% endif %} {# for optional #}
+    {% if value_count <= instances %}{% set instances = instances-value_count %}{% else %}{% set instances = 0 %}{% endif %}
+
+    {% for val in values %}{% set i = loop.index0 %}
+        {# we put the existing values #}
+        {{ input_core(multi_input_name(name, multiple, i), label, val, required=(i < min_answers) or required, **kwargs)}}
+    {%- endfor %}
+    {% for x in range(instances) %}{% set i = x+value_count %}
+        {# we add extra blank inputs to match the minimum answers, they are required #}
+        {{ input_core(multi_input_name(name, multiple, i), label, required=(i < min_answers) or required, **kwargs)}}
+    {%- endfor %}
+
+    {% if multiple and (not 'disabled' in kwargs or not kwargs['disabled'])%}{{ multi_input_buttons(name, current_index=instances+value_count-1, min_answers=min_answers, max_answers=max_answers) }}{% endif %}
+{%- endmacro %}
+
+{% macro gps_surface(name, label, value, required=false) %}
+<div id="input_{{name}}" class="row border rounded px-0 pt-1 pb-2" style="flex-shrink: unset; margin: 0.75rem !important;">
+    {% set min_answers = 3 %}
+    {% set max_answers = 50 %}
+    {% set values = value %}
+    {% if value is not none and values == [] %}{% set values=[value] %}{% endif %}
+    {% set value_count = values|length %}
+    {% if min_answers > 1 %}{% set instances=min_answers %}{% else %}{% set instances=1 %}{% endif %} {# for optional #}
+    {% if value_count <= instances %}{% set instances = instances-value_count %}{% else %}{% set instances = 0 %}{% endif %}
+    {% for val in values %}{% set i = loop.index0 %}
+        {# we put the existing values #}
+        {{ input_core(multi_input_name(name, true, i), label if i == 0 else '', val, type='gps', required=(i < min_answers) and required, **kwargs)}}
+    {%- endfor %}
+    {% for x in range(instances) %}{% set i = x+value_count %}
+        {# we add extra blank inputs to match the minimum answers, they are required #}
+        {{ input_core(multi_input_name(name, true, i), label if i == 0 else '', type='gps', required=(i < min_answers) and required, **kwargs)}}
+    {%- endfor %}
+    {% if not 'disabled' in kwargs or not kwargs['disabled'] %}
+    {{ multi_input_buttons(name, current_index=instances+value_count-1, min_answers=min_answers, max_answers=max_answers, label="coordinate") }}
+    {% endif %}
+</div>
+{% endmacro %}
+
+{% macro multi_input_buttons(name, current_index=0, min_answers=0, max_answers=1, label='answer') %}
+    <div id="add_remove_{{ name }}" data-minanswers="{{min_answers}}" data-maxanswers="{{max_answers}}" data-currentindex="{{current_index}}"></div>
+    {{ ui.button('Add '+label, 'add', id='add_'+name, color='label-primary', size='6', 
+        fit=true, size_class='pt-2', action='addRemoveAnswer("'+name+'", true);',
+        disabled=current_index+1>=max_answers) }}
+    {{ ui.button('Remove '+label, 'delete', id='remove_'+name, color='label-danger', size='6', 
+        fit=true, size_class='pt-2', action='addRemoveAnswer("'+name+'", false);',
+        disabled=current_index+1<=min_answers) }}
+{%- endmacro %}
+
+{% macro input_core(name, label='', value='', type='text', tooltip=none, icon='', size='', class='', disabled='', placeholder='', style='',
+    required=false, valid='', min=none, max=none, numeric=false, is_int=false, min_val=none, max_val=none, not_zero=false, size_class='pt-1', selector_class='',
+    id=none, data='', errormsg='', notautocomplete=true, form=none, suffix=none, append_currency=false, star=true, visible=true, uicon='', micon='',
+    btn_label='', btn_icon='', btn_action='', btn_tooltip='', btn2_label='', btn2_icon='', btn2_action='', btn2_tooltip='', onchange='', size_id='', variables=[],
+    translate_placeholder=true, translate_tooltip=true, oninput='', picture_type=none, picture_instructions=none, disable_clear=false, accept=none) -%}
+{% if visible %}
+{% if not size_id %}{% set size_id='input_'+name %}{% endif %}
+{# retrocompatibility #}
+{% if min_val and not min %}{% set min = min_val %}{% endif %}
+{% if max_val and not max %}{% set max = max_val %}{% endif %}
+{% if not icon %}{% set icon = uicon or micon %}{% endif %}
+{% if type == 'number' %}{% set numeric=true %}{% endif %}
+{% if type == 'integer' %}{% set numeric=true %}{% set is_int=true %}{% set type='number' %}{% endif %}
+{% if numeric %}{% if is_int %}{% set valid = valid+' int' %}{% else %}{% if not_zero %}{% set valid = valid+' float_not_zero' %}{% else %}{% set valid = valid+' float' %}{% endif %}{% endif %}{% endif %}
+{# ------------------ #}
+{% if id is none %}{% set id=name.split(':')[0] %}{% endif %}
+{% if value is none %}{% set value='' %}{% endif %}
+{% if type == 'checkbox' %}
+    {% if placeholder %}{% set labeltag = label %}{% set label = placeholder %}{% else %}{% set labeltag = '' %}{% endif %}
+    {{ checkbox(name=name, label=label, labeltag=labeltag, uicon=icon, tooltip=tooltip, size=size, checked=value in [true, 'True', 'true'], required=required, disabled=disabled) }}
+{% elif type == 'picture' %}
+    {{ picture(name=name, label=label, placeholder=placeholder, icon=icon, tooltip=tooltip or placeholder, size=size, required=required, value=value, disabled=disabled, picture_type=picture_type, picture_instructions=picture_instructions) }}
+{% elif type == 'signature' %}
+    {{ signature(name=name, label=label, placeholder=placeholder, icon=icon, tooltip=tooltip or placeholder, size=size, required=required, value=value, disabled=disabled) }}
+{% elif type == 'gps_surface' %}
+    {{ gps_surface(name=name, label=label, placeholder=placeholder, icon=icon, tooltip=tooltip or placeholder, size=size, required=required, value=value, disabled=disabled) }}
+{% else %}
+{% if type in ['gps', 'gps_split'] %}{% set tooltip=placeholder %}{% endif %}
+{% if type in ['datepicker', 'timepicker', 'datetimepicker'] and not uicon %}{% set uicon='date' %}{% endif %}
+{% if placeholder == 'tooltip' %}{% set placeholder=tooltip %}{% elif not placeholder %}{% set placeholder=label %}{% endif %}
+{% set class = class+' '+valid %}
+{% if required %}{% set req_dis='required' %}{% else %}{% set req_dis='' %}{% endif %}
+{% if type == 'device_tags' %}{% set class = class + ' device-tags-field' %}<script>EXISTING_DEVICE_TAGS_LIST = {{ get_device_tags()|tagInput|safe }};</script>{% endif %}
+{% if type == 'tags' %}{% set class = class + ' tags-field' %}<script>EXISTING_TAGS_LIST = {{ get_tags()|tagInput|safe }};</script>{% endif %}
+{% if type == 'url' %}{% set class = class + ' url' %}{% endif %}
+{% if type == 'regex' %} {% set class = class + ' regex' %} {% endif %}
+{% if disabled %}{% set req_dis=req_dis+' disabled' %}{% endif %}
+{# translations #}{% set label = ftext(label) %}{% if not translate_placeholder %}{% set placeholder = ftext(placeholder) %}{%endif%}
+<div id="{{size_id}}" class="{{ ui.col_size(size) }} {{ size_class }} {{ selector_class }} {{ ui.is_visible(visible) }}">
+{% if label %}<label class="form-label"{%if id%} for="{{id}}"{%endif%}>{{label}}{% if star and required %}*{% endif %}</label>{% endif %}
+<div class="input-group{% if type not in ['gps', 'gps_split', 'gps_surface'] %} input-group-merge{% endif %}{% if disabled %} disabled-input-group{% endif %}">
+    {% if icon %}<span class="input-group-text" for="{{id}}">{{ ui.icon(icon, tooltip=tooltip, translate_tooltip=translate_tooltip) }}</span>{% elif tooltip %}<span class="input-group-text" for="{{id}}">{{ ui.icon('info', tooltip=tooltip, translate_tooltip=translate_tooltip) }}</span>{% endif %}
+
+    {% if type in ['datepicker', 'timepicker', 'datetimepicker'] %}
+    <input {% if id !='' %}id="{{ id }}"{% endif %}
+        {% if form %} form="{{form}}"{%endif%}
+        class="form-control datepicker dp-input {{class}}"
+        type="{{ type }}"
+        name="{{ name }}"
+        placeholder="{{placeholder}}"
+        value="" {# Value is set  by JS #}
+        data-type="{{type}}"
+        data-datepicker-min="{% if min is not none %}{{ min }}{% endif %}"
+        data-datepicker-max="{% if max is not none %}{{ max }}{% endif %}"
+        data-value="{% if value is not none %}{{ value }}{% endif %}" {{ req_dis }}
+        {%if notautocomplete %}autocomplete="off"{% endif %}>
+
+    {% elif type in ['gps', 'gps_split'] %}
+    {% set skip = ':skip' if ':skip' in name else '' %}
+    {% set id_clean = id|replace('[', '_')|replace(']', '') %}
+    <input  id="{{ id }}_gps_location" 
+            name="{{ name }}_gps_location:skip"
+            {% if form %} form="{{form}}"{%endif%} 
+            type="text" 
+            input-id="{{ id_clean }}"
+            class="form-control gps_location_field {{ id_clean }}_gps_location border-start-0 ps-0"
+            value="{{ '%f, %f' % ((value.get('gps_latitude') or 0)|float, (value.get('gps_longitude') or 0)|float) if (value and value.get('gps_latitude') and value.get('gps_longitude')) else '' }}" 
+            placeholder="latitude, longitude"
+            onchange="update_gps_coordinates(this)"
+            {{ req_dis }}>
+
+    <input  id="{{ id }}_lat" 
+            type="number" 
+            class="form-control float_accurate gps_field {{ id_clean }}_lat" 
+            name="{{ name|replace(':skip', '')+'[gps_latitude]'+skip if type in ['gps'] else 'gps_latitude' }}" 
+            value="{{ value['gps_latitude'] if value else '' }}"
+            hidden>
+
+    <input  id="{{ id }}_lon" 
+            type="number" 
+            class="form-control float_accurate gps_field {{ id_clean }}_lon" 
+            name="{{ name|replace(':skip', '')+'[gps_longitude]'+skip if type in ['gps'] else 'gps_longitude' }}" 
+            value="{{ value['gps_longitude'] if value else '' }}"
+            hidden>
+
+    {% elif type == 'textarea' %}
+    <textarea {% if id !='' %}id="{{ id }}"{% endif %} {% if form %} form="{{form}}"{%endif%} name="{{name}}" type="{{ type }}" class="form-control autosize {{ class }}" placeholder="{{placeholder}}" aria-label="{{label}}" aria-describedby="{{id}}" 
+        {{ min_max_tags(min,max,numeric) }} 
+        {{ req_dis }} {% if data %} {{ data|safe }}{% endif %}>{{ value }}</textarea>
+    
+    {% elif type == 'variable_box' %}
+    {% set tem = namespace() %} {# this is a trick to edit a variable #}
+    {% set tem.valueBadge = value %}
+    {% for variable in variables %}
+        {% set tem.valueBadge = tem.valueBadge|replace("{"+variable+"}", ui.variable_badge(variable)) %}
+    {% endfor %}
+    <div {% if id !='' %}id="{{ id }}"{% endif %} class="form-control template {{class}}" 
+        contenteditable="true" oninput="copyTextToInput(this)">{{tem.valueBadge}}</div>
+    <input type="hidden" name="{{name}}" value="{{value}}">
+    <div class="hide templateVar">{{ui.variable_badge('')}}</div>
+
+    {% else %}
+    <input {% if id !='' %}id="{{ id }}"{% endif %} {% if form %} form="{{form}}"{%endif%} name="{{name}}" type="{{ type }}" class="form-control {{ class }}" placeholder="{{placeholder}}" aria-label="{{label}}" aria-describedby="{{id}}" 
+    {% if type in ['tags', 'device_tags'] %}value='{{ value|tagInput }}'
+    {% else %}value="{{ value }}"
+    {% endif %}
+    {{ min_max_tags(min,max,numeric) }}
+    {% if numeric %}
+    style="min-width: 3ch;box-sizing: content-box;"
+    {% endif %}
+    {% if accept and type in ['file', 'picture'] %} accept="{{ accept }}"{% endif %}
+        {%if notautocomplete and type == 'password' %} autocomplete="new-password"{%endif%}
+        {{ req_dis }} {% if data %} {{ data|safe }}{% endif %}{% if onchange %} onchange="{{onchange}}"{% endif %}{% if oninput %} oninput="{{oninput}}"{% endif %}/>
+
+    {% endif %}
+    {% if not required and not disabled and not disable_clear %}<span class="input-group-text px-1 py-0 clearable-text"><button type="button" class="btn btn-link btn-sm" onclick="clearTextField(this)">{{ui.icon('close', style="font-size: 0.75rem !important; vertical-align: middle;", color="grey")}}</button></span>{% endif %}
+    {% if suffix %}<span class="input-group-text">{{ ftext(suffix) }}</span>{% endif %}
+    {% if btn_label or btn_icon %}{{ button(label=btn_label, uicon=btn_icon, tooltip=btn_tooltip, type='action', action=btn_action, disabled=false) }}{% endif %}
+    {% if btn2_label or btn2_icon %}{{ button(label=btn2_label, uicon=btn2_icon, tooltip=btn2_tooltip, type='action', action=btn2_action, disabled=false) }}{% endif %}
+    {% if type in ['gps', 'gps_split'] %}
+        {{ button(uicon='add_location_alt', tooltip='Capture GPS Location', type='action', action="captureGPSLocation(button=this, inputID='"+id_clean+"')", disabled=false) }}
+        {{ button(uicon='map_search', tooltip='Pick Location on Map', type='action', action="openMapModal('"+id_clean+"')", disabled=false) }}
+    {% endif %}
+</div>
+</div>
+{% endif %}
+{% endif %}
+{% if type in ['gps', 'gps_split'] %}
+{% import 'client_map_macro.html' as client_map with context %}
+{{ client_map.google_maps_js(start='') }}
+{{ gps_map_picker() }}
+{% endif %}
+{%- endmacro %}
+
+{% macro gps_map_picker() %}
+<div {{ ui.modal_start('select-location', 'Select Location') }}>
+    <div class="modal-body">
+        <div id="location_picker_map" style="height: 300px; width: 100%; margin: 0;">
+        </div>
+    </div>
+    <div class="modal-footer">
+        {{ ui.modal_close_button() }}
+        {{ ui.button(uicon='add_location', type='action', label='Confirm Coordinates', action='confirmGPSCoordinates()') }}
+    </div>
+</div {{ ui.modal_end() }}>
+<script>
+    let location_picker_map, location_picker_marker;
+    let activeGPSID;
+</script>
+{% endmacro %}
+
+{# --- New input styles --- #}
+         
+{% macro min_max_tags(min=none, max=none, numeric=false) -%}
+{% if numeric %}{% if min != none %} min={{ min }}{% endif %}{% if max != none %} max={{ max }}{% endif %}{% else %}{% if min %} minlength={{ min }}{% endif %}{% if max %} maxlength={{ max }}{% endif %}{% endif %}
+{%- endmacro %}
+
+{% macro switch(name, label='', prelabel='', checked='',divclass='row', style='', value='True',id='', tooltip=none, disabled='') -%}
+{% set tooltipmk = ' tooltipped" data-position="bottom" data-delay="50" data-tooltip="'+tooltip if tooltip else '' %}
+    <div class="input-field {{ divclass }}{{ tooltipmk|safe }}" style="{{style}}">
+        <div class="switch">
+            <label>
+              {{ prelabel }}
+              <input type="checkbox" {% if id %} id="{{id}}" {% endif %}name="{{ name }}" value="{{ value }}" {% if checked %} checked {% endif %} {% if disabled %} disabled {% endif %}>
+              <span class="lever"></span>
+              {{ label }}
+            </label>
+        </div>
+    </div>
+{%- endmacro %}
+
+{% macro switch_simple(name, label='', prelabel='', checked='', class='', divclass='form-group', style='',size='', value='True', id='', tooltip=None, disabled='', onchange='') -%}
+{% set tooltip_attr = 'data-bs-toggle="tooltip" data-bs-placement="bottom" data-bs-delay="50" title="' + tooltip if tooltip else '' %}
+    <div class="{{ divclass }} {{ ui.col_size(size) }} {{class }}" style="{{style}}">
+        <div class="d-flex align-items-center">
+            {% if prelabel %}
+            <label class="me-2" {% if id %} for="{{id}}" {% endif %}>
+                {{ prelabel }}
+            </label>
+            {% endif %}
+            <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" name="{{ name }}" value="{{ value }}"{% if onchange %} onchange="{{onchange}}"{% endif %}{% if id %} id="{{id}}" {% endif %} {% if checked %} checked {% endif %} {% if disabled %} disabled {% endif %} {{ tooltip_attr|safe }}>
+                <label class="form-check-label" {% if id %} for="{{id}}" {% endif %}>
+                    {{ label }}
+                </label>
+            </div>
+        </div>
+    </div>
+{%- endmacro %}
+
+
+
+{% macro checkbox_simple(name='', label='', value='True', checked='', size='', id=none,
+    disabled='', tooltip=None, value_false='false', style='', class='', onclick='', uicon='',
+    icon_tooltip='', visible=true, mt=3, form=none, selector_class='') -%}
+    {% if id is none %}{% set id=name %}{% endif %}
+    <div class="{{ ui.col_size(size) }} {{ ui.is_visible(visible) }} {{ selector_class }}" style="{{style}}">
+        <div class="form-check mt-{{mt}}">
+            {% if value_false %}<input type="hidden" name="{{ name }}" value="{{ value_false }}" {% if form %} form="{{form}}"{% endif %}/>{% endif %}
+            <input id="{{ id }}" type="checkbox" class="form-check-input {{class}}" 
+                   name="{{ name }}" value="{{ value }}" {% if onclick != '' %}onclick="{{ onclick }}"{% endif %}
+                   {% if checked %} checked{% endif %}{% if disabled %} disabled="true"{% endif %}{% if form %} form="{{form}}"{% endif %} />
+            <label class="form-check-label" for="{{ id }}" {{ ui.tooltip_code(tooltip) }}>
+                {{ ui.icon(uicon, 'tiny blue-grey-text', tooltip=icon_tooltip) }} {{ ftext(label) }}
+            </label>
+        </div>
+    </div>
+{%- endmacro %}
+
+
+{% macro checkbox(name='', label='', value='true', checked='', size='', id=none, disabled='', tooltip=None, style='', value_false='false', 
+    class='', onclick='', uicon='', icon_tooltip='', visible=true, labeltag='', id2=none,
+    name2='', label2='', checked2='', disabled2=false, required=false, skip_serial=false, onchange='', radio=false, value2='', form=none, selector_class='', type='') -%}
+{% if visible %}
+{% if id is none %}{% set id=name %}{% endif %}
+{% if id2 is none %}{% set id2=name2 %}{% endif %}
+{% if skip_serial %}{% set class=class+' skip' %}{% endif %}
+{% if onchange %}{% set onclick = onchange %}{% endif %}
+{% if label2 and not name2 %}{% set name2 = name %}{% endif %}
+{% if radio %}{% set value_false = '' %}{% endif %}
+{% if type %}{% set name = name+':'+type %}{% endif %}
+<div id="input_{{name}}" class="{{ ui.col_size(size) }} {{ ui.is_visible(visible) }} pt-1 {{selector_class}}" style="{{style}}">
+    {% if labeltag %}<label class="form-label"{%if id%} for="{{ id }}"{%endif%}>{{ftext(labeltag)}}</label>{% endif %}
+    <div class="input-group checkbox-input-group">
+        {% if name %}
+        <div class="input-group-text {% if name2 %}half-fit{% else %}fit{% endif %}">
+            {% if uicon %}{{ ui.icon(uicon, tooltip=icon_tooltip, attributes='me-3') }}{% endif %}
+            {% if value_false %}<input type="hidden" name="{{ name }}" value="{{ value_false }}" {% if skip_serial %}class="skip"{% endif %} {% if form %} form="{{form}}"{% endif %}/>{% endif %}
+            <input id="{{ id }}" type="{% if not radio %}checkbox{% else %}radio{% endif %}" class="form-check-input mt-0 me-2 {{ class }}" 
+                name="{{ name }}" value="{{ value }}" {% if onclick != '' %}onclick="{{ onclick }}"{% endif %}
+                {% if checked %} checked{% endif %}{% if disabled %} disabled="true"{% endif %}{% if required %} required{% endif %}
+                {% if form %}form="{{form}}" {% endif %}/>
+            <label class="form-check-label"{%if id%} for="{{ id }}"{%endif%} {{ ui.tooltip_code(tooltip) }}>
+                {{ ftext(label) }}
+            </label>
+        </div>
+        {% endif %}
+        {% if name2 %}
+        <div class="input-group-text {% if name %}half-fit{% else %}fit{% endif %}">
+            {% if value_false %}<input type="hidden" name="{{ name2 }}" value="{{ value_false }}" {% if skip_serial %}class="skip"{% endif %} {% if form %} form="{{form}}"{% endif %}/>{% endif %}
+            <input id="{{ id2 }}" type="{% if not radio %}checkbox{% else %}radio{% endif %}" class="form-check-input mt-0 me-2 {{ class }}" 
+                name="{{ name2 or name }}" value="{{ value2 or value }}" {% if onclick != '' %}onclick="{{ onclick }}"{% endif %}
+                {% if checked2 %} checked{% endif %} {% if disabled2 %} disabled="true"{% endif %} {% if form %} form="{{form}}"{% endif %}/>
+            <label class="form-check-label" for="{{ id2 }}" {{ ui.tooltip_code(tooltip) }}>
+                {{ ui.icon(uicon, 'tiny blue-grey-text', tooltip=icon_tooltip) }} {{ ftext(label2) }}
+            </label>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+{%- endmacro %}
+
+{% macro select(name, choices=[], label='') -%}
+{{ searchable_select(name, choices=choices, label=label, **kwargs) }}
+{%- endmacro %}
+
+{% macro searchable_select(name, choices=[], label='', style='', icon='',
+                value=none, required=false, size='', labeltag='', errormsg='', ajax='',
+                id=none, disabled=false, tooltip=none, form=none, ajax_url=none, min_chars=none, placeholder=none, 
+                clearable=none, extra_choices={}, source=none, min_for_search=6, data_attrs={}, option_classes={}, 
+                animate_label=false, uicon='', visible=true, star=true, min_answers=0, max_answers=1, values=[],
+                onchange='', type='', class='', skip_serial=false, size_class='pt-1', selector_class='', size_id='', btn_label='',
+                btn_icon='', btn_action='', btn_tooltip='', btn_disabled=false, translate=none) -%}
+{% if visible %}{% if min_answers and min_answers > 0 %}{% set required=true %}{% endif %}
+{% if clearable == none %}{% if not required %}{% set clearable=true %}{% else %}{% set clearable=false %}{% endif %}{% endif %}
+{% if value is not none %}{% set value = value|clean_answer_value %}{% endif %}
+{% set values = values|select_answer_value %}
+{% if skip_serial %}{% set class=class+' skip' %}{% endif %}
+{% if id is none %}{% set id=name.split(':')[0] %}{% endif %}
+{% if not size_id %}{% set size_id='input_'+id %}{% endif %}
+<div id="{{size_id}}" class="{{ ui.col_size(size) }} {{ ui.is_visible(visible) }} {{size_class}} {{selector_class}}">
+{% if source and select2 is defined and not ajax %}{% set ajax = select2.get(source+'_ajax', false) %}{% endif %}
+{% if ajax == true or ajax_url %}{% set ajax = config.AJAX_SELECT_CLASS %}{% endif %}
+{% if uicon %}{% set icon=uicon %}{% endif %}
+{% if max_answers > 1 %}{% set multiple = true %}{% set name = name+'[]' %}{% else %}{% set multiple = false %}{% endif %}
+{% if type %}{% set name = name+':'+type %}{% endif %}
+{% if label and not placeholder %}{% set placeholder = label %}{% endif %}
+{% if labeltag -%}{% set labeltag = ftext(labeltag) %}<label{%if id%} for="{{ id }}"{%endif%} class="form-label {%if animate_label%}animate{%endif%}">{{ "<span>"|safe+labeltag+"</span>"|safe if animate_label else labeltag }}{% if star and required %}*{% endif %}</label>{%- endif %}
+{% if labeltag and not placeholder -%}{% set placeholder = ftext('Choose ')+ftext(labeltag) %}{% elif not placeholder %}{% set placeholder = 'Choose value' %}{% endif %}
+{% if not max_answers and not required %}<input type="hidden" value="" name="{{name}}" {%if form%}form="{{form}}"{%endif%}>{% endif %}
+{% if (translate == true or (translate == none and not source)) %}{% set translate = true %}{% else %}{% set translate = false %}{% endif %}
+<div class="input-group input-group-merge select-input-group{% if icon or tooltip %} select-with-icon{% endif %}{% if btn_label or btn_icon %} select-with-action{% endif %}{% if disabled %} disabled-input-group{% endif %}">
+    {% if icon %}<span class="input-group-text" for="{{id}}">{{ ui.icon(icon, tooltip=tooltip) }}</span>{% elif tooltip %}<span class="input-group-text" for="{{id}}">{{ ui.icon('info', tooltip=tooltip) }}</span>{% endif %}
+    <select {% if id != "" %}id="{{ id }}" {%endif%}name="{{ name }}" {% if disabled %}disabled {% endif %} {% if source is not none %}data-source="{{source}}" {% endif %}
+        class="select_2 form-select {{ajax}} {{ class }} {% if required %}reqselect{% endif %}"
+        {% if required %}required{% endif %}
+        {% if errormsg %}data-error-msg="{{ftext(errormsg)}}"{% endif %}
+        {%if form%}form="{{form}}"{%endif%}{%if ajax_url%} data-ajax--url="{{ajax_url}}"{%endif%}
+        {%if min_chars is not none%} data-min-chars="{{min_chars}}"{%endif%}
+        {%if placeholder%} data-placeholder="{{ftext(placeholder)}}"{%endif%}
+        {%if clearable%} data-allow-clear="true"{%endif%}
+        {%if multiple %} data-maximum-selection-length="{{max_answers}}"{%endif%} 
+        data-minimum-results-for-search="{{min_for_search}}" data-excluded="{{value}}"
+        {% for k,v in data_attrs.items() %} data-{{k}}="{{v}}"{% endfor %}
+        {% if multiple %} multiple="multiple"{% endif %}
+        {% if onchange %}onchange="{{onchange}}"{% endif %}>
+        {% if not multiple %}<option value="" {% if not value or value == none or value == '' %}selected{% endif %}>{{ placeholder }}{% if star and required and not labeltag %}*{% endif %}</option>{% endif %}
+        {% for key, text in extra_choices.items() %}
+            <option value="{{ key }}" {% if (key|string == value|string) or (key|string in values) %}selected{% endif %}>{{ text }}</option>
+        {% endfor %}
+        {% if choices is mapping %}
+            {% for key, val in choices.items() %}
+                {% set class = ' class="'+option_classes[key]+'"' if option_classes and key in option_classes else '' %}
+                <option value="{{ key }}" {% if (key|string == value|string) or (key|string in values) %}selected{% endif %}{{class|safe}}
+                {% if val is mapping %}
+                    {% for data_key, data_value in val.items() %}
+                        {% if data_key != 'value' %}data-{{ data_key }}="{{ data_value }}"{% endif %}
+                    {% endfor %}
+                    >{{ ftext(val['value']) if translate else val['value'] }}</option>
+                {% else %}
+                    >{{ ftext(val) if translate else val }}</option>
+                {% endif %}
+            {% endfor %}
+        {% else %}
+            {% for id, name in choices %}
+                {% set class = ' class="'+option_classes[id]+'"' if option_classes and id in option_classes else '' %}
+                <option value="{{ id }}" {% if (id|string == value|string) or (id|string in values) %}selected{% endif %} {% if option_classes and id in option_classes and 'disabled' in option_classes[id] %}disabled{% endif %}{{class|safe}}>{{ ftext(name) if translate else name }}</option>
+            {% endfor %}
+        {% endif %}
+    </select>
+    {% if btn_label or btn_icon %}{{ button(label=btn_label, uicon=btn_icon, tooltip=btn_tooltip, type='action', action=btn_action, disabled=btn_disabled) }}{% endif %}
+</div>
+</div>
+{% endif %}
+{%- endmacro %}
+
+
+{% macro color_select(name, value=none, label='Choose color...', icon='', required=false, size='', disabled=false, clearable=false, color_options=config.COLOR_OPTIONS, id=none) -%}
+{% if id is none %}{% set id=name %}{% endif %}
+<div class="{{ ui.col_size(size) }} pt-1">
+    <label for="{{ id }}" class="form-label">{{ ftext(label) }}</label>
+    <div class="input-group input-group-merge {% if icon %}select-with-icon{% endif %}">
+        {% if icon %}<span class="input-group-text" for="{{id}}">{{ ui.icon(icon) }}</span>{% endif %}
+
+        <select {% if id != "" %}id="{{ id }}" {%endif%}name="{{ name }}" {% if disabled %}disabled {% endif %} 
+            class="select_2 form-select {% if required %} reqselect{%endif%}"
+            {%if clearable%} data-clearable="true"{%endif%}>
+            {% for color in color_options %}
+                <option value="{{ color }}" {% if color == value %}selected{% endif %} class="badge rounded-pill bg-label-secondary {{color}}-badge">{{ ftext(color.capitalize()) }}</option>
+            {% endfor %}
+        </select>
+    </div>
+</div>
+{%- endmacro %}
+
+{% macro input_phones(lead='', client='', user='', lead_generator='', required=true, visible=true, disabled=false) -%}
+{% if visible %}
+{% if client %}{% set type = 'clients' %}{% set type_id = client.id %}{% set person = client.person %}
+{% elif lead %}{% set type = 'leads' %}{% set type_id = lead.id %}{% set person = lead.person %}
+{% elif user %}{% set type = 'users' %}{% set type_id = user.id %}{% set person = user.person %}
+{% elif lead_generator %}{% set type = 'lead_generators' %}{% set type_id = lead_generator.id %}{% set person = lead_generator.person %}
+{% else %}{% set type = '' %}
+{% endif %}
+{{ input(name='new_phone:skip', uicon='phone', valid='phoneTZ', label='Add new phone', value='', size=6, btn_icon='add', btn_tooltip='Add phone number',disabled=disabled, btn_action='addPhoneToPerson('+(person.id|string if type else 'null')+',' +(type_id|string if (type == 'leads') else 'null')+')', onchange='addPrefixToNumber('+GlobalSetting('PhoneExtension')+')') }}
+{{ select(name='preferred_phone_number', uicon='phone', labeltag='Contact Phone Number', size=6, required=required,
+            onchange='setContactPhone($(this).val(), '+type_id|string+', "'+type+'");' if type else '',
+            choices=[person.phoneNumbers, 'number', 'number']|dictMapper if type else [], 
+            value=person.contactPhone.number if type and person.contactPhone else none, disabled=disabled,
+            class='nochangeonload', translate=false, clearable=false, btn_icon='delete', btn_tooltip='Delete phone number', btn_action='deletePhone('+(current_user.can_access('RemoveLastPhoneNumbers', person=person) if (person is defined and person) else 'true')|string|lower+')') }}
+<div id="pn_holder" style="display: none">
+    <input type="hidden" name="phone_numbers[]" value="" />
+    {% if type %}{% for N in person.phoneNumbers %}
+        <input type="hidden" name="phone_numbers[]" value="{{ N.number }}" />
+    {% endfor %}{% endif %}
+</div>
+{% endif %}
+{%- endmacro %}
+
+{% macro formdate(date) -%}
+{% if date is defined and date is not none %}{{ date.strftime("%Y-%m-%d") }}{% else %}{% endif %}
+{%- endmacro %}
+
+{% macro formdate_iso(date) -%}
+{% if date is defined and date is not none %}{{ date.strftime("%Y-%m-%d") }}{% else %}{% endif %}
+{%- endmacro %}
+
+{% macro formnone(input) -%}
+{% if input is not none %}{{ input }}{% else %}{% endif %}
+{%- endmacro %}
+
+{% macro validate_form_script(form_id, error_box_id='') -%}
+<script>
+    $(document).ready(function() {
+        $("#{{ form_id }}").validate({
+          ignore: ':hidden:not("select")',
+          invalidHandler: function(event, validator) {
+            {% if error_box_id != '' %}
+            var errors = validator.numberOfInvalids();
+            if (errors) {
+              var message = errors == 1
+                ? '<i class="material-icons tiny">error</i>  There is <var>1</var> error in the entry. It has been highlighted. '
+                : '<i class="material-icons tiny">error</i>  There is <var>' + errors + '</var> errors in the entry. They have been highlighted above. ';
+              $("#{{ error_box_id }}").html(message);
+              $("#{{ error_box_id }}").show();
+            } else {
+              $("#{{ error_box_id }}").hide();
+            }
+            {% endif %}
+          }
+        });
+    });
+</script>
+{%- endmacro  %}
+
+{% set ns = namespace(icon_picker_rendered=false) %}
+{% macro select_icon(name, label='Choose icon...', size='', class='', selector_class='', value=none, id=none, disabled=false, required=false, icon='', tooltip='') -%}
+{% if id is none %}{% set id=name %}{% endif %}
+<div class="{{ ui.col_size(size) }} {{ selector_class }}">
+    <label for="{{ id }}" class="form-label">{{ label }}{% if required %}*{% endif %}</label>
+    <div class="input-group input-group-merge select-input-group{% if disabled %} disabled-input-group{% endif %}{% if icon or tooltip %} select-with-icon{% endif %}">
+        {% if icon %}<span class="input-group-text" for="{{id}}">{{ ui.icon(icon, tooltip=tooltip) }}</span>{% elif tooltip %}<span class="input-group-text" for="{{id}}">{{ ui.icon('info', tooltip=tooltip) }}</span>{% endif %}
+        <select id="{{ id }}" name="{{ name }}" {% if value %}data-initial-value="{{ value }}"{% endif %} class="select_2 form-select {{ class }}{% if required %} reqselect{% endif %}" data-icon-picker="true"{% if disabled %} disabled{% endif %}{% if required %} required{% endif %}>
+            <option value="">{{ ftext('No Icon') }}</option>
+        </select>
+    </div>
+</div>
+{% if not ns.icon_picker_rendered %}
+    <script>
+        // Initialize icon picker data if not already initialized
+        if (!window.ICON_PICKER_DATA) {
+            window.ICON_PICKER_DATA = {{ config.AVAILABLE_ICONS|tojson }};
+        }
+    </script>
+    {% set ns.icon_picker_rendered = true %}
+{% endif %}
+{%- endmacro %}

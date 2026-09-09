@@ -1,0 +1,58 @@
+You are updating high-level fields of an EXISTING Automatou automation (NOT the workflow array).
+
+    ## Inputs
+    - USER_EDIT_PROMPT:
+    <<USER_EDIT_PROMPT>>
+
+    - CURRENT_AUTOMATION_JSON:
+    <<CURRENT_AUTOMATION_JSON>>
+
+    ## Task
+    Produce a **minimal JSON PATCH OBJECT** containing ONLY the top-level fields that must change because of USER_EDIT_PROMPT.
+    Allowed keys: "name", "icon", "description", "status", "trigger", "config".
+    Do NOT include "workflow" here.
+
+    ## Trigger editing rules
+    - These are the possible trigger types: "api", "event", "time", "user_journey".
+    - Event-based:
+        {
+        "type": "event",
+        "data": { "event": "<one of: client_registered, client_deregistered, contract_cancelled, client_edited, new_issue, issue_closed, outgoing_message, lead_added, lead_edited, custom_form_answered, new_interaction, device_swapped, unknown_user_sms_command, unknown_client_sms_command, undo_contract_default, new_payment, new_orphaned_payment, new_contract_payment, new_lead_payment, new_addon_payment, new_user_payment, user_created, user_edited, contract_defaulted, new_addon_offer, new_addon_offer_version, new_stock_movement, new_addon, discount_given, delay_given, offer_changed, contract_payment, token_generated, new_reconciliation, addon_approved, contract_paused, contract_resumed, addon_cancelled, addon_delivered, addon_undelivered, addon_planned_delivery_date_change, contract_overpaid, custom_form_answered_uploaded, task_created, task_edited>" }
+        }
+    - API-based:
+        { "type": "api", "data": {} }  // or include "synchronous"/"asynchronous" strings if clearly implied
+    - Time-based:
+        {
+        "type": "time",
+        "data": {
+            // choose exactly ONE of the allowed structures
+            // every_certain_minute_hour
+            // { "time": "every_certain_minute_hour", "hours": "2", "minutes": "30" }
+            // every_day_at_given_time
+            // { "time": "every_day_at_given_time", "time_of_day": "14:00" }
+            // days_of_the_week
+            // { "time": "days_of_the_week", "week_days": ["monday","wednesday"], "time_of_day": "10:30" }
+            // days_of_the_month
+            // { "time": "days_of_the_month", "month_days": ["01","15","31"], "last_day": true, "time_of_day": "09:00" }
+        }
+        }
+    - User-journey:
+        { "type": "user_journey", "data": {} }
+    - If USER_EDIT_PROMPT implies a time change, update trigger.data accordingly while preserving structure.
+    - If it implies switching to an event, ensure event name is one of the allowed events.
+    - If it implies switching to API or user_journey, set {"type": "...", "data": {}} minimally.
+    - If it implies switching to time, update trigger.data accordingly while preserving structure.
+    - If it implies switching to event, ensure event name is one of the allowed events.
+    - This is the allowed trigger event names:
+    ["client_registered","client_deregistered","contract_cancelled","client_edited","new_issue","issue_closed","outgoing_message","lead_added","lead_edited","custom_form_answered","new_interaction",
+    "device_swapped","unknown_user_sms_command","unknown_client_sms_command","undo_contract_default","new_payment","new_orphaned_payment","new_contract_payment","new_lead_payment","new_addon_payment",
+    "new_user_payment","user_created","user_edited","contract_defaulted","new_addon_offer","new_addon_offer_version","new_stock_movement","new_addon","discount_given","delay_given","offer_changed",
+    "contract_payment","token_generated","new_reconciliation","addon_approved","contract_paused","contract_resumed","addon_cancelled","addon_delivered","addon_undelivered","addon_planned_delivery_date_change",
+    "contract_overpaid","custom_form_answered_uploaded","task_created","task_edited"]
+
+
+    ## Status rule
+    - Keep the existing status unless USER_EDIT_PROMPT explicitly asks to change it.
+
+    ## Output (STRICT)
+    Output ONLY a minimal JSON object with changed keys.

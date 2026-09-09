@@ -1,0 +1,75 @@
+{% extends "macros/list_base.html" %}
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'macros/form_macros.html' as forms with context %}
+{% import 'macros/filter_macros.html' as filter with context %}
+
+{% block title %}{{ ftext('Phone Number Search') }}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('Admin','Phone Numbers') }}{% endblock %}
+
+{% block header %}
+    <div {{ ui.card_start(title='Search Phone Number', uicon='phone') }}>
+    <form id="filter_form_v2" action="" method="get" class="row">
+        {{ forms.input('search', 'Enter a phone number to find the owner', value=pagination.search, size="10") }}
+        {{ filter.filter_buttons() }}
+    </form>
+    </div {{ ui.collapsible_card_end() }}>
+{% endblock %}
+
+{% block table %}
+<table {{ ui.table_start(pagination) }}>
+    <thead>
+    <tr>
+        {{ui.table_header('Number', class='ps-4')}}
+        {{ui.table_header('Owner Name')}}
+        {{ui.table_header('Owner Profiles', class='pe-4')}}
+    </tr>
+    </thead>
+    <tbody>
+        {% for number in pagination.objects %}
+        {% set owners = number.profile_owners|list %}
+        <tr>
+            <td class="truncate-hoverable ps-4">{{ number.number }}</td>
+            <td class="truncate-hoverable">
+                {% for owner in owners %}
+                    {{ owner.full_name }}{% if not loop.last %}<br>{% endif %}
+                {% endfor %}
+            </td>
+            <td class="truncate-hoverable pe-4">
+                {% for owner in owners %}
+                    {% if owner.user %}{{ user_link_with_icon(owner.user) }}<br>{% endif %}
+                    {% if owner.client %}{{ client_link_with_icon(owner.client) }}<br>{% endif %}
+                    {% for lead in owner.lead %}{{ lead_link_with_icon(lead) }}<br>{% endfor %}
+                    {% if owner.leadGenerator %}{{ lead_generator_link_with_icon(owner.leadGenerator) }}<br>{% endif %}
+                {% endfor %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+    <tfoot></tfoot>
+</table>
+{% endblock %}
+
+{% macro user_link_with_icon(user) %}
+{% if user %}
+    <a href="{{ url_for('user.view_user', user_id=user.id) }}">{{ ui.icon('user', 'inline-icon tiny') }}User #{{ user.id }}</a>
+{% endif %}
+{% endmacro %}
+
+{% macro client_link_with_icon(client) %}
+{% if client %}
+    <a href="{{ url_for('client.view_client', client_id=client.id) }}">{{ ui.icon('client', 'inline-icon tiny') }}Client #{{ client.id }}</a>
+{% endif %}
+{% endmacro %}
+
+{% macro lead_link_with_icon(lead) %}
+{% if lead %}
+    <a href="{{ url_for('leads.view_lead', lead_id=lead.id) }}">{{ ui.icon('lead', 'inline-icon tiny') }}Lead #{{ lead.id }}</a>
+{% endif %}
+{% endmacro %}
+
+{% macro lead_generator_link_with_icon(lead_generator) %}
+{% if lead_generator %}
+    <a href="{{ url_for('lead_generator.view_lead_generator', generator_id=lead_generator.id) }}">{{ ui.icon('lead', 'inline-icon tiny') }}Lead Generator #{{ lead_generator.id }}</a>
+{% endif %}
+{% endmacro %}

@@ -1,0 +1,163 @@
+{% extends "macros/base.html" %}
+{% import 'macros/form_macros.html' as forms with context %}
+{% import 'macros/general_macros.html' as ui with context %}
+
+{% set msg_name = config.CUSTOMISABLE_MSGS_INFO[key]['name'] %}
+
+{% block title %}{{ ftext('Edit Message') }}: {{ ftext(msg_name) }}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('Automated Custom Messages', 'Edit', object=object) }}{% endblock %}
+
+{% macro messageEditorRow(mode, editable=true, template=none) %}
+<div class="row mode-option {{mode}}">
+    <div class="{{ui.col_size(6)}}">
+        <h6 class="mb-1">{{ftext('Template')}}</h6>
+        <div
+            class="template form-control{% if not editable %} disabled{% endif%}"
+            {%- if editable -%}
+            contenteditable="true"
+            oninput="validate(this);preview(this)"
+            onpaste="filter_paste(event);$(this).trigger('input');enableSaveButton(this);"
+            {%- endif %}
+        >{{template or '-'}}</div>
+        <div class="invalid-feedback"></div>
+    </div>
+    <div class="{{ui.col_size(6)}}">
+        <h6 class="mb-1">{{ftext('Preview')}}</h6>
+        <div class="position-relative">
+        {% if template %}
+        <span class="charcount-wrapper">
+            <var class="charcount"></var> {{ ftext(' characters') }} (<var class="smscount"></var> SMS)
+            <i class="material-icons tiny red-text warning tooltipped hide" data-tooltip="You are using special characters that reduce the available length of the SMS and might increase the cost" style="vertical-align: text-top;">warning</i>
+        </span>
+        {% endif %}
+        <div class="card-panel preview shadow p-3 rounded"></div>
+        </div>
+    </div>
+</div>
+{% endmacro %}
+
+{% macro sms_variable_badge(variable, add=false) -%}
+{%- set data = config.SMS_VARIABLES_INFO[variable] if variable else {
+    'name': "%VAR_NAME%",
+    'description': "%VAR_DESC%",
+    'example': "%VAR_EX%",
+} -%}
+{{ ui.variable_badge(variable, data['name'], data['description'], data['example'], add, callback='addCallback') }}
+{%- endmacro %}
+
+{% block content %}
+    {{ ui.info_card('When is it sent: <strong>'+config.CUSTOMISABLE_MSGS_INFO[key]['description']+'</strong>', uicon='info', color="primary") }}
+    {% for code, lang in CLIENT_SMS_LANGUAGES.items() %}
+    {% set disabledMsg = is_disabled(key, code) %}
+    {% set tem = namespace() %}
+    {% set tem.current = get_template(key,code)|escape_nl2br %}
+    {% set tem.default = get_default(key,code)|escape_nl2br %}
+    {% set msg = get_msg(code) %}
+    {% for variable in config.CUSTOMISABLE_MSGS_INFO[key]["variables"] %}
+        {% set tem.current = tem.current|replace("{"+variable+"}", sms_variable_badge(variable)) %}
+        {% set tem.default = tem.default|replace("{"+variable+"}", sms_variable_badge(variable)) %}
+    {% endfor %}
+        <div {{ ui.card_start(title=lang, class="lang-card template-badge-holder mode-"+ ('default' if not msg else ('disabled' if disabledMsg else 'editing'))) }}>
+            {{messageEditorRow(mode='editing', template=tem.default if disabledMsg else tem.current)}}
+            {{messageEditorRow(mode='disabled', editable=false)}}
+            {{messageEditorRow(mode='default', editable=false, template=tem.default)}}
+            <div class="row add-variables mt-3">
+                <div class="{{ui.col_size(12)}}">
+                {% if config.CUSTOMISABLE_MSGS_INFO[key]["variables"] %}
+                {{ftext('The following variables are available:')}}
+                {% endif %}
+                <div class="d-flex flex-wrap gap-2 mt-2">
+                {% for variable in config.CUSTOMISABLE_MSGS_INFO[key]["variables"] %}
+                    {{sms_variable_badge(variable, true)}}
+                {% endfor %}
+                </div>
+                </div>
+            </div>
+            <div class="row">
+                {{forms.checkbox_simple(
+                    'override:skip',
+                    label="Override with the default message",
+                    size=4,
+                    id="override-"+lang,
+                    checked=not msg,
+                    selector_class="override-checkbox",
+                    class='nochangeonload',
+                    onclick="toggleMessageMode(this, 'default')",
+                )}}
+                {{forms.checkbox_simple(
+                    'disable:skip',
+                    label="Disable this message",
+                    size=4,
+                    id="disable-"+lang,
+                    checked=disabledMsg,
+                    selector_class="disable-checkbox",
+                    class='nochangeonload',
+                    onclick="toggleMessageMode(this, 'disabled')"
+                )}}
+                <div class="{{ui.col_size(4)}}">
+                    <form id="form-editing-mode" class="mode-option editing">
+                        <input type="hidden" name="language" value="{{code}}"/>
+                        <input type="hidden" name="key" value="{{key}}"/>
+                        <input type="hidden" class="editable-template" name="template" value=""/>
+                        {{ui.button(
+                            label='Save',
+                            uicon='save',
+                            size=12,
+                            fit=true,
+                            size_class="pt-2",
+                            type='action',
+                            action="async_post",
+                            async_url='/custom_messages',
+                            class='save-message-button',
+                            disabled=not (disabledMsg or not msg)
+                        )}}
+                    </form>
+                    <form id="form-disabled-mode" class="mode-option disabled">
+                        <input type="hidden" name="language" value="{{code}}"/>
+                        <input type="hidden" name="key" value="{{key}}"/>
+                        <input type="hidden" name="template" value=""/>
+                        {{ui.button(
+                            label='Disable message',
+                            uicon='save',
+                            size=12,
+                            fit=true,
+                            size_class="pt-2",
+                            type='action',
+                            action="async_post",
+                            async_url='/custom_messages',
+                            disabled=disabledMsg
+                        )}}
+                    </form>
+                    <form id="form-override-mode" class="mode-option default">
+                        {{ui.button(
+                            label='Set default message',
+                            uicon='save',
+                            size=12,
+                            fit=true,
+                            size_class="pt-2",
+                            type='action',
+                            action="async_delete",
+                            async_url='/custom_messages/'+(msg.id|string if msg else ''),
+                            disabled=not msg
+                        )}}
+                    </form>
+                </div>                
+            </div>
+        </div {{ ui.card_end() }}>
+    {% endfor %}
+    <div class="hide templateVar">{{sms_variable_badge('')}}</div>
+{% endblock %}
+{% block scripts %}
+<script type="text/javascript" src="{{ url_for('static', filename='js/sms_counter.min.js') }}?version={{ COMMIT_SHA }}"></script>
+<script type="text/javascript" src="/static/custom/js/admin_helpers.js?version={{ COMMIT_SHA }}"></script>
+<script type="text/javascript" src="{{ url_for('message.static', filename='js/common.js') }}?version={{ COMMIT_SHA }}"></script>
+<script type="text/javascript" src="{{ url_for('message.static', filename='js/custom_message.js') }}?version={{ COMMIT_SHA }}"></script>
+<script>
+    var variables = {
+        {% for variable in config.CUSTOMISABLE_MSGS_INFO[key]["variables"] %}
+            "{{variable}}": "{{config.SMS_VARIABLES_INFO[variable]['example']|replace('%currency_sym%', GlobalSetting('CurrencySymbol'))|replace('.0', '.00')}}",
+        {% endfor %}
+    }
+</script>
+{% endblock %}
