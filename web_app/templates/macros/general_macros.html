@@ -1,0 +1,967 @@
+{% macro date(date, tooltip=true, year=true) -%}
+    {%- if date -%}
+        {%- set date = datetime_localizer(date) -%}
+        <span {% if tooltip -%}{{ tooltip_code(date.strftime("%H:%M:%S")|notranslate) }}{%- endif -%}><var>{{ date.strftime("%d") }}</var> {{ ftext(date.strftime("%b")) }}<var>{{ ' '+date.strftime("%Y") if year else '' }}</var></span>
+    {%- else -%} - {%- endif -%}
+{%- endmacro %}
+
+{% macro datetime(datetime, value_if_empty='-', seconds=false) -%}
+    {%- if datetime -%}
+        {%- set datetime = datetime_localizer(datetime) -%}
+        {{ datetime.strftime("%d") }} {{ ftext(datetime.strftime("%b")) }} {{ datetime.strftime("%Y") }}, {{ datetime.strftime("%H:%M:%S") if seconds else datetime.strftime("%H:%M") }}
+    {%- else -%}{{value_if_empty}}{%- endif -%}
+{%- endmacro %}
+
+{% macro standard_datetime(date_time, value_if_empty='-') -%}
+    {%- if date_time -%}
+        {%- set date_time = datetime_localizer(date_time) -%}
+        {{ date_time.strftime("%Y-%m-%d %H:%M:%S") }}
+    {%- else -%}{{value_if_empty}}{%- endif -%}
+{%- endmacro %}
+
+{% macro sortabledate(date) -%}
+    {% if date %}
+        {{ date.strftime("%Y%m%d%H%M%S") }}
+    {% else %}
+        -
+    {% endif %}
+{%- endmacro %}
+
+{% macro formattime(time) -%}
+{% if time is defined and time is not none %}{{ time.strftime("%H:%M") }}{% else %}{% endif %}
+{%- endmacro %}
+
+{% macro amount(value, include_currency=false) -%}{%- if value or value == 0 -%}{{ "{:,}".format(value|round(2)) }} {% if include_currency -%}{{ Currency }}{%- endif -%}{%- else -%} - {%- endif -%}{%- endmacro %}
+
+{% macro amount_normalize(value) -%}
+    {%- if value is not none -%}
+        {{'{:f}'.format(value.normalize())}}
+    {%- endif -%}
+{%- endmacro %}
+
+{% macro percentage(value, decimals=2) -%}{% if value %}{{(value*100)|round(2, 'common')}}%{% else %}-{% endif %}{%- endmacro %}
+
+{% macro suffix(value, suffix) -%}{% if value %}<var>{{value}} </var>{{ suffix }}{% else %}-{% endif %}{%- endmacro %}
+
+{% macro isnone(value_to_test, value_if_ok=none, suffix='', percent=false, decimals=none, prefix='', none_val='-') -%}
+    {% if value_to_test is not none %}
+    {% if value_if_ok is none %}{% set value_if_ok = value_to_test %}{% endif %}
+        {% if percent %}
+            {%if decimals is none %}{%set decimals = 0%}{%endif%}
+            {% set value_if_ok = (value_if_ok*100)|round(decimals) %}
+            {% if decimals == 0 %}{% set value_if_ok = value_if_ok|int %}{% endif %}
+        {% elif decimals is not none %}
+            {% set value_if_ok = value_if_ok|round(decimals)  %}
+        {% endif %}
+        {{ prefix }}{{ value_if_ok }}{{ suffix }}
+    {% else %}{{none_val}}{% endif %}
+{%- endmacro %}
+
+{% macro time_since(datetime, inverted=False) -%}{% set time_elapsed = (NOW - datetime).days %}{% if time_elapsed <= 60 %}<var>{{ time_elapsed }}</var>d{% else %}<var>{{ (time_elapsed/30)|round|int }}</var>m{% endif %}
+{%- endmacro %}
+
+{% macro days_remaining(expiration_date, now=NOW, short=false, with_colours=false) -%}
+    {% if expiration_date %}
+        {% if (expiration_date - now).days >= 2 %}
+            <span {% if with_colours %}class="green"{%endif%}>{{ ((expiration_date - now).days) }}{% if short %}d{% else %} days{% endif %}</span>
+        {% elif (expiration_date - now).days > 0 %}
+            <span {% if with_colours %}class="amber"{%endif%}>{{ ((expiration_date - now).days) }}{% if short %}d{% else %} days{% endif %}</span>
+        {% elif (expiration_date - now).days == 0 %}
+            <span {% if with_colours %}class="amber"{%endif%}>{{ ((expiration_date - now).seconds/3600)|round|int }}{% if short %}h{% else %} hours{% endif %}</span>
+        {% elif (expiration_date - now).days == -1 %}
+            <span {% if with_colours %}class="red"{%endif%}>-{{ ((now - expiration_date).seconds/3600)|round|int }}{% if short %}h{% else %} hours{% endif %}</span>
+        {% elif (expiration_date - now).days < 0 %}
+            <span {% if with_colours %}class="red"{%endif%}>{{ ((expiration_date - now).days) }}{% if short %}d{% else %} days{% endif %}</span>
+        {% endif %}
+    {% else %}
+        -
+    {% endif %}
+{%- endmacro %}
+
+{% macro days_late(days_late) -%}
+    {% if days_late %}
+        {% if days_late >= 0 %}
+            {{ days_late|round|int }}
+        {% else %}
+            (<var>{{ -days_late|round|int }}</var>d in advance)
+        {% endif %}
+    {% else %}
+        -
+    {% endif %}
+{%- endmacro %}
+
+{% macro isnotempty(value, suffix='') -%}
+{% if value is defined and value != '' and value is not none %}{{ value }}{{suffix}}{% else %}-{% endif %}
+{%- endmacro %}
+
+{% macro person_phone_numbers(person, user_has_permission_to_erase_phones=none) %}
+    {% if user_has_permission_to_erase_phones == none %}
+        {% set user_has_permission_to_erase_phones = current_user.can_access('DeletePhoneNumbers', entity=person.user.shop if person.user else person.get_entity()) %}
+    {% endif %}
+    {# We put the preffered number first if any #}
+    {% set phones = person.phoneNumbers|list %}
+    {% if person.contactPhone and person.contactPhone in phones %}
+        {% set x = phones.remove(person.contactPhone) %}
+        {% set phones = [person.contactPhone]+phones %}
+    {% endif %}
+    {% for phone in phones %}
+    {% if phone == person.contactPhone %}{{ ui.icon('star', 'amber tiny me-0') }}{% endif %}{{ phone_number(phone.number) }}
+        {% if user_has_permission_to_erase_phones %}
+            {{ ui.draw_disable_phones_button(phone.number, person) }}
+        {% endif %}
+        {% if not loop.last %}{% if not user_has_permission_to_erase_phones %}, {% endif %}<br>{% endif %}
+    {% endfor %}
+{%- endmacro %}
+
+{% macro draw_disable_phones_button(phonenumber, person) %}
+{{ button(uicon='delete', action='removeNumberManual("'+phonenumber+'", '+person.id|string+')', type='tiny-action') }}
+{% endmacro %}
+
+{% macro phone_number(phone, short=false) -%}
+    {% if phone %}
+        <a href="tel:{{phone}}" {{ tooltip_code('Click to call') }}>{{phone}}</a>
+    {% else %}
+        -
+    {% endif %}
+{%- endmacro %}
+
+{% macro phone_number_table_icon(person) %}
+{% if person.contactPhone %}<a href="tel:{{person.contactPhone.number}}">{{ ui.table_icon('phone', color='red', tooltip=ftext('Call {}', person.contactPhone.number)) }}</a>{% else %}{{ ui.table_icon('phone', color='grey') }}{% endif %}
+{% endmacro %}
+
+{% macro gps_coords(latitude, longitude) -%}
+    {# the comparison with itself is to avoid NaN error in floats #}
+    {% if latitude and longitude and latitude == latitude and longitude == longitude %}
+        <a href="http://maps.google.com/maps?z=12&t=h&q=loc:{{ latitude }}+{{ longitude }}" target="_blank">{{ latitude|round(4) }}, {{ longitude|round(4) }}</a>
+    {% else %}
+        -
+    {% endif %}
+{%- endmacro %}
+
+{% macro url(url, text='') -%}
+    {% if url %}
+        <a href="{{ url }}" target="_blank">{{ text or url }}</a>
+    {% else %}
+        -
+    {% endif %}
+{%- endmacro %}
+
+{% macro yes_no(value) -%}{% if value == none %}-{% elif value in [true, 'True', 'true'] %}{{ftext('Yes')}}{% else %}{{ftext('No')}}{% endif %}{%- endmacro %}
+{% macro no_yes(value) -%}{{ yes_no(false if value in [true, 'True', 'true'] else true) }}{%- endmacro %}
+
+{% macro person_picture_thumb(person) -%}
+    {%- if person.profile_picture -%}
+        {%- if person.profile_picture.available and (person.profile_picture.is_found() or config.IS_SECONDARY) -%}
+            {{ url_for('file_upload.download_picture_thumbnail', picture_uuid=person.profile_picture.uuid) }}?{{ person.profile_picture.modifiedDate.timestamp() }}
+        {%- else -%}
+            /static/img/default_missing.jpg
+        {%- endif -%}
+    {%- else -%}
+        /static/img/default_t.jpg
+    {%- endif -%}
+{%- endmacro %}
+
+{% macro person_picture(person) -%}
+    {%- if person.profile_picture -%}
+        {%- if person.profile_picture.available and person.profile_picture.is_found() -%}
+            {{ url_for('file_upload.download_picture', picture_uuid=person.profile_picture.uuid) }}?{{ person.profile_picture.modifiedDate.timestamp() }}
+        {%- else -%}
+            /static/img/default_missing.jpg
+        {%- endif -%}
+    {%- else -%}
+        /static/img/default_t.jpg
+    {%- endif -%}
+{%- endmacro %}
+
+{% macro activation_ratio_color(activation_ratio) -%}
+    {% if activation_ratio != 0 %}
+        {% if activation_ratio > 75 %}
+            <font color="green">{{ activation_ratio }}%</font>
+        {% elif activation_ratio > 50 %}
+            <font color="orange">{{ activation_ratio }}%</font>
+        {% else %}
+            <font color="red">{{ activation_ratio }}%</font>
+        {% endif %}
+    {% else %}
+        -
+    {% endif %}
+{%- endmacro %}
+
+
+{% set hcolor = '' %}
+{% macro report_field(title, value, uicon='', tooltip='', nospace=false, translatable=false, size='', visible=true, class='', truncable=false, size_limited=true) -%}
+{% if visible %}{{ report_field_start(title, uicon, tooltip=tooltip, nospace=nospace, size=size, class=class, truncable=truncable, size_limited=size_limited) }}
+    {% if not translatable and not is_safe(value) %}<var>{% endif %}{{ isnotempty(value) if not translatable else ftext(isnotempty(value)) }}{% if not translatable and not is_safe(value) %}</var>{% endif %}
+{{ report_field_end() }}{% endif %}
+{%- endmacro %}
+
+
+{% macro report_field_start(title, uicon='', tooltip='', nospace=false, size='', class='', truncable=false, size_limited=true) %}
+<div{% if size or class %} class="{{ col_size(size) }} {{class}}"{% endif %}><div class="{% if not nospace %}d-flex justify-content-between{% endif %} report-field">{{ report_header(title, uicon, tooltip, class='me-3' if nospace else '') }}<span{% if truncable %} class="truncate-hoverable"{% elif size_limited %} class="report-field-limit"{% endif %}>
+{%- endmacro %}
+
+
+{% macro report_field_end() %}</div></span></div>{%- endmacro %}
+
+
+{% macro report_header(name, micon, tooltip='', class='') -%}
+<strong{% if class %} class="{{class}}"{% endif %}>{% if micon %}{{ icon(micon, 'inline-icon tiny') }}{% endif %}{{ ftext(name) }}: {% if tooltip %}{{ icon('info', 'inline-icon-small tiny', 'lightgrey', tooltip=tooltip) }}{% endif %}</strong>
+{%- endmacro %}
+
+
+{% macro tooltip_code(tooltip, translate=true) -%}
+{% if tooltip != none and tooltip != '' %}data-bs-toggle="tooltip" data-bs-html="true" title="{{ftext(tooltip).replace('\n', '<br>') if translate else tooltip.replace('\n', '<br>')}}"{% endif %}
+{%- endmacro %}
+
+{% macro skeleton_placeholder(lines=3) -%}
+<br>
+{% for line in range(lines-1) %}
+<div class="skeleton skeleton-text"></div>
+{% endfor %}
+<div class="skeleton skeleton-text skeleton-footer"></div>
+{%- endmacro %}
+
+{%- macro entity_badge(entity) -%}
+{{ badge(entity_link(entity), uicon=entity|entityIcon, class='me-1 mb-1', tooltip=('ID: '+entity.id|string)|notranslate) }}
+{%- endmacro -%}
+
+{% macro icon(icon_name, attributes='', color='', style='', tooltip=none, onclick='', translate_tooltip=true) -%}
+{%- if icon_name -%}{%- if tooltip == '' -%}{%- set tooltip = none -%}{%- endif -%}
+{%- if icon_name.endswith('_outline') -%}{%- set icon_name = icon_name[:-8] -%}{%- endif -%}
+{% if onclick %}{% set attributes = attributes + ' pointer' %}{% set onclick = ' onclick='+onclick %}{% endif %}
+<i class="material-symbols-rounded {{ attributes }}"{% if style or color %} style="{{ style }} {% if color != '' %}color:{{ color }};{% endif %}"{%endif %} {{ tooltip_code(tooltip, translate=translate_tooltip) }}{{onclick}}>{{ icons.get(icon_name, icon_name) }}</i>{%- endif -%}
+{%- endmacro %}
+
+{% macro lead_coloured(Lead) -%}
+<div style="color:{{ Lead.status.color }};"><var>{{ Lead.status.name }}</var></div>
+{%- endmacro %}
+
+{% macro last_visit(expiration_date, last_call=None) -%}
+    {% if expiration_date is not none %}
+        {% if (expiration_date - NOW).days <= -31 %}
+            <font color="red"><i class="material-icons tooltipped tiny" data-position="bottom" data-delay="50" data-tooltip="Visit: {{ (-(expiration_date - NOW).days) }} days ago {% if last_call is not none %}| Call: {{ (-(last_call - NOW).days) }} days ago{% endif %}">record_voice_over</i></font>
+        {% elif (expiration_date - NOW).days <= -15 %}
+            <font color="orange"><i class="material-icons tooltipped tiny" data-position="bottom" data-delay="50" data-tooltip="Visit: {{ (-(expiration_date - NOW).days)  }} days ago {% if last_call is not none %}| Call: {{ (-(last_call - NOW).days) }} days ago{% endif %}">record_voice_over</i></font>
+        {% else %}
+            <font color="green"><i class="material-icons tooltipped tiny" data-position="bottom" data-delay="50" data-tooltip="Visit: {{ (-(expiration_date - NOW).days)  }} days ago {% if last_call is not none %}| Call: {{ (-(last_call - NOW).days) }} days ago{% endif %}">record_voice_over</i></font>
+        {% endif %}
+    {% else %}
+        <font color="#ededed"><i class="material-icons tiny">record_voice_over</i></font>
+    {% endif %}
+{%- endmacro %}
+
+{% macro client_link(client, color='') -%}
+    {% if client is not none %}
+        <a href="{{ url_for('client.view_client', client_id=client.id) }}" class="{{ color }}">
+            {{ client.full_name }}
+        </a>
+    {% else %}
+        -
+    {% endif %}
+{%- endmacro %}
+
+{%  macro client_group_link(client_group) -%}
+{% if client_group is not none %}<a href="{{ url_for('entities.edit_client_groups', id=client_group.id) }}">{{ client_group.name }}</a>{% else %} - {% endif %}
+{%- endmacro %}
+
+{%  macro user_link(user, empty_text=' - ', link=true) -%}
+{% if user is not none %}
+    {% if link %}
+        <a href="{{ url_for('user.view_user', user_id=user.id) }}">{{ user.full_name }}</a>   
+    {% else %}
+        <span class="truncate-hoverable fw-bold">{{ user.full_name }}</span>
+    {% endif %}
+{% else %}{{empty_text}}{% endif %}
+{%- endmacro %}
+
+{%  macro role_link(role, empty_text=' - ') -%}
+{% if role is not none %}<a href="{{ url_for('permissions.edit_role', role_id=role.id) }}">{{ role.name }}</a>{% else %}{{empty_text}}{% endif %}
+{%- endmacro %}
+
+{%  macro client_group_link(group, empty_text=' - ') -%}
+{% if group is not none %}<a href="{{ url_for('entities.edit_client_groups', id=group.id) }}">{{ group.name }}</a>{% else %}{{empty_text}}{% endif %}
+{%- endmacro %}
+
+{%  macro portfolio_link(portfolio, empty_text=' - ', link=true) -%}
+    {% if link %}
+        {% if portfolio is not none %}<a href="{{ url_for('portfolios.view_portfolio', portfolio_id=portfolio.id) }}">{{ portfolio.name }}</a>{% else %}{{empty_text}}{% endif %}
+    {% else %}
+        <span class="truncate-hoverable fw-bold">{{ portfolio.name }}</span>
+    {% endif %}
+{%- endmacro %}
+
+{%  macro entity_link(entity) -%}
+{% if entity is not none %}<a href="{{url_for('entities.view_entity', entity_id=entity.id)}}">{{ entity.name }}</a>{% else %} - {% endif %}
+{%- endmacro %}
+
+{% macro entity_link_raw(entity_id) %}
+<a href="{{url_for('entities.view_entity', entity_id=entity_id)}}">{{ ftext('{} {}', OperationalEntitiesHelper.get_custom_level_name(0)|capitalize,  entity_id) }}</a>
+{%- endmacro %}
+
+{%  macro entity_link_ancestors(entity) -%}
+{{entity_link(entity)}}{% if entity.parent is defined and entity.parent and OperationalEntitiesHelper.get_max_level_enabled() >= entity.parent.level %} < {{entity_link_ancestors(entity.parent)}}{% endif %}
+{%- endmacro %}
+
+{% macro person_link(person) -%}
+{% if person %}{% if person.client %}{{ client_link(person.client) }}{% else %}{{ user_link(person.user) }}{% endif %}{% else %}-{% endif %}
+{%- endmacro %}
+
+{% macro addon_offer_link(offer) -%}
+{% if offer %}<a href="{{ url_for('contract.view_addon_offer', offer_id=offer.id) }}">{{ offer.code }}</a>{% else %} - {% endif %}
+{%- endmacro %}
+
+{% macro addon_offer_version_link(offer_version) -%}
+{% if offer_version %}<a href="{{ url_for('contract.view_addon_offer', offer_id=offer_version.offer.id) }}">{{ offer_version.offer.code }}</a> (v{{offer_version.version_number}}){% else %} - {% endif %}
+{%- endmacro %}
+
+{% macro addon_bundle_link(bundle) -%}
+{% if bundle %}<a href="{{ url_for('contract.view_addon_bundle', bundle_id=bundle.id) }}">{{ bundle.name }}</a>{% else %} - {% endif %}
+{%- endmacro %}
+
+{%  macro issue_link(issue) -%}
+{% if issue is not none %}<a href="{{ url_for('issue.view_issue', issue_id=issue.id) }}">#{{ issue.id }}</a>{% else %} - {% endif %}
+{%- endmacro %}
+
+{%  macro interaction_link(interaction) -%}
+{% if interaction is not none %}<a href={{url_for("interaction_report.view_interaction", interaction_id=interaction.id)}}>#{{ interaction.id }}</a>{% else %} - {% endif %}
+{%- endmacro %}
+
+{% macro automation_link(automation) -%}
+{% if automation is not none %}<a href="{{ url_for('automations.edit_automation', uuid=automation.uuid) }}">{{ui.icon('automation', 'tiny')}} {{ automation.name }}</a>{% else %} - {% endif %}
+{%- endmacro %}
+
+{% macro big_button(uicon, text, link, color='red', premium=false, subtext='', target='', beta=false) -%}
+{% set premium = premium and platform_type in ['freemium', 'freemium-demo'] %}
+{% set premium_forbidden = premium and platform_type == 'freemium' and not current_user.is_super_admin() %}
+<div class="{{ col_size(6) }} mb-4">
+<div class="card full-card">
+    <div class="card-body">
+        <div class="card-title header-elements">
+            <h4 class="card-title">{{ icon(uicon, 'red-badge icon-badge') }} <a {% if not premium_forbidden %}href="{{link}}"{% else %}href="#" onclick="error_toast('{{ftext('This feature is only available with the premium version.')}}')"{% endif %} {% if target %}target="{{ target }}"{% endif %}>{{ ftext(text) }}</a></h5>
+            <div class="card-title-elements ms-auto">
+                {% if premium %}{{ premium_tag() }}{% endif %}{% if beta %}{{ beta_tag() }}{% endif %}
+            </div>
+        </div>
+      <p class="card-text">{{ ftext(subtext) }}</p>
+      {# button('Go to setting...', link=link) #}
+    </div>
+  </div>
+</div>
+{%- endmacro %}
+
+{% macro special_button(text, uicon, link) %}
+<div class="{{ col_size(3) }} mb-4">
+<div class="card full-card border border-primary">
+    <div class="card-body px-2">
+        <div class="d-flex justify-content-center">
+            <h2 class="text-center">{{ icon(uicon, 'red-badge icon-badge text-center big-button-icon') }}</h2>
+        </div>
+        <div class="d-flex justify-content-center">
+            <h4 class="card-title text-center"><a href="{{link}}">{{ ftext(text) }}</a></h5>
+        </div>
+    </div>
+    </div>
+</div>
+{% endmacro %}
+
+{% macro days_to_weeks(days) -%}
+{{ (days/7)|round|int }}
+{%- endmacro %}
+
+{% macro offer_link(this_offer) -%}
+{% if this_offer %}<a href="{{ url_for('offers.view_offers', offer_id=this_offer.id) }}">{{ this_offer.code }}</a>{% else %}-{% endif %}
+{%- endmacro %}
+
+{% macro offer_link_full(this_offer, link=true) -%}
+    {% if link %}
+        {% if this_offer %}<a href="{{ url_for('offers.view_offers', offer_id=this_offer.id) }}">{{ this_offer.name }}</a>{% else %}-{% endif %}
+    {% else %}
+        <span class="truncate-hoverable fw-bold">{{ this_offer.name }}</span>
+    {% endif %}
+{%- endmacro %}
+
+{% macro wallet_link(this_account, short=False, icon=false, table=true) -%}
+    {% if this_account %}<a href="{{ url_for('payment.account', account_id=this_account.id) }}">{% if short %}{{ this_account.id }}{% else %}{{ (ui.table_icon('wallet', tooltip='View Wallet') if table else ui.icon('wallet', 'tiny center-align')) if icon else this_account.FullName }}{% endif %}</a>{% else %}-{% endif %}
+{%- endmacro %}
+
+{% macro account_link_from_payment(payment) -%}
+    {% if payment %}<a href="{{ url_for('payment.account', account_id=payment.PaymentWallet.id) }}">{{ payment.Reference }}</a>{% else %}-{% endif %}
+{%- endmacro %}
+
+{% macro payment_source_tooltip(payment) %}
+    {{ table_icon('payment', tooltip=ftext(payment.get_operator_label(), payment.wallet_operator)) }}
+{%- endmacro %} 
+
+{% macro wallet_source_tooltip(wallet) %}
+    {{ icon('account', 'tiny', tooltip=ftext(wallet.get_operator_label(), wallet.operator)) }}
+{%- endmacro %} 
+
+{% macro contract_link(contract, tab='', text='', color='') -%}
+    {% if contract %}
+        <a href="{{ url_for('contract.view_contract', contract_reference=contract.reference) }}{{ tab }}"
+           class="{{ color }}">
+            {{ text or contract.reference }}
+        </a>
+    {% else %}
+        -
+    {% endif %}
+{%- endmacro %}
+
+{% macro addon_link(addon) -%}
+    {% if addon.contract %}<a href="{{ url_for('contract.view_addon', addon_reference=addon.reference) }}">{{ addon.reference }}</a>
+    {% elif addon.lead %}<a href="{{ url_for('leads.view_lead', lead_id=addon.lead.id) }}">{{ addon.reference }}</a>
+    {% else %}-{% endif %}
+{%- endmacro %}
+
+{% macro lead_link(lead, opts=[], color='') -%}
+    {%- if lead -%}
+        {%- if 'brackets' in opts %}({% endif %}
+        <a href="{{ url_for('leads.view_lead', lead_id=lead.id) }}" class="{{ color }}">
+            {{ lead.person.full_name }}
+        </a>
+        {%- if 'bracket' in opts %}){% endif %}
+    {%- endif -%}
+{%- endmacro %}
+
+{% macro lead_generator_link(lead_generator, link=true) -%}
+    {% if link %}
+        {% if lead_generator %}<a href="{{ url_for('lead_generator.view_lead_generator', generator_id=lead_generator.id) }}">{{ lead_generator.person.full_name }}</a>{% endif %}
+    {% else %}
+        <span class="truncate-hoverable fw-bold">{{ lead_generator.person.full_name }}</span>
+    {% endif %}
+{%- endmacro %}
+
+{% macro device_link(device, color='') -%}
+    {% if device %}
+        <a href="{{ url_for('device.view_device', device_id=device.id) }}" class="{{ color }}">
+            {{ device.get_display_name() }}
+        </a>
+    {% else %}
+        -
+    {% endif %}
+{%- endmacro %}
+
+{% macro contract_status_tag(status, tiny=false) %}
+{% set color = 'blue' %}
+{% if status == 'Completed' %}{% set color = 'green' %}{% endif %}
+{% if status == 'Defaulted' %}{% set color = 'red' %}{% endif %}
+{% if status == 'Cancelled' %}{% set color = 'black' %}{% endif %}
+{% if status == 'Paused' %}{% set color = 'amber' %}{% endif %}
+{% if status == 'Late' %}{% set color = 'yellow' %}{% endif %} 
+{% if status == 'Overpaid' %}{% set color = 'purple' %}{% endif %} 
+
+<span class="badge {{ color }}-badge{% if tiny %}-strong{% endif %}" {% if tiny %}{{ tooltip_code(status) }}{% endif %}><strong>{% if not tiny %}{{ ftext(status) }}{% endif %}</strong></span>
+{%- endmacro %}
+
+{% macro task_status_tag(status, tiny=false) %}
+{% set color = 'blue' %}
+{% if status == 'New' %}{% set color = 'gray' %}{% endif %} 
+{% if status == 'Blocked' %}{% set color = 'red' %}{% endif %}
+{% if status == 'On Hold' %}{% set color = 'amber' %}{% endif %}
+{% if status == 'In Progress' %}{% set color = 'blue' %}{% endif %} 
+{% if status == 'Completed' %}{% set color = 'green' %}{% endif %}
+{% if status == 'Cancelled' %}{% set color = 'black' %}{% endif %}
+
+
+
+<span class="badge {{ color }}-badge{% if tiny %}-strong{% endif %}" {% if tiny %}{{ tooltip_code(status) }}{% endif %}><strong>{% if not tiny %}{{ ftext(status) }}{% endif %}</strong></span>
+{%- endmacro %}
+
+{% macro lead_status_tag(this_lead) -%}
+<span class="badge {{ this_lead.status.color if this_lead and this_lead.status else 'grey' }}-badge truncate-hoverable truncate-tag"><strong>{{ this_lead.status.name if this_lead and this_lead.status else '-' }}</strong></span>
+{%- endmacro  %}
+
+{% macro suffix(txt, suffix='') -%}{% if txt %}{{txt}}{{suffix}}{% else %}-{% endif %}{%- endmacro %}
+
+{%- macro stock_location(s,origin=none,opts=['dash'],show_status=False,show_pending=False) -%}
+{%- if s.last_movement is defined -%}{# meaning is a stock item and not stock movement #}{% set data = s.last_movement %}{% elif origin %}{% set data = s.previous %}{% else %}{% set data = s %}{%- endif -%}
+{%- if data.destination_user -%}
+{{ icon('user','tiny',style="vertical-align: middle;") }} {{ user_link(data.destination_user) }}
+{% if data.approval_status == 'pending' and show_pending %}{{ icon('overview', 'yellow', tooltip='Pending', style="vertical-align: top;") }}{%endif%}
+{% elif data.destination_client %}
+{{ icon('client','tiny',style="vertical-align: middle;") }} {{ client_link(data.destination_client) }}
+{% elif data.destination_entity %}
+{{ icon('shop','tiny',style="vertical-align: middle;") }} {{ entity_link(data.destination_entity) }}
+{% elif show_status %}
+{{ ftext(statuses.to_human(data.destination_status)) }}
+{%- elif 'dash' in opts -%}
+-
+{%- else -%}{{ftext('No Location')}}{%- endif -%}
+{%- endmacro -%}
+
+{%- macro stock_movement_status(approval_status) -%}
+{%- if approval_status and approval_status == 'accepted' -%}
+{{ icon('check_circle', 'green', tooltip='Accepted') }}
+{% elif approval_status and approval_status == 'rejected' %}
+{{ icon('cancel', 'red', tooltip='Not accepted') }}
+{%-else-%}{{ icon('overview', 'yellow', tooltip='Pending') }}
+{%endif%}
+{%- endmacro -%}
+
+{%- macro message_status(status, SMS_STATUS_MAP, SMS_STATUS_MAP_SHORT) -%}
+{% if status in SMS_STATUS_MAP_SHORT %}
+    {% set tooltip = SMS_STATUS_MAP_SHORT.get(status, status)+': '+SMS_STATUS_MAP.get(status, 'No details') %}
+{% else %}
+    {% set tooltip = "There is no information about the status of that message (the integration might not support it)" %}
+{% endif %}
+{%- if status and status == 'delivered_final' -%}
+<span class="delivery-ticks">
+    {{ icon('check', 'green', tooltip=tooltip) }}
+    {{ icon('check', 'green', tooltip=tooltip) }}
+</span>
+{% elif status and status == 'processed' %}
+<span class="delivery-ticks">
+    {{ icon('check', 'grey', tooltip=tooltip) }}
+</span>
+{% elif status and status == 'sent' %}
+<span class="delivery-ticks">
+    {{ icon('check', 'green', tooltip=tooltip) }}
+</span>
+{% elif status and status in ['sending_failure', 'sending_rejected', 'sending_rejected_config', 'sending_rejected_msisdn', 'sending_rejected_flagged'] %}
+<span class="delivery-ticks red-ticks">
+    {{ icon('check', 'red', tooltip=tooltip) }}
+</span>
+{% elif status and status == 'delivered_telco' %}
+<span class="delivery-ticks">
+    {{ icon('check', 'green', tooltip=tooltip) }}
+    {{ icon('check', 'grey', tooltip=tooltip) }}
+</span>
+
+{% elif status and status in ['delivery_failure', 'delivery_failure_absent', 'delivery_rejected', 'delivery_rejected_msisdn', 'delivery_rejected_flagged'] %}
+<span class="delivery-ticks red-ticks">
+    {{ icon('check', 'red', tooltip=tooltip) }}
+    {{ icon('check', 'red', tooltip=tooltip) }}
+</span>
+{%-else-%}
+<span class="delivery-ticks grey-ticks">
+    {{ icon('check', 'grey', tooltip=tooltip) }}
+</span>
+{%endif%}  
+{%- endmacro -%}
+
+
+{%- macro quantity_stock_location(location) -%}
+{%- if not location -%}
+-
+{%- elif location.user -%}
+{{ icon('user','tiny',style="vertical-align: middle;") }} {{ user_link(location.user) }}
+{% elif location.operational_entity %}
+{{ icon('shop','tiny',style="vertical-align: middle;") }} {{ entity_link(location.operational_entity) }}
+{% else %}
+{{ ftext(statuses.to_human(location.status)) }}
+{%endif%}
+{%- endmacro -%}
+
+{%- macro device_paygo_status(device) -%}
+{% if device.type == 'NPG' %}{{ ui.badge('Not PAYGO', 'grey', tooltip='This item does not support PAYGO') }}{% elif device.Mode == 1 and device.get_active_until_if_payg() and device.get_active_until_if_payg() >= NOW %}{{ ui.badge('Active', 'blue', tooltip='This device is PAYGO and currently active (has time left)') }}{% elif device.Mode == 1 and ((not device.get_active_until_if_payg()) or device.get_active_until_if_payg() < NOW) %}{{ ui.badge('Inactive', tooltip='This device is PAYGO and currently inactive (has no time left)') }}{% elif device.Mode == 2 %}{{ ui.badge('Active (Credit)', 'blue') }}{% elif device.Mode == 3 %}{{ ui.badge('Unlocked', 'green', tooltip='PAYGO has been disabled on that device. It will be active forever unless manually re-locked. ') }}{% endif %}
+{%- endmacro -%}
+
+{% macro quick_access(permission='', label='', uicon=none, link=none, person=none, entity=none, blank=false) %}
+{% if current_user.can_access_modular(permission, person, entity) %}
+    <div class="quick-action-group">
+    {{ ui.button(uicon=uicon, id='button_'+permission, color='danger', class='quick-action-button', link=link, link_target_blank=blank) }}
+        <label for="button_{{ permission }}" class="quick-action-text">{{ ftext(label) }}</label>
+    </div>
+{% endif %} 
+{% endmacro %}
+
+{% macro extension_days(days) -%}
+{%- if 0 < days < 1 -%}&lt; 1 {{ftext('day')}}{% else %}{{days|int}} {{ftext('days')}}{% endif %}
+{% endmacro %}
+
+{% macro beta_tag() -%}{{ badge('beta', 'black', class='mx-2') }}{%- endmacro %}
+
+{% macro premium_tag() -%}{{ badge(icon('premium', 'premium-icon me-1')+'premium', 'amber', class='mx-2') }}{%- endmacro %}
+
+{% macro deprecated_tag(reason='', style='') -%}{{ badge('deprecated', 'black', class='mx-2', tooltip=reason) }}{%- endmacro %}
+
+{% macro custom_dashboard_link(dashboard_view) -%}
+{% if GlobalSetting('CustomDashboards').get(dashboard_view, {}).get('enabled') %}
+{{ ui.button(uicon='insights', type='header-action', tooltip='Switch to custom dashboard', link=url_for('overview.view_custom_dashboard', dashboard_name=dashboard_view)) }}
+{% endif %}
+{%- endmacro %}
+
+{% macro round_if_needed(number, decimals=2) -%}{% if number % 1 %}{{number|round(decimals)}}{%else%}{{number|round|int}}{%endif%}{%- endmacro %}
+
+{% macro format_lead_field(value) -%}{% if value != '' and value != "l0_entity" %}{{ value.replace("_", " ").title()}}{% else %}{{value.title()}}{% endif %}{%- endmacro %}
+
+{% macro is_visible(lead_display_setting) -%}
+    {% if lead_display_setting %} 
+        {{""}} 
+    {%else %} 
+        {{"display:none;"}} 
+    {% endif %}
+{%- endmacro %}
+
+{% macro preloader_macro(id='') %}
+<div {% if id %}id="{{id}}"{% endif %} class="preloader-wrapper big active">
+    <div class="spinner-layer spinner-red-only">
+        <div class="circle-clipper left">
+        <div class="circle"></div>
+        </div><div class="gap-patch">
+        <div class="circle"></div>
+        </div><div class="circle-clipper right">
+        <div class="circle"></div>
+        </div>
+    </div>
+</div>
+{% endmacro %}
+
+{% macro processActivityLogData(data) %}
+    {% if data is string %}
+        {{ data }}
+    {% elif data is number %}
+        {{ data }}
+    {% elif data is boolean %}
+        {{ data }}
+    {% elif data is mapping %}
+        <br>
+        {% for k, v in data.items() %}
+            - <b>{{ k }}</b>: {{ processActivityLogData(v) }}<br>
+        {% endfor %}
+    {% else %}
+        -
+    {% endif %}
+{% endmacro %} 
+
+{% macro audit_log_data(data) %}
+    {% if data is mapping %}
+        <br>
+        <ul class="list-group">
+            {% for k, v in data.items() %}
+            <li class="list-group-item">
+                <b>{{ k }}</b>: {{ audit_log_data(v) }}
+            </li>
+            {% endfor %}
+        </ul>
+    {% elif data %}
+        {{ data }}
+    {% else %}
+        -
+    {% endif %}
+{% endmacro %} 
+
+{% macro chat_window() %}
+<script src="/static/custom/js/paquita.js?version={{COMMIT_SHA}}"></script>
+<link rel="stylesheet" href="/static/custom/css/paquita.css?version={{COMMIT_SHA}}"/>
+<button id="toggleChat" class="btn btn-danger btn-icon chat-toggle-button" {# tooltip_code('Open the AI Assistant to ask any question about PaygOps') #} onclick="toggleChat()">{{ icon('contact_support') }}</button>
+<div id="chatContainer" class="chat-container card d-flex flex-column" style="display: none !important; z-index: 100000 !important;">
+    <div class="card px-4 py-3 chat-header">
+        <div class="d-flex align-items-center justify-content-between">
+            <span>{{ ftext('PaygOps AI Assistant') }}</span>
+            <div class="chat-header-actions">
+                {{ icon('refresh', attributes='chat-new-conversation', tooltip='Start a new conversation', onclick="startNewConversation()") }}
+                <span class="chat-close" onclick="toggleChat()">X</span>
+            </div>
+        </div>
+    </div>
+    <div id="chat-box" class="chat-box p-3">
+        {{ info_card('Our AI assistant is designed to provide helpful information, but occasional inaccuracies may occur. To enhance responses, some data may be processed by third-party services see our <a href="https://www.paygops.com/privacy-policy" target="_blank">privacy policy</a> for more details', 
+                        type="warning")}}
+        <ul id="chat" class="list-group list-group-flush">
+            
+        </ul>
+    </div>
+    <div class="input-group mt-auto p-3">
+        <input type="text" id="messageInput" class="form-control" placeholder="{{ ftext('Ask me about PaygOps...') }}" onkeypress="updateChatInput(event)">
+        {{ button(uicon='send', action='sendMessage()') }}
+    </div>
+</div>
+{% endmacro %}
+
+
+{# ------ Bootstrap UI Elements Macros ----- #}
+
+{% macro page_title(type, action, object=none, display_name=none, object_name=none, menu_link=none) -%}
+<div class="col align-self-center">
+    <h3 class="fw-bold page-title">
+        {% set menu_parent = breadcrumb_parent(type) %}
+        <span class="text-muted fw-light">
+            {%if not is_custom_app %}
+                {% if menu_parent %}<a href="{{ breadcrumb_link(menu_parent) }}" class="text-muted fw-light">{{ ftext(menu_parent.capitalize()) }}</a> / {% endif %}<a href="{{ breadcrumb_link(type) if not menu_link else menu_link }}" class="text-muted fw-light">{{ ftext(display_name or type) }}</a>{% if object %} / <a href="{{ breadcrumb_object_link(type, object) }}" class="text-muted fw-light">{{ ftext(object_name) if object_name else breadcrumb_object_name(type, object) }}</a>{% endif %} / 
+            {% else %}
+                 {{ ftext(display_name or type) }} / {%if object_name %}{{ ftext(object_name)}} / {% endif %}  
+            {% endif %}
+        </span> {{ftext(action)}}
+        {% if object and get_audit_log_link(object) and current_user.can_access(['ViewActivityLogAdmin', 'SuperAdmin']) and not is_custom_app %}{{ button(uicon='history', type='tiny-action-grey', link=get_audit_log_link(object), tooltip='View Audit logs for that object') }}{% endif %}
+    </h3>
+</div>
+{%- endmacro %}
+
+{% macro col_size(number='') -%}{% if number == '2s' %}d-none d-lg-block col-lg-2{% elif number == '10s' %}col-xs-12 col-lg-10{% elif not (number|string).isdigit() %}{{number}}{% else %}col-{{ '12' if number | int > 3 else '6' }} col-md-{{number}}{% endif %}{%- endmacro %}
+
+{% macro table_start(pagination=none, class='', sortable=true, style='') -%}
+    class="table card-table table-hover table-sm highlight centered {{class}} 
+    {%- if not pagination %}{% if sortable %} sortable{% endif %} paginate{% else -%}
+    {{ pagination.sortable() }}{% endif %}" id="table" {% if style %}style="{{style}}"{% endif %}
+{%- endmacro %}
+
+{% macro no_results_row(cols=1, text='No results found') -%}<tr><td colspan="{{cols}}" style="text-align: center;">{{ftext(text)}}</td></tr>{%- endmacro %}
+
+{% macro table_header(title='', uicon='', tooltip='', visible=true, class='', width='') -%}
+{% if visible %}<th {{ tooltip_code(tooltip=tooltip) }}{% if class %} class="{{class}}"{% endif %}{% if width %}width="{{width}}"{% endif %}>{% if uicon %}{{ icon(uicon, 'table-icon mx-1') }}{% endif %}{{ ftext(title)|safe }}</th>{% endif %}
+{%- endmacro %}
+
+{% macro sortable_header(name, title='', uicon='', tooltip='', visible=true, class='', pagination=none, slow_sort=false, tab='') %}
+{% if pagination %}
+{% if visible %}{% set tab_slice = ", 'tab': '"+tab+"'" if tab else '' %}
+{% set too_long = slow_sort and pagination.total_count > config.COMPUTED_SORTING_THRESHOLD %}
+{% set changeUrlFunction = "changeQueryParameters({'sort': '"+name+":asc'"+tab_slice+"}, {'sort': '"+name+":desc'})" %}
+{% set tooLongWarning = 'error_toast("'+ftext("There are too many results to sort by {}, please apply some filter before sorting.", (title or tooltip))+'");' %}
+{% set action = tooLongWarning if too_long else changeUrlFunction %}
+{% set sort = pagination.sort if pagination else '' %}
+{% set tab = pagination.tab if pagination else '' %}
+<th {{ tooltip_code(tooltip=tooltip) }} class="sortable-th-{{name}} {{class}}">
+    <a href="javascript:void(0)" onclick="{{action}}" class="table-header">
+        {% if uicon %}{{ icon(uicon, 'table-icon mx-1') }}{% endif %}
+        {{ftext(title)|safe}}{% if sort == name+':asc' %}{{ icon('keyboard_arrow_down', 'inline-icon-small') }}{% elif sort == name+':desc' %}{{ icon('keyboard_arrow_up', 'inline-icon-small') }}{% endif %}</a>
+</th>{% endif %}
+{% else %}{{table_header(title, uicon, tooltip, visible, class)}}{% endif %}
+{% endmacro %}
+
+{% macro table_icon(icon_name, attributes='table-icon', color='main', style='', tooltip=none, small=false, translate_tooltip=true) -%}<span class="badge badge-center rounded-pill bg-label-secondary {{color}}-badge {% if not small %}big-table-badge{% endif %}" {{ tooltip_code(tooltip, translate=translate_tooltip) }}>{{ icon(icon_name, attributes, color='', style='') }}</span>{%- endmacro %}
+
+{% macro badge(text='', color='main', uicon='', class='', tooltip='', action="", data_attributes={}, mousedown="", id='') -%}
+<span
+    class="badge bg-label-secondary {{color}}-badge {{class}}"
+    {{ tooltip_code(tooltip) }}{% if id %} id="{{id}}"{% endif %}
+    {% if action %} onclick="{{action}}" style="cursor: pointer;"{% endif %}
+    {% if mousedown %} onmousedown="{{mousedown}}" style="cursor: pointer;"{% endif %}
+    contenteditable="false"
+    {{ data_attr(data_attributes) }}
+>{{ icon(uicon, 'badge-icon') }} {{ftext(text)}}</span>
+{%- endmacro %}
+
+{% macro variable_badge(variable, name='', description='', example='', add=false, callback='triggerInput') -%}
+{{ badge(
+    text=name or variable,
+    data_attributes={'variable': variable or '%VARIABLE%'},
+    uicon="add" if add else none,
+    mousedown="addVariable(this, "+callback+");return false;" if add else none,
+    tooltip=ftext(description + (". Example: " + example|string) if example else '')
+) }}
+{%- endmacro %}
+
+{% macro picture_square(picture_link, alt='', height='110') %}<a href="{{ picture_link }}" target="_blank"><img class="img-fluid rounded my-2" src="{{ picture_link }}" height="{{ height }}" width="{{ height }}" alt="{{ alt }}"></a>{%- endmacro %}
+
+{% macro activation_ratio_color_code(activation_ratio) -%}
+{% if activation_ratio != 0 %}{% if activation_ratio > 75 %}green{% elif activation_ratio > 50 %}amber{% else %}red{% endif %}{% else %}grey{% endif %}
+{%- endmacro %}
+
+{% macro activation_ratio_color(activation_ratio) -%}
+    {% if activation_ratio != 0 %}
+        {% if activation_ratio > 75 %}
+            <font color="green">{{ activation_ratio }}%</font>
+        {% elif activation_ratio > 50 %}
+            <font color="orange">{{ activation_ratio }}%</font>
+        {% else %}
+            <font color="red">{{ activation_ratio }}%</font>
+        {% endif %}
+    {% else %}
+        -
+    {% endif %}
+{%- endmacro %}
+
+{% macro activation_ratio_badge(activation_ratio) -%}{{badge((activation_ratio|string+'%')|notranslate, color=activation_ratio_color_code(activation_ratio))}}{%- endmacro %}
+
+{% macro button(label='', uicon='', class='', action='', disabled=none, id=none, tooltip='', link='', color='primary', size='', size_class='pt-4', style='', modal='', fit=false, center=false, inline=false, async_url='', link_target_blank=false, success_action='', redirect_url='', success_message='Success!', callback_options='', type='', data_attributes={}, visible=true, redirect_append='', permission=none, person=none, entity=none, form=none, align_end=false) -%}
+{% if action == '' %}{% if modal %}{% set action = 'modal' %}{% else %}{% set action = 'submit' %}{% endif %}{% endif %}
+{% set no_default_class=false %}
+{% if visible and permission %}{% if not current_user.can_access_modular(permission, person, entity) %}{% set visible = false %}{% endif %}{% endif %}
+{% if visible %}{% if center %}<div class="d-flex justify-content-center">{%endif%}
+{% if size %}<div class="{{ col_size(size) }} {{ size_class }}">{%endif%}
+{% if link != '' %}{% set elem = 'a' %}{%else%}{% set elem = 'button' %}{%endif%}
+{% if inline %}{% set class = class+' ms-2 form-inline-button' %}{%endif%}
+{% if align_end %}{% set class = class + ' float-end' %}{% endif %}
+{% if type == 'tiny-action' %}{% set class=class+' mx-1 btn-tiny' %}{% set color='label-danger' %}{%endif%}
+{% if type == 'tiny-action-grey' %}{% set class=class+' mx-1 btn-tiny' %}{% set color='label-secondary' %}{%endif%}
+{% if type == 'collapsible-action' %}{% set class=class+' mx-1 btn-sm collapsible-card-action-button' %}{% set color='label-danger' %}{%endif%}
+{% if type == 'header-action' %}{% set class=class+' ms-2 float-end' %}{% set color='danger' %}{%endif%}
+{% if type == 'card-action' %}{% set class=class+' mx-1 btn-sm' %}{% set color='label-danger' %}{%endif%}
+{% if type == 'card-action-grey' %}{% set class=class+' mx-1 btn-sm' %}{% set color='label-secondary' %}{%endif%}
+{% if type == 'card-action-big' %}{% set class=class+' float-end' %}{% set color='danger' %}{%endif%}
+{% if type == 'action' %}{% set color='danger' %}{%endif%}
+{% if type == 'action-grey' %}{% set color='label-secondary' %}{%endif%}
+{% if type == 'tab' %}{% set no_default_class=true %}{% set class=class+' nav-link' %}{%endif%}
+{% if success_action == '' %}
+    {% set success_options = {} %}
+    {% if success_message %}{% do success_options.update({'success_message': ftext(success_message)}) %}{% endif %}
+    {% if redirect_url %}{% do success_options.update({'success_action':'redirect', 'redirect_url': redirect_url, 'redirect_append': redirect_append}) %}{% endif %}
+    {% set success_options = success_options|tojson %}
+{% else %}
+    {% if success_action in ['message', 'redirect'] %}{% set success_action = '"'+success_action+'"' %}{% endif %}
+    {% set success_options = '{"success_action": '+success_action+', "success_message": "'+ftext(success_message)+'", "callback_options":'+(callback_options or '{"submit_button": this}')+'}' %}
+{% endif %}
+{% if action == 'submit' and link == '' %}{% set submit = true %}{% else %}{% set submit = false %}{% endif %}
+{% if action == 'async_post' %}{% set submit = true %}{% set action = 'SubmitForm(this, "'+async_url+'",'+success_options+')' %}{%endif%}
+{% if action == 'async_patch' %}{% set submit = true %}{% set action = 'SubmitForm(this, "'+async_url+'",'+(success_options[:-1]+', method: "PATCH"}' if success_options != '{}' else '{method: "PATCH"}')+')' %}{%endif%}
+{% if action == 'async_put' %}{% set submit = true %}{% set action = 'SubmitForm(this, "'+async_url+'",'+(success_options[:-1]+', method: "PUT"}' if success_options != '{}' else '{method: "PUT"}')+')' %}{%endif%}
+{% if action == 'async_delete' %}{% set action = 'SubmitForm(this, "'+async_url+'",'+(success_options[:-1]+', method: "DELETE"}' if success_options != '{}' else '{method: "DELETE"}')+')' %}{%endif%}
+{% if submit and not modal and not disabled == false %}{% set disabled = true %}{% elif not disabled == true %}{% set disabled = false %}{% endif %}
+<{{elem}} {% if link != '' %}href="{{link}}"{% if link_target_blank %} target="_blank"{%endif%}{%endif%} {% if id%}id="{{id}}" {%endif%}{% if form %}form="{{form}}" {% endif %}class="{% if not no_default_class %}btn btn-{{color}}{% endif %}{% if submit %} submit-btn{% endif %} {{class}}{% if icon and not label %} btn-icon{% endif %}{%if disabled%} disabled{%endif%} {% if size and fit %}btn-fit{% endif %}" {{ tooltip_code(tooltip) if tooltip and not modal else '' }} {% if modal != '' %}data-bs-toggle="modal" data-bs-target="#{{modal}}"{%endif%} {% if link %}{% elif action == 'submit' and modal == '' %}type="submit" name="action"{% elif action != 'submit' %}type="button" onclick='var e=event||window.event;e.preventDefault();{{ action }};this.blur();'{% else %}type="button"{% endif %}{{ data_attr(data_attributes) }}>{{ icon(uicon, attributes='inline-icon-small-button btn-label-icon' if label else 'btn-label-icon', tooltip=tooltip if modal and tooltip else '') }}{% if label %} <span class="btn-label"> {{ ftext(label) }}</span><div class="btn-spinner dot-loader hide"></div>{% else %}<div class="btn-spinner spin-loader hide"></div>{% endif %}</{{elem}}>
+{% if size %}</div>{%endif%}
+{% if center %}</div>{%endif%}{% endif %}
+{%- endmacro %}
+
+{% macro card_title(uicon='', icon_color='main', tooltip='', title='', link='') %}
+<div class="align-items-center"><div class="card-action-title"><h3 class="card-collapsible-title">{% if uicon %}{{ icon(uicon, icon_color+'-badge icon-badge') }}<span class="icon-title">{% else %}<span class="card-title-text">{% endif %}{% if link %}<a href="{{link}}">{% endif %}{{ftext(title)|safe}}{% if tooltip %} {{ icon('info', 'inline-icon-small lightgrey', tooltip=tooltip) }}{% endif %}{% if link %}</a>{% endif %}</span></h3></div></div>
+{% endmacro %}
+
+{% macro data_attr(data_attrs) %}{% if data_attrs %}{% for k,v in data_attrs.items() %} data-{{k}}="{{v}}"{% endfor %}{% endif %}{% endmacro %}
+
+{% macro card_header_class() %}card-title d-flex align-items-center justify-content-between{% endmacro %}
+
+{% macro card_header(title='', tooltip='', uicon='', icon_color='main', link='', embedded=false, actions='') %}
+<div class="{{ card_header_class() }}">
+    {{ card_title(title=title, tooltip=tooltip, uicon=uicon, icon_color=icon_color, link=link) }}
+    <span class="card-actions">{{ actions }}</span>
+</div {% if not embedded %}>{% endif %}
+{% endmacro %}
+
+{% macro stat_card_header(uicon='', color='', tooltip='', title='', number='', number_text='', number_post='', if_number_null='') %}
+<div class="{{ card_header_class() }}">
+    <div class="align-items-center">{{ icon(uicon, color+'-badge icon-badge') }}<span class="icon-title">{{ftext(title)}} {% if tooltip %}{{ icon('info', 'inline-icon-small lightgrey', tooltip=tooltip) }}{% endif %}</span></div>
+
+    {% if number or if_number_null %}<div class="d-flex flex-column align-items-center gap-1">
+        <h3 class="mb-0">{% if number %}{{ pretty_number(number) }}{{ number_post }}{% else %}{{ if_number_null }}{% endif %}</h3>
+        <span>{{ftext(number_text)}}</span>
+    </div>{% endif %}
+</div>
+{% endmacro %}
+
+{% macro indeterminate_progress() %}
+<div class="progress" style="position: relative; overflow:hidden">
+    <div class="progress-bar indeterminate"></div>
+</div>
+{% endmacro %}
+
+{% macro animated_progress(initial_progress, final_progress, increment=0, class='') %}
+<style>
+    @keyframes progressBarAnimation {
+        from {width: {{ initial_progress }}%; opacity: 0.2;}
+        to {width: {{ final_progress }}%; opacity: 1;}
+    }
+    @keyframes progressBarAnimationIncrement {
+        from {width: {{ final_progress }}%; opacity: 0.2;}
+        to {width: {{ final_progress + increment }}%; opacity: 1;}
+    }
+</style>
+<div class="progress mx-1 {{class}}" style="margin-top: -0.75rem">
+    <div id="progress-bar" class="progress-bar progress-animate" role="progressbar" style="width: {{ initial_progress }}%;" aria-valuenow="{{ final_progress }}" aria-valuemin="0" aria-valuemax="100" data-increment="{{ increment }}"></div>
+</div>
+{% endmacro %}
+
+
+{# ------- To be left at the end -------- #}
+
+{% macro tabs_ul() %}
+class="nav nav-pills mb-3 nav-fill gap-2" role="tablist"
+{% endmacro %}
+
+{% macro tabs_pane_div(tab='', active=false, class='') %}
+class="tab-pane fade {%if active %}active{% endif %}{%if class %} {{class}}{% endif %} show" id="{{tab}}" role="tabpanel"
+{% endmacro %}
+
+{% macro tabs_item(text='', tab='', uicon='', badge='', active=false, class='', subtab=false) %}
+<li class="nav-item">
+    <button type="button" class="nav-link tab-nav{% if active %} active{% endif %}{% if subtab %} sub-tab{% endif %} {{class}}" role="tab" data-bs-toggle="tab" data-bs-target="#{{tab}}" aria-controls="{{tab}}" aria-selected="true">{% if uicon %}{{ icon(uicon, 'inline-icon-small-button') }}{% endif %} {{ ftext(text) }} {% if badge %}<span class="badge rounded-pill badge-center h-px-20 w-px-20 bg-danger">{{ badge }}</span>{% endif %}</button>
+</li>
+{% endmacro %}
+
+{% macro side_nav() %}
+class="sticky-top bs-stepper horizontal wizard-modern subrow side-link-bar"
+{% endmacro %}
+
+{% macro side_ul() %}
+class="bs-stepper-header nav"
+{% endmacro %}
+
+{% macro side_link(text='', target_id='', uicon='', subtext='', visible=true, last=false) %}
+{% if visible %}<div class="step mb-2">
+    <button type="button" class="step-trigger side-link {% if last %}last-anchor{% endif %}" data-anchor="#{{target_id}}" onclick="scrollToAnchor('#{{target_id}}', this);">
+        <span class="bs-stepper-circle">{{icon(uicon)}}</span>
+        <span class="bs-stepper-label mt-1">
+        <span class="bs-stepper-title">{{ftext(text)}}</span>
+        <span class="bs-stepper-subtitle">{{ftext(subtext)}}</span>
+        </span>
+    </a>
+</div>{% endif %}
+{% endmacro %}
+
+
+{% macro divider(text='', uicon='', tooltip='', small=false, class='') %}{% if text or uicon %}<div class="divider{% if small %} small-divider{% else %} mt-0{% endif %}{% if class %} {{class}}{% endif %}" {{ tooltip_code(tooltip) }}><div class="divider-text">{% if not small %}<h4>{% endif %}{{ icon(uicon, 'tiny inline-icon') }}{{ ftext(text) }}{% if not small %}</h4>{% endif %}</div></div>{% else %}<hr class="{% if small %}small-hr-divider{% endif %} {{class}}"/>{% endif %}{% endmacro %}
+
+{% macro info_card(text='', title='', uicon='', color='warning', class='', markdown=false, in_card=false, type='', body_class='', size='') %}
+{% if size %}<div class="{{ col_size(size) }} {{class}}">{% endif %}
+{% if type == 'info' %}
+    {% set uicon='info' %}{% set color='secondary' %}
+{% elif type == 'warning' %}
+    {% set uicon='warning' %}{% set color='warning' %}
+{% elif type == 'error' %}
+    {% set uicon='error' %}{% set color='danger' %}
+{% endif %}
+{% if in_card %}<div class="subrow">{% endif %}
+<div class="alert alert-{{color}} d-flex align-items-center {{ class if not size else '' }}" role="alert">
+{% if uicon %}<span class="badge-center rounded-pill text-{{color}} p-3 {% if in_card %}me-3 ms-3{% else %}me-2{% endif %}">{{ icon(uicon, 'round-badge-icon') }}</span>{% endif %} 
+<div class="d-flex flex-column alert-p {% if uicon %}ps-1{% else %}ps-3{% endif %} {% if in_card %}pe-3{% endif %}">
+    {% if title %}<h6 class="alert-heading d-flex align-items-center fw-bold mb-1">{{ ftext(title) }}</h6>{% endif %}
+    {% if markdown %}
+      <div{% if body_class %} class="{{ body_class }}"{% endif %}>{% markdown %}{{ text }}{% endmarkdown %}</div>
+    {% else %}
+      <span{% if body_class %} class="{{ body_class }}"{% endif %}>{{ ftext(text)|safe }}</span>
+    {% endif %}
+</div>
+</div>{% if in_card %}</div>{% endif %}
+{% if size %}</div>{% endif %}
+{% endmacro %}
+
+{% macro modal_close_button(text='Close', size=none) %}<button type="button" class="btn btn-secondary {{col_size(size)}}" data-bs-dismiss="modal">{{ftext(text)}}</button>{% endmacro %}
+
+{% macro modal_start(id, title='', large=false, class='', active=false) %}
+class="modal fade {{class}}{% if active %} active-modal{% endif %}" id="{{id}}" tabindex="-1" aria-labelledby="{{id}}" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered{% if large %} large-modal{% endif %}" role="document">
+      <div class="modal-content">
+        <div class="modal-header">
+          {% if title %}<h5 class="modal-title" id="exampleModalLabel">{{ftext(title)}}</h5>{% endif %}
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close">
+            </button>
+        </div
+{% endmacro %}
+
+{% macro modal_end() %}
+></div></div
+{% endmacro %}
+
+{% macro card_start(size='', class="", match_height=false, body_class='', title='', uicon='', tooltip='', icon_color='main', title_link='', actions='', content_id='', locked=false) %}
+class="{{ col_size(size) }} {{class}} mb-4">
+<div class="card{% if match_height %} full-card{% endif %}{% if locked %} locked-card{% endif %}">
+<div class="card-body {{body_class}}" {% if content_id %}id="{{content_id}}"{% endif %}
+{% if title or uicon %}>{{ card_header(title=title, tooltip=tooltip, uicon=uicon, icon_color=icon_color, link=title_link, embedded=true, actions=actions) }}{% endif %}
+{% endmacro %}
+
+{% macro card_end() %}
+></div></div
+{% endmacro %}
+
+{% macro collapsible_card_start(size='', class='', title='', uicon='', icon_color='main', active=true, body_class='', actions='') -%}
+class="{{ col_size(size) }} {{class}} mb-4">
+    <div class="card card-action">
+      <div class="card-header">
+        <div class="card-action-title"><a href="javascript:void(0);" class="card-collapsible"><h3 class="card-collapsible-title">{% if uicon %}{{ icon(uicon, 'card-collapsible-icon '+icon_color+'-badge icon-badge') }}{%endif%} {{ ftext(title)|safe }}</h3></a></div>
+        <div class="card-action-element">
+          <ul class="list-inline mb-0">
+            <li class="list-inline-item">
+              <span>
+                {{ actions }}
+              </span>
+              {{ icon('expand', 'toggle-icon card-collapsible '+('up' if active else '')) }}
+            </li>
+          </ul>
+        </div>
+      </div>
+      <div class="card-body collapse {% if active %}show{% endif %} {{body_class}}"
+{%- endmacro %}
+
+{% macro collapsible_card_end(title) -%}
+></div></div
+{%- endmacro %}

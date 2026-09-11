@@ -1,0 +1,19 @@
+{% extends "macros/base.html" %}
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'macros/form_macros.html' as forms with context %}
+{% import 'person_macros.html' as person_macros with context %}
+
+{% block title %}{{ ftext('Edit Client: {}', Client.full_name, novar=true) }}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('Clients', 'Edit', object=Client) }} {% endblock %}
+
+{% block content %}
+<div {{ ui.card_start() }}>
+    <form class="row card-row">
+        {{ person_macros.person_form_elements(Client.person, client=Client)}}
+
+        {{ ui.button(uicon='save', label='Edit Client', type='action', fit=true, size=6, center=true,
+            action='async_post', async_url='/clients/'+Client.id|string, success_message='Client saved', success_action='message') }}
+    </form>
+</div {{ ui.card_end() }}>
+{% endblock %}

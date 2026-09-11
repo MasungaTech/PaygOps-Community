@@ -1,0 +1,24 @@
+{% macro addon_downpayment_macro() %}
+function hideOrShowDownpaymentField() {
+    let downpayment_required = $('#downpayment_required').prop('checked');
+    let type = typeof offerType !== 'undefined' ? offerType : $('#type').val();
+    if(downpayment_required && (type == '{{AddOnType.loan}}')) {
+        $('.hide-if-not-required').show();
+        $('#downpayment').prop('required', true);
+        $('#downpayment').attr('name', $('#downpayment').attr('name').replaceAll(':skip', ''));
+    } else {
+        $('.hide-if-not-required').hide();
+        $('#downpayment').prop('required', false);
+        $('#downpayment').attr('name', $('#downpayment').attr('name') + ':skip');
+
+    }
+}
+$("#downpayment_required").on('change', function() {
+    hideOrShowDownpaymentField();
+});
+$("#type").on('change', function() {
+    hideOrShowDownpaymentField();
+})
+
+hideOrShowDownpaymentField();
+{% endmacro %}

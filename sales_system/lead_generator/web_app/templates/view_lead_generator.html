@@ -1,0 +1,104 @@
+{% extends 'macros/base.html' %}
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'lead_list_table.html' as lead_table with context %}
+{% import 'macros/charts_macros.html' as charts with context %}
+
+{% block title %}{{ ftext('Lead Generator: {}', lead_generator.full_name, novar=true) }}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('Lead Generators', 'View', object=lead_generator) }}{% endblock %}
+
+{% block page_actions %}
+    {{ ui.button(uicon='merge', tooltip='Merge with user', link=url_for('.merge_lead_generator_with_user', generator_id=lead_generator.id), type='header-action') }}
+    {{ ui.button(uicon='edit', tooltip='Edit', link=url_for('.edit_lead_generator', generator_id=lead_generator.id), type='header-action') }}
+{% endblock %}
+
+{% block content %}
+<div class="row">
+{% set person = lead_generator.person %}
+<div {{ ui.card_start(uicon='user', title='Basic Information', body_class='row card-row') }}>
+    {{ ui.report_field('Full Name', person.full_name, 'user', size=6) }}
+    {{ ui.report_field('Type', lead_generator.type.name, 'generator', size=6) }}
+    {{ ui.report_field('User', ui.user_link(lead_generator.person.user), 'user', size=6) }}
+    {{ ui.report_field('Active', ui.yes_no(lead_generator.working), 'generator', size=6) }}
+    {{ ui.report_field('Total Commission Waiting', ui.amount(lead_generator.getTotalCommissionDue(), include_currency=true), 'payment', size=6) }}
+    {{ ui.report_field('Start Date', ui.date(lead_generator.start_date), 'date', size=6) }}
+    {{ ui.report_field('Gender', ftext(person.get_gender_name()), 'wc', size=6) }}
+    {{ ui.report_field('Age', person.getAge(), 'birthdate', size=6) }}
+
+    {% set user_has_permission_to_erase_phones = current_user.can_access_in_any('DeletePhoneNumbers') and (not lead_generator.person.user or current_user.can_access('DeletePhoneNumbers', entity=lead_generator.person.user.shop)) %}
+    {{ ui.report_field('Phones', ui.person_phone_numbers(lead_generator.person, user_has_permission_to_erase_phones), 'phone', size=6) }}
+</div {{ ui.card_end() }}>
+
+<div {{ ui.card_start(uicon='graph_up', title='Performance', body_class='row card-row') }}>
+    {% if lead_generator.leads.count() == 0 %}{{ ui.info_card('No Leads yet', uicon='info', color='secondary', class='mt-4') }}{% else %}
+        {{ ui.report_field('Number of Leads Brought', lead_generator.leads.count(), size=6) }}
+        {{ ui.report_field('Number of Converted Leads', lead_generator.getConvertedLeads().count(), size=6) }}
+        {{ ui.report_field('Conversion Rate', ui.percentage(lead_generator.getConvertedLeads().count()/lead_generator.leads.count()), size=6) }}
+        {{ ui.report_field('Average Conversion Time', ui.isnone(lead_generator.get_average_lead_conversion_time_in_days(), suffix=' days'), size=6) }}
+        {{ ui.report_field('Number of Discarded Leads', lead_generator.getDiscardedLeads().count(), size=6) }}
+        {{ ui.report_field('Number of Leads for Later', lead_generator.getWaitingLeads().count(), size=6) }}
+        {{ ui.report_field('Number of Active Leads', lead_generator.getActiveLeads().count(), size=6) }}
+        {% if lead_generator.getConvertedLeads().count() == 0 %}{{ ui.info_card('No Clients from the Leads', uicon='info', color='secondary', class='mt-4') }}{% else %}
+            {{ ui.report_field('Clients Avg. Timeliness Ratio', ui.percentage(lead_generator.getAverageActivationRatio()), size=6) }}
+            {{ ui.report_field('Number of Dropped Clients', lead_generator.getFailedClientsCount(), size=6) }}
+        {% endif %}
+    {% endif %}
+</div {{ ui.card_end() }}>
+
+<div {{ ui.card_start(body_class='card-row') }}>
+    <form class="row" action="#" onsubmit="filterOfferByDate({{lead_generator.id}},begin='start_date',end='end_date');return false;">
+        {{ forms.input('start_date', 'From', value=BeginDate, type='datepicker', icon='date', size='3') }}
+        {{ forms.input('end_date', 'To', value=EndDate, type='datepicker', icon='date', size='3') }}
+        {{ forms.select('frequency', {'d': 'Daily', 'w': 'Weekly', 'm': 'Monthly'}, labeltag='Frequency', value='m', size='3') }}
+        {{ forms.button(label='Change Range', size='3', inline=true, type='action') }}
+    </form>
+</div {{ ui.card_end() }}>
+
+<div {{ ui.card_start(uicon='lead', title='New Leads by Status') }}>
+    <canvas id="NewLeads" height="80"></canvas>
+</div {{ ui.card_end() }}>
+
+<div {{ ui.card_start(uicon='lead', title='New Leads by Offer Type') }}>
+    <canvas id="NewLeadsByOfferType" height="80"></canvas>
+</div {{ ui.card_end() }}>
+
+<div {{ ui.card_start(uicon='graph_up', title='Drop Rate Trend') }}>
+    <canvas id="DropRate" height="80"></canvas>
+</div {{ ui.card_end() }}>
+
+<div {{ ui.card_start(size='6', uicon='offer', title='Leads Offers') }}>
+    <canvas id="LeadOffersPie" height="140"></canvas>
+</div {{ ui.card_end() }}>
+
+<div {{ ui.card_start(size='6', uicon='offer', title='Clients Offers') }}>
+    <canvas id="ClientOffersPie" height="140"></canvas>
+</div {{ ui.card_end() }}>
+
+<div {{ ui.card_start(uicon='lead', title='Leads Converted', body_class='table-responsive') }}>
+    {{ lead_table.converted_lead_table(converted_leads_pagination, show_status=false, show_generator=false,
+        show_conversion_time=true, show_activation_ratio=true, lead_generator=lead_generator) }}
+</div {{ ui.card_end() }}>
+
+{% endblock %}
+
+{% block scripts %}
+    <script src="/static/js/chart.min.js"></script>
+    <script type="text/javascript"
+            src="{{ url_for('lead_generator.static', filename='js/lead_generator_chart.js') }}">
+
+    </script>
+    <script type="text/javascript" src="/static/js/chart_helper.js?version={{ COMMIT_SHA }}"></script>
+    <script>
+        $(document).ready(function () {
+            filterOfferByDate({{lead_generator.id}}, begin='start_date', end='end_date')
+        });
+    </script>
+
+    <script>
+        {{ charts.pieJS('pie', 'LeadOffersPie',
+        lead_offer_type_data, displayLegend=true) }}
+
+        {{ charts.pieJS('pie', 'ClientOffersPie',
+        client_offer_type_data, displayLegend=true) }}
+    </script>
+{% endblock %}

@@ -1,0 +1,125 @@
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'task_detail_macro.html' as task_detail_macro with context %}
+
+<li class="nav-item dropdown-task-list navbar-dropdown dropdown me-3 me-xl-1">
+    <a class="nav-link hide-arrow" href="javascript:void(0);" id="taskDropdownToggle">
+        <i class="material-symbols-rounded align-middle">assignment_turned_in</i>
+        {% if task_count > 0 %}
+            <span class="badge bg-danger rounded-pill badge-notifications">{{ task_count }}</span>
+        {% endif %}
+    </a>
+</li>
+
+<!-- The fixed-size dropdown -->
+<div id="taskDropdown" class="task-dropdown-div" style="display: none">
+    <div class="task-dropdown-header">
+        <button type="button" class="task-detail-btn back-btn left hidden">
+          <i class="material-symbols-rounded">chevron_left</i>
+        </button>
+        <h5 class="task-header-title">My Tasks</h5>
+        <!-- Close Button -->
+        <button type="button" class="task-detail-btn close-btn right" onclick="toggleTaskDropdown()">
+          <i class="material-symbols-rounded">close</i>
+        </button>
+    </div>
+    <ul class="list-group" style="padding: 0;">
+        {% for task in tasks %}
+            <div class="task-list">
+                <li class="list-group-item task-detail-toggle pointer" target="task-detail-{{task.id}}">
+                    <!-- Truncate task name to 70 characters -->
+                    <span class="col-9">{{ task.task_name | format_task_text(task, color="link-danger", plain_text=True) | truncate(80, end="...") }} </span>
+                    
+                    <!-- Deadline: Color red if negative -->
+                    <span class="col" style="color: {% if not task.deadline %} grey {% elif (task.deadline - now).days < 0 %} red {% else %} inherit {% endif %}; letter-spacing: -1px;">
+                        {% if not task.deadline %}
+                            -
+                        {% else %}
+                            {{ (task.deadline - now).days }} d
+                        {% endif %}
+                    </span>
+                    <span>
+                        <i class="material-symbols-rounded">chevron_right</i>
+                    <span>
+                </li>
+            </div>
+                          
+            <div id="task-detail-{{task.id}}" class="task-detail hidden">
+                <li class="list-group-item">
+                    <p class="p-0 m-0 report-field-limit"><b>Task:</b>&nbsp;{{ task.task_name | format_task_text(task) | replace('<p>', '') | replace('</p>', '') }}</p>
+                </li>
+                <li class="list-group-item">
+                    <p class="p-0 m-0 report-field-limit"><b>Created by:</b> {{ ui.user_link(task.creator) }}</p>
+                </li>
+                <li class="list-group-item">
+                    <div class="container px-0 task-status">{{ task_detail_macro.task_status(task, tiny=true) }}</div>
+                </li>
+                <li class="list-group-item">
+                    <p class="p-0 m-0">
+                        <b>Deadline:</b>&nbsp;
+                        <span class="col" style="color: {% if not task.deadline %} grey {% elif (task.deadline - now).days < 0 %} red {% else %} inherit {% endif %};">
+                            {% if task.deadline %}
+                                {{ ui.date(task.deadline, year=false) }} ({{ (task.deadline - now).days }} d)
+                            {% else %}
+                                -
+                            {% endif %}
+                        </span>
+                    </p>
+                </li>
+                <li class="list-group-item">
+                    <p class="p-0 m-0"><b>Instructions:</b>&nbsp;{{ task.instructions | format_task_text(task) }}</p>
+                </li>
+                <li class="list-group-item">
+                    <div class="task-notes-container">
+                        <div class="task-notes-display d-flex align-items-start">
+                            <p class="p-0 m-0"><b>Notes:</b>&nbsp;<span class="notes-content" style="white-space: pre-wrap; word-break: break-word; max-width: 90%;">{{ task.notes }}</span></p>
+                            {{ ui.button(uicon='edit', type='tiny-action', tooltip='Edit Notes', action="toggleTaskNoteEdit(this)") }}
+                        </div>
+                        <div class="task-notes-edit d-none">
+                            <form class="row">
+                                <div class="col-10">
+                                    <textarea name="notes" class="form-control form-control-sm">{{ task.notes }}</textarea>
+                                </div>
+                                <div class="col-2">
+                                    {{ ui.button(uicon='save', tooltip='Save Notes', type='tiny-action', action='async_post', async_url='/tasks/' + task.id|string, success_action="toggleTaskNoteEdit(this.closest('.task-notes-edit').previousElementSibling.querySelector('button'))") }}
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </li>
+                {% if task.task_action_button_details is defined and task.task_action_button_details %} 
+                <li class="list-group-item fw-bold pointer red" onclick="goToTaskAction('{{task.task_action_button_details.link}}')">           
+                        {% set label = task.task_action_button_details.label %}
+                        {% set icon = task.task_action_button_details.icon %}
+                        <label> 
+                            <i class="material-symbols-rounded black-text inline-icon-small pe-1">{{icon}}</i> {{label}}
+                        </label>
+                        <i class="material-symbols-rounded black-text text-right">chevron_right</i>                      
+                </li>
+                {% endif %}
+                {% if current_user.can_access('EditTasks', person=task.assignee.person)
+                    or (current_user.can_access('EditCreatedTasks') and task.creator.id == current_user.id)
+                    or (current_user.can_access('ChangeStatusOfAssignedTasks') and task.assignee.id == current_user.id) %}
+                    <li class="list-group-item red">
+                        <label> <b>Mark as completed</b> </label>
+                        <input class="completed-status-checkbox" type="checkbox" name="status" onChange="updateTaskAsComplete({{task.id}})">
+                    </li>
+                {% endif %}
+                <li class="list-group-item" style="justify-content: center;">
+                    {{ ui.button(uicon='open_in_new', label='Open Task Details', type='action', tooltip='Open task details', link=url_for('task_manager.list_tasks', task_id=task.id)) }}
+                </li>
+            </div>
+        {% endfor %}
+        
+        <div class="task-list task-dropdown-footer">
+            <li class="list-group-item" style="justify-content: center;">
+                {% if (is_custom_app is not defined) or not is_custom_app %}
+                    {% if show_more_link %}
+                        {{ui.button(uicon='open_in_new', label='Open Task List', type='action', tooltip='View more', link=url_for('task_manager.list_tasks'))}}
+                    {% else %}
+                        {{ui.button(uicon='open_in_new', label='Open Task List', type='action', tooltip='View in list', link=url_for('task_manager.list_tasks'))}}
+                    {% endif %}
+                {% endif %}
+            </li>
+        </div>
+    </ul>
+</div>

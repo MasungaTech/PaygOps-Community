@@ -1,0 +1,21 @@
+{% extends 'bulk_upload_summaries/summary_base.html' %}
+{% set object_name = 'tasks' %}
+{% set total_var = 'total_tasks' %}
+{% set correct_var = 'correct_tasks' %}
+
+{% block table %}
+<thead>
+    <tr>
+        <th>Taks type</th>
+        <th>Number of items</th>
+    </tr>
+</thead>
+<tbody>
+    {% for task_category, count in analysis['task_counts'].items() %}
+    <tr>
+        <td>{{task_category}}</td>
+        <td>{{count}}</td>
+    </tr>
+    {% endfor %}
+</tbody>
+{% endblock %}

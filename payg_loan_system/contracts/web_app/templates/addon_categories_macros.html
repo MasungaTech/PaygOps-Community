@@ -1,0 +1,84 @@
+{% macro addons_categories_navigation(category=none, name=none, tooltip='Category: ', excluded="", callback="", with_results="", size='', id="", icon_tooltip='', icon='', placeholder='Choose category', subcat_placeholder=none, btn_icon='', btn_action='', btn_tooltip='', onchange='', input=false, editing=none, selector_class=none, offer=none) %}
+<input type="hidden" id="selected_category{{id}}" name="{{name or 'category'}}{{ '' if input else ':skip' }}" value="{{category.name if category else ''}}">
+
+{{
+    forms.select(
+        "category_navigation"+id+':skip',
+        [],
+        ajax=config.AJAX_SELECT_CLASS + " category_selector",
+        ajax_url=url_for('contract.view_addons_categories_data')+'?excluded='+excluded,
+        id="category_navigation"+id,
+        min_chars="0",
+        labeltag=tooltip,
+        tooltip=icon_tooltip,
+        uicon=icon,
+        animate_label=true,
+        size=size,
+        btn_icon=btn_icon,
+        btn_tooltip=btn_tooltip,
+        btn_action=btn_action,
+        onchange=onchange
+    )
+}}
+{% set placeholder = ftext(placeholder) %}
+{% if subcat_placeholder %}{% set subcat_placeholder = ftext(subcat_placeholder) %}{% endif %}
+<script>
+    function change_breadcrumbs{{id}}(el, breadcrumbs) {
+        var label =  $(el).parent().parent().find('label');
+        if(breadcrumbs) {
+            label.html('<span class="category-breadcrumbs"><span>{{ ftext(tooltip) }}</span>'+breadcrumbs+'</span>');
+        }
+        label.find('a').click(function () {
+            $(this).nextAll().remove();
+            choose_category{{id}}(el, {
+                id: $(this).data('cat-id'),
+                text: $(this).text(),
+                data: {
+                    children: true,
+                    breadcrumbs: undefined
+                }
+            })
+            return false;
+        });
+    }
+    function choose_category{{id}}(el, data) {
+
+        if (data['data']['children']) {
+            var idBit = data['id'] ? '/'+data['id'] : '' ;
+            var newURL = '{{url_for('contract.view_addons_categories_data')}}'+idBit+'?excluded={{excluded}}'
+            $(el).data('ajax--url', newURL);
+            change_breadcrumbs{{id}}(el, data['data']['breadcrumbs']);
+            $(el).find('option:not(:disabled)').remove();
+            let placeholder = '{{placeholder}}';
+            let subcat_placeholder = '{{subcat_placeholder}}';
+            $(el).data('placeholder', (subcat_placeholder && data['id'] ? subcat_placeholder : placeholder).replace('%cat_name%', data['text']));
+            refreshSelects($(el));
+        } else {
+            $(el).data('placeholder', data['text']);
+        }
+        $('#selected_category{{id}}').val(data['id'] ? data['text'] : "");
+        {% if callback %}{{callback}}(data);{%endif%}
+
+    }
+    var initialBreadcrumbs = '<a href="javascript:0" data-cat-id="">{{ftext("All")|safe}}</a><span> > </span>';
+    $(document).ready(function () {
+        change_breadcrumbs{{id}}($('#category_navigation{{id}}'), initialBreadcrumbs);
+        $('#category_navigation{{id}}').on('select2:select', function (e) {
+            choose_category{{id}}(this, e.params.data);
+        });
+        {% if category %}
+        choose_category{{id}}($('#category_navigation{{id}}'), {
+            id: "{{category.id}}",
+            text: "{{category.name}}",
+            data: {
+                children: {{'true' if category.children else 'false'}},
+                breadcrumbs: '{{ category.get_breadcrumbs_text() }}'
+            }
+        });
+        {% else %}
+        $('#category_navigation{{id}}').data('placeholder', "{{placeholder}}");
+        {% endif %}
+        $('#category_navigation{{id}}').attr('data-with_results', "{{with_results}}")
+    });
+</script>
+{% endmacro %}

@@ -1,0 +1,111 @@
+{% extends "macros/list_base.html" %}
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'macros/form_macros.html' as forms with context %}
+{% import 'macros/filter_macros.html' as filter with context %}
+
+{% set level_name = OPERATIONAL_ENTITIES_CONFIG[level].names|notranslate %}
+
+{% block title %}{{ ftext('List {}', level_name, novar=true) }}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('operational_entities_l'+level|string, 'List' if not parent else ftext('List in {}', parent.name, novar=true), display_name=level_name) }}{% endblock %}
+
+{% block page_actions %}
+    {% if not is_custom_app %}
+        {{ui.button(link=url_for('entities.add_entity', level=level), uicon='add', tooltip=ftext('Add {}', level_name), type='header-action')}}
+        {{ui.button(link=url_for('admin.bulk_upload_task_view', entity='operational_entities'), uicon='cloud_upload', tooltip=ftext('Bulk Upload {}', level_name), type='header-action')}}
+    {% endif %}
+{% endblock %}
+
+{% block header %}
+    {% if not is_custom_app %}
+    <div {{ ui.collapsible_card_start(title='Filters', uicon='filter', icon_color='', active=any_filter([pagination.search])) }}>
+    <form id="filter_form_v2" action="" method="get" class="row">
+        <input type="hidden" name="parent" value="{{parent.id if parent else ''}}" />
+        {{ forms.input('search', ftext('Search {}', level_name, novar=true), value=pagination.search, size="10") }}
+        {{ filter.filter_buttons() }}
+    </form>
+    </div {{ ui.collapsible_card_end() }}>  
+    {% else %}
+    <form id="filter_form_v2 mt-2rem" action="" method="get" class="row">
+        <div class="col-10 pe-0">
+            {{ forms.input('search', ftext('Search {}', level_name, novar=true), value=pagination.search, class='form-control') }}
+        </div>
+        <div class="col-2 mt-2rem">
+            {{ ui.button(uicon='filter', tooltip='Apply filters', color='danger', inline=false, class='btn btn-outline-secondary', action='') }}
+        </div>
+    </form>
+    {% endif %}
+{% endblock %}
+
+{% block table %}
+<table {{ ui.table_start(pagination) }}>
+    <thead>
+    {% if not is_custom_app %}
+        <tr>
+            {{ui.sortable_header('id', "ID", class='ps-4', pagination=pagination)}}
+            {{ui.sortable_header('name', "Name", pagination=pagination)}}
+            {% if level < 3 and OPERATIONAL_ENTITIES_CONFIG[level+1].enabled %}
+                {{ui.sortable_header('parent', OPERATIONAL_ENTITIES_CONFIG[level+1].name, pagination=pagination)}}
+            {% endif %}
+            {% if level > 0 %}
+                {{ui.sortable_header('children', OPERATIONAL_ENTITIES_CONFIG[level-1].name, pagination=pagination)}}
+            {% endif %}
+            {{ui.sortable_header('user_in_charge', "User in charge", pagination=pagination)}}
+            {{ui.sortable_header('leads', "Active leads", tooltip='This metric is updated once a day only', pagination=pagination)}}
+            {{ui.sortable_header('clients', "Active clients", pagination=pagination)}}
+
+
+        </tr>
+        {% else %}
+        <tr>
+            {{ui.table_header("Id/Entity", class='ps-4')}}
+            {% if level < 3 and OPERATIONAL_ENTITIES_CONFIG[level+1].enabled %}
+                {{ui.table_header(OPERATIONAL_ENTITIES_CONFIG[level+1].name)}}
+            {% endif %}
+            {% if level > 0 %}
+                {{ui.table_header(OPERATIONAL_ENTITIES_CONFIG[level-1].name)}}
+            {% endif %}
+            {{ui.table_header('Active leads/clients', tooltip='This metric is updated once a day only')}}
+        </tr>
+        {% endif %}
+    </thead>
+    <tbody>
+        {% for entity in pagination.objects %}
+        {% if not is_custom_app %}
+            <tr>
+                <td class="ps-4"><a href="{{url_for('entities.view_entity', entity_id=entity.id)}}">{{ entity.id }}</a></td>
+                <td class="truncate-hoverable">{{ entity.name }}</td>
+                {% if level < 3 and OPERATIONAL_ENTITIES_CONFIG[level+1].enabled %}
+                    <td class="truncate-hoverable"><a href="{{url_for('entities.view_entity', entity_id=entity.parent.id)}}">{{ entity.parent.name }}</a></td>
+                {% endif %}
+                {% if level > 0 %}
+                    <td class="truncate-hoverable"><a href="{{url_for('entities.list_entities', level=entity.level-1)}}?parent={{entity.id}}">{{ entity.children.count() }}</a></td>
+                {% endif %}
+                <td class="truncate-hoverable">{{ui.user_link(entity.user_in_charge) if entity.user_in_charge else ui.user_link(entity.inherited_user_in_charge) + ftext(' (inherited)') }}</td>
+                {% cache 12 * 3600, 'entity_html_stats_new_'+entity.id|string %}
+                    <td><a href="{{ url_for('leads.list_lead', entity_id=entity.id) }}">{{entity.get_active_leads().count()}}</a></td>
+                    <td class="pe-4"><a href="{{ url_for('client.list_client', entity_id=entity.id, status='active_late_contracts') }}">{{entity.get_clients(active=True).count()}}</a></td>
+                {% endcache %}
+            </tr>
+        {% else %}
+        <tr>
+            <td class="truncate-hoverable">
+                <a href="{{url_for('entities.view_entity', entity_id=entity.id)}}">({{ entity.id }})</a>
+                <p>{{ entity.name }}</p>
+            </td>
+            {% if level < 3 and OPERATIONAL_ENTITIES_CONFIG[level+1].enabled %}
+                <td class="truncate-hoverable"><a href="{{url_for('entities.view_entity', entity_id=entity.parent.id)}}">{{ entity.parent.name }}</a></td>
+            {% endif %}
+            {% if level > 0 %}
+                <td class="truncate-hoverable"><a href="{{url_for('entities.list_entities', level=entity.level-1)}}?parent={{entity.id}}">{{ entity.children.count() }}</a></td>
+            {% endif %}
+            {% cache 12 * 3600, 'entity_html_stats_new_'+entity.id|string %}
+                <td><a href="{{ url_for('leads.list_lead', entity_id=entity.id) }}">{{entity.get_active_leads().count()}}</a> / <a href="{{ url_for('client.list_client', entity_id=entity.id, status='active_late_contracts') }}">{{entity.get_clients(active=True).count()}}</a> </td>
+            {% endcache %}
+        </tr>
+        {% endif %}
+        {% endfor %}
+    </tbody>
+    <tfoot></tfoot>
+</table>
+{% endblock %}
