@@ -1,0 +1,189 @@
+{% extends 'macros/base.html' %}
+{% import 'macros/general_macros.html' as ui with context %}
+
+{{ level }}
+
+{% if client_group is not defined %}
+    {% set action='Add' %}
+    {% set title=ftext('Add Client Group') %}
+    {% set client_group=EmptyObject %}
+    {% set async_url='/client_groups' %}
+{% else %}
+    {% set action='Edit' %}
+    {% set title=ftext('Edit Client Group: {}', client_group.name, novar=true) %}
+    {% set async_url='/client_groups/'+client_group.id|string %}
+{% endif %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('Client Groups', action, object=client_group) }}{% endblock %}
+
+{% block page_actions %}
+    {{ ui.button(modal='delete-entity', uicon="delete", tooltip='Delete Client Group', type="header-action", visible=(action == 'Edit' and not client_group.persons.count())) }}
+{% endblock %}
+
+{% block content %}
+<div class="row">
+  <div {{ ui.card_start(title='Client Group Data', uicon='groups') }}>
+    <form class="row card-row">
+        {{ forms.input('name', 'Client Group Name', value=client_group.name, uicon='groups', required=true, size=6) }}
+        {{ forms.select('user_in_charge_id', users, 'None', labeltag="User in charge", value=client_group.user_in_charge.id if client_group.user_in_charge else None, uicon="account_box", 
+            required=true, size=6, translate=false) }}
+        {{ forms.input('description', 'Additional information', type='textarea', value=client_group.description, uicon="textsms", size=6) }}
+
+        {{ forms.button(label=ftext(action+' Client Group'), uicon='save', type='action', fit=true, size=6, center=true,
+                        action='async_post', async_url=async_url, 
+                        redirect_url='/entities/client_groups/', redirect_append='id') }}
+    </form>
+  </div {{ ui.card_end() }}>
+
+  {% if action == 'Edit' %}
+    <div {{ ui.card_start(title='Quick Access', uicon="redo") }}>
+        <div class="align-items-center justify-content-between">
+            {{ ui.quick_access('ViewClients', ftext('Group Clients', novar=true), 'client', link=url_for('client.list_client', client_group_id=client_group.id)) }}
+            {{ ui.quick_access('ViewLeads', ftext('Group Leads', novar=true), 'lead',link=url_for('leads.list_lead', client_group_id=client_group.id)) }}
+        </div>
+    </div {{ ui.card_end() }}>
+
+    {% if not is_custom_app %}
+        {# associate permissions #}
+        <div {{ ui.card_start(title='Users Associated', uicon="user", body_class='table-responsive') }}>
+            <table {{ui.table_start(sortable=false)}}>
+            <thead>
+                <tr>
+                    {{ui.table_header('User')}}
+                    {{ui.table_header('Role')}}
+                    {{ui.table_header(uicon='sync',tooltip='Sync objects in client group on Mobile')}}
+                    {{ui.table_header('')}}
+                </tr>
+            </thead>
+            <tbody>
+                {% for users_with_roles in client_group.users_with_roles|sort(attribute="id") %}
+                <tr>
+                    {% set form_id = 'operational_permissions_form_'+users_with_roles.id|string %}
+                    <td>
+                        {{ forms.select(
+                            'user_id:number',
+                            [(users_with_roles.user.id, users_with_roles.user.full_name)],
+                            id="user-id-"+users_with_roles.id|string,
+                            source="user",
+                            min_chars="0",
+                            ajax=config.AJAX_SELECT_CLASS,
+                            value=users_with_roles.user.id,
+                            form=form_id,
+                            translate=false
+                        ) }}
+                    </td>
+                    <td>
+                        {{
+                            forms.select(
+                                "role_id:number",
+                                [(users_with_roles.role.id, users_with_roles.role.name)] if users_with_roles.role else [],
+                                id="role-id-"+users_with_roles.id|string,
+                                source="role",
+                                ajax=config.AJAX_SELECT_CLASS,
+                                min_chars="0",
+                                value=users_with_roles.role.id if users_with_roles.role else none,
+                                label=ftext('Default ({})', users_with_roles.user.AuthorizationLevel.name),
+                                form=form_id
+                            )
+                        }}
+                    </td>
+                    <td>
+                        {{ forms.checkbox_simple(name='sync_enabled:boolean', checked=users_with_roles.sync_entity, mt=0, form=form_id) }}
+                    </td>
+                    <td>
+                        <form id="{{form_id}}">
+                            {{ ui.button(
+                                action="async_post",
+                                type='card-action',
+                                uicon='save',
+                                tooltip='Save',
+                                async_url='/operational_permissions/'+users_with_roles.id|string,
+                                form=form_id,
+                                success_action="message"
+                            ) }}
+                            {{ ui.button(
+                                action="async_delete",
+                                type='card-action-grey',
+                                uicon='delete',
+                                tooltip='Remove',
+                                async_url='/operational_permissions/'+users_with_roles.id|string,
+                            ) }}
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+                <tr>
+                    <td colspan="4">{{ftext('Add new')}}</td>
+                </tr>
+                <tr>
+                    <tr>
+                        {% set form_id = 'operational_permissions_form_new' %}
+                        <td>
+                            {{
+                                forms.select(
+                                name='user_id:number',
+                                choices=user,
+                                id="user-id-new",
+                                source="user",
+                                form=form_id,
+                                translate=false
+                            ) 
+                            }}
+                        </td>
+                        <td>
+                            {{
+                                forms.select(
+                                    name="role_id:number",
+                                    choices=role,
+                                    id="role-id-new",
+                                    source="role",
+                                    min_chars='0',
+                                    placeholder='User\'s Default Role',
+                                    form=form_id,
+                                    translate=false
+                                )
+                            }}
+                        </td>
+                        <td>
+                            {{ forms.checkbox_simple(name='sync_enabled:boolean', mt=0, form=form_id) }}
+                        </td>
+                        <td>
+                            <form id="{{form_id}}">
+                                <input type="hidden" name="entity_id:number" value="{{client_group.id}}">
+                                {{ ui.button(
+                                    'Add',
+                                    action="async_post",
+                                    type='tiny-action',
+                                    uicon='add',
+                                    tooltip='Add operational permission',
+                                    async_url='/operational_permissions',
+                                    form=form_id,
+                                ) }}
+                            </form>
+                        </td>
+                    </tr>
+                </tr>
+            </tbody>
+        </table>
+        </div {{ ui.card_end() }}>
+    {% endif %}
+
+    {# delete operational entity modal #}
+    <div {{ ui.modal_start('delete-entity', 'Confirm Client Group Deletion') }}>
+        <form>
+            <div class="modal-body">
+                {{ ui.info_card(ftext('Are you sure you want to delete the Client Group? This is NOT reversible. '), uicon='warning') }}
+            </div>
+            <div class="modal-footer">
+                {{ ui.modal_close_button() }}
+                {{ ui.button(type='action', uicon='delete', label='Delete Client Group', action='async_delete', async_url='/client_groups/'+client_group.id|string, redirect_url='/entities/client_groups') }}
+            </div>
+        </form>
+    </div {{ ui.modal_end() }}>
+  {% endif %}
+</div>
+
+
+{% endblock %}

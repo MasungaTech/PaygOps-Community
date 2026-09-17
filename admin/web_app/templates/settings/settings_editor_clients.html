@@ -1,0 +1,49 @@
+{% extends "macros/base.html" %}
+{% import 'macros/general_macros.html' as ui %}
+{% import 'settings/settings_editor_macros.html' as settings_forms with context %}
+{% import 'macros/form_macros.html' as forms with context %}
+
+{% block title %}{{ ftext('Contract Status Configuration') }}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('Settings', 'Contract Status Configuration') }}{% endblock %}
+
+{% block content %}
+<div {{ ui.collapsible_card_start(title="Configure Late Status", uicon='status') }}>
+    <form method="POST" class="row card-row">
+        {{ ui.info_card(uicon='info', class='mt-3', color='secondary', in_card=true, 
+        text='
+        <h4>Important Notes:</h4>
+
+
+        <li>Only Active contracts can move to the Late Status. Once the Late status is enabled and the number of days is set, all active contracts that are late above the number of days set will move to the ‘Late status’. The number of days late set is based on the number of Days in Arrears metric.</li>
+        <li>Once the setting is enabled, Late contracts will be marked as late as per your configuration, the following day.</li>
+        <li>If you disable the setting or change the number of days configured (eg. from 30 days to 60 days), contracts will be updated as per the new configuration, the following day.</li>') 
+    }}
+
+        {{ ui.info_card(uicon='info', class='mt-3', type='warning', color='secondary', in_card=true, text='Note: Late Status Contracts remain (or are) subject to billing under PaygOps T and C. ') }}
+        {{ forms.checkbox(
+            'EnableLateStatus',
+            checked=GlobalSetting('EnableLateStatus'),
+            labeltag='Late Status',
+            label='Enable Late Status',
+            size=3,
+            id='Late-status-toggle',
+            onchange='checkBoxToggleForms(this, ".days_late_for_late")'
+        )}}
+        <div class="col-3 days_late_for_late">
+        {{ forms.input(
+            'DaysLateForLateStatus',
+            type='number',
+            label='Days',
+            value=GlobalSetting('DaysLateForLateStatus'),
+            size=3,
+            id='days-late-input',
+            required=true
+        ) }}
+        </div>
+    
+        {{ settings_forms.save_button(center=false) }}
+   
+    </form>
+</div {{ ui.collapsible_card_end() }}>
+{% endblock %}

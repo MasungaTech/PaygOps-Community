@@ -1,0 +1,41 @@
+{# We do this to avoid having to hard reload JS #}
+{% if COMMIT_SHA in ['local', 'NA'] %}{% set COMMIT_SHA = generate_uuid() %}{% endif %}
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
+        <meta name="robots" content="noindex">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0"/>
+        <title>PaygOps API Doc</title>
+    </head>
+<body>
+    <redoc id="redoc-container"></redoc>
+    <script>
+        function initRedoc() {
+            Redoc.init('{{ url_for('admin.api_docs_json') }}?version={{ COMMIT_SHA }}', {
+                theme: {
+                    colors: {
+                        primary: {
+                            main: '#003E51'
+                        }
+                    },
+                    typography: {
+                        headings: {
+                            fontFamily: 'Public Sans, sans-serif',
+                            lineHeight: '1rem'
+                        }
+                    },
+                    sidebar: {
+                        backgroundColor: "transparent"
+                    },
+                    spacing: {
+                        unit: 5,
+                        sectionVertical: 15,
+                    }
+                }
+            }, document.getElementById('redoc-container'))
+        }
+    </script>
+    <script src="https://cdn.redoc.ly/redoc/v2.5.3/bundles/redoc.standalone.js" integrity="sha384-xiEssMQFSpSfLbzRZCGfxxIM5QDb2DTrU6vyoZdp2sV1L6pmOMy6MpTtUoLbpC96" crossorigin="anonymous" onload="initRedoc()"></script>
+</body>
+</html>

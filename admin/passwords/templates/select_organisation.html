@@ -1,0 +1,73 @@
+{% extends "macros/base_core.html" %}
+
+{% block styles %}
+<style>
+    body {
+        background-color: #003E51;
+    }
+</style>
+{% endblock %}
+
+{% block title %}Login{% endblock %}
+
+{% block body_content %}
+<div class="row subrow align-items-center vh-100">
+    <div {{ ui.card_start(size=5, class='mx-auto login-card') }}>
+        {{ forms.input('organisation', 'Organisation Name', placeholder='Name of your organisation', uicon='corporate_fare', suffix='.paygops.com', required=true) }}
+        {{ ui.button('Continue to Login', size=12, fit=true, size_class='pt-2 pb-1', action='checkLogin()', id='login_button') }}
+    </div {{ ui.card_end() }}>
+
+    <!-- Footer -->
+    <footer class="navbar fixed-bottom">
+        <div class="container-xxl d-flex flex-wrap justify-content-between pt-2 flex-md-row">
+          <div class="col-12 col-md-4 d-flex justify-content-center justify-content-md-start">
+              <a id="logo-container">
+                  <img src="/static/img/paygops_bottom_logo-dark.png?2" class="bottom-logo">
+              </a>
+          </div>
+          {% if not is_custom_app %}
+          <div class="footer-text col-12 col-md-4 d-flex justify-content-center dark-footer-theme">
+              <p>Copyright&copy; {{NOW.year}} <a href="https://www.masunga.tech" class="light-text-link">Masunga</a>, formerly Solaris Offgrid</p>
+          </div>
+          <div class="footer-text col-12 col-md-4 d-flex justify-content-center justify-content-md-end dark-footer-theme">
+              <p><a href="https://www.paygops.com/privacy-policy" target="_blank" class="light-text-link">{{ftext('Privacy Policy')}}</a></p>
+          </div>
+          {% endif %}
+        </div>
+    </footer>
+    <!-- / Footer -->
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    $(document).ready(function() {
+        // We automatically login if cookie is set and user is login there
+        var organisation = getCookie("organisation");
+        if (organisation) {
+            $("#organisation").val(organisation);
+            // Maybe we need a little waiting time / splashscreen there to allow the user to change?
+            // Or an iframe with a special button to change it?
+            // We also need to package the js stuff so it can be embedded
+            window.location.href = "https://" + organisation + ".paygops.com/{{next}}";
+        }
+    });
+
+    function checkLogin() {
+        var organisation = $("#organisation").val();
+        organisation = organisation.replace(/\s+/g, '').toLowerCase();
+        var url = "https://" + organisation + ".paygops.com/api/v1/health";
+        $.ajax({
+            url: url,
+            type: "GET",
+            success: function() {
+                setCookie("organisation", organisation);
+                window.location.href = "https://" + organisation + ".paygops.com/{{next}}";
+            },
+            error: function() {
+                error_toast("The organisation name is invalid, correct it and try again.");
+            }
+        });
+    }
+</script>
+{% endblock %}

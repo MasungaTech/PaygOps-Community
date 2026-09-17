@@ -1,0 +1,70 @@
+{% extends "macros/base.html" %}
+{% import 'macros/form_macros.html' as forms with context %}
+{% import 'macros/general_macros.html' as ui with context %}
+
+{% block title %}{{ ftext('Two-Factor Authentication Setup') }}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('Admin', 'Two-Factor Authentication') }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        {% if not user.two_factor_enabled %}
+            <div {{ ui.card_start(title='Setup Two-Factor Authentication', uicon='security', icon_color='main') }}>
+                {{ ui.info_card(title='What is two-factor authentication (or 2FA)?', text='Two-factor authentication adds an extra layer of security to your account by requiring a verification code from your authenticator app every time you log in in addition to your password.'+(' <b>Your administrator requires the use of 2FA for all users so you must enable it to continue using PaygOps.</b>' if GlobalSetting('enforceTwoFactorForAllUsers') else ''), in_card=true, type='info', class='mt-3')}}
+
+                <div class="row">
+                    <div class="col-md-6">
+                        <p>{{ ftext('Please scan the QR code below with your authenticator app (Google Authenticator, Authy, 1Password, Microsoft Authenticator, etc.) and then enter the 6-digit code it generates.') }}</p>
+                        
+                        <div class="text-center mb-3">
+                            <img src="{{ qr_code }}" alt="QR Code for 2FA" class="img-fluid" style="max-width: 200px;">
+                        </div>
+                        
+                        <div class="alert alert-info">
+                            {{ ftext('<strong>Manual Entry:</strong> If you can\'t scan the QR code, you can manually enter this secret in your authenticator app: <code>{secret}</code>', secret=secret) }}
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <form method="POST" class="pt-5 mt-3">
+                            <input type="hidden" name="action" value="verify_and_enable">
+                            {{ forms.input('verification_code', 'Verification Code', 
+                                placeholder='Enter 6-digit code from your app', 
+                                uicon='pin', 
+                                required=true, 
+                                size=12,
+                                tooltip='Enter the 6-digit code from your authenticator app') }}
+                            
+                            {{ forms.button('Enable Two-Factor Authentication', 
+                                uicon='check_circle', 
+                                type='action', 
+                                size=12, 
+                                fit=true, 
+                                color='success') }}
+                        </form>
+                    </div>
+                </div>
+            </div {{ ui.card_end() }}>
+        {% else %}
+            <!-- 2FA is already enabled -->
+            <div {{ ui.card_start(title='Two-Factor Authentication is already Active', uicon='security', icon_color='main') }}>
+                <div class="row">
+                    {{ ui.info_card(text='Two-Factor Authentication is already Enabled on your account, no need to enable it again. If you need to generate a new setup disable and enable it again.', color='warning', uicon='check_circle', in_card=true) }}
+                </div>
+            </div {{ ui.card_end() }}>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+$(document).ready(function() {
+    // Auto-focus on verification code input
+    if (document.getElementById('verification_code')) {
+        document.getElementById('verification_code').focus();
+    }
+});
+</script>
+{% endblock %}

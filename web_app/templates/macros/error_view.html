@@ -1,0 +1,36 @@
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'macros/pretty_data_macro.html' as pretty_formatter with context %}
+
+
+{% macro web_error(Error) -%}
+<div>
+    <div class="row">
+        {{ ui.report_field('Time', Error['time'], size=6) }}
+        {{ ui.report_field('Error', ftext('{} ({})', Error['error'], Error['error_type']), size=6) }}
+        {{ ui.report_field('User', ftext('{} ({})', Error['user_name'], Error['user_id']), size=6) }}
+        {{ ui.report_field('Browser', Error['user_agent'], size=6) }}
+        {{ ui.report_field('IP', Error['user_ip'], size=6) }}
+        {{ ui.report_field('Request', Error['request'], size=6) }}
+    </div>
+
+    {{ ui.divider('Data Sent by User', small=true) }}
+    <p>
+        {{ Error['form'] }}
+    </p>
+
+    {% if current_user.is_super_admin() %}
+        {{ ui.divider('Traceback', small=true) }}
+        {% set pretty_data = Error.get('trace_data') %}
+        {% if pretty_data %}
+            {{ pretty_formatter.pretty_data_render(pretty_data, Error['error_name']) }}
+        {% else %}
+            <p>
+                {% for L in Error['traceback'] %}
+                    {{ L }}<br>
+                {% endfor %}
+            </p>
+        {% endif %}
+    {% endif %}
+</div>
+{%- endmacro %}
+
