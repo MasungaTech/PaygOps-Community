@@ -1,0 +1,65 @@
+You are generating an Automatou automation SKELETON.
+
+Inputs:
+- USER_PROMPT:
+<<USER_PROMPT>>
+
+- FIRST_RESULT_STEPS (context only; DO NOT expand steps here):
+<<FIRST_RESULT_STEPS>>
+- AUTOMATOU_DOCS_MD:
+<<AUTOMATOU_DOCS_MD>>
+- OPENAPI_CREATE_AUTOMATION_SCHEMA (excerpt):
+<<OPENAPI_CREATE_AUTOMATION_SCHEMA>>
+
+Goal:
+Produce ONE valid Automatou JSON OBJECT that:
+- Conforms to the provided OpenAPI schema.
+- Infers a correct "trigger" from USER_PROMPT and docs.
+- Leaves "workflow" EMPTY (i.e., "workflow": []).
+- Uses a Material Icon name for "icon".
+- Uses a safe status from the enum: "disabled" (skeleton state).
+
+Required fields and rules:
+1) "name": Short, action-oriented title derived from USER_PROMPT.
+2) "description": 1–2 sentences summarizing intent and outcome (no steps).
+3) "icon": A Material Icon identifier (e.g., "schedule", "notifications", "bolt", "automation", "sms").
+4) "status": Must be one of ["active", "disabled", "auto-disabled", "deleted"]. Use "disabled".
+5) "trigger": Choose one and keep it minimal but valid per schema:
+- Event-based:
+    {
+    "type": "event",
+    "data": { "event": "<one of: client_registered, client_deregistered, contract_cancelled, client_edited, new_issue, issue_closed, outgoing_message, lead_added, lead_edited, custom_form_answered, new_interaction, device_swapped, unknown_user_sms_command, unknown_client_sms_command, undo_contract_default, new_payment, new_orphaned_payment, new_contract_payment, new_lead_payment, new_addon_payment, new_user_payment, user_created, user_edited, contract_defaulted, new_addon_offer, new_addon_offer_version, new_stock_movement, new_addon, discount_given, delay_given, offer_changed, contract_payment, token_generated, new_reconciliation, addon_approved, contract_paused, contract_resumed, addon_cancelled, addon_delivered, addon_undelivered, addon_planned_delivery_date_change, contract_overpaid, custom_form_answered_uploaded, task_created, task_edited>" }
+    }
+- API-based:
+    { "type": "api", "data": {} }  // or include "synchronous"/"asynchronous" strings if clearly implied
+- Time-based:
+    {
+    "type": "time",
+    "data": {
+        // choose exactly ONE of the allowed structures
+        // every_certain_minute_hour
+        // { "time": "every_certain_minute_hour", "hours": "2", "minutes": "30" }
+        // every_day_at_given_time
+        // { "time": "every_day_at_given_time", "time_of_day": "14:00" }
+        // days_of_the_week
+        // { "time": "days_of_the_week", "week_days": ["monday","wednesday"], "time_of_day": "10:30" }
+        // days_of_the_month
+        // { "time": "days_of_the_month", "month_days": ["01","15","31"], "last_day": true, "time_of_day": "09:00" }
+    }
+    }
+- User-journey:
+    { "type": "user_journey", "data": {} }
+6) "workflow": MUST be an empty array: []  (Do NOT include steps here).
+7) Optionally include "config" only if clearly necessary and allowed by schema; otherwise omit.
+
+Output constraints:
+- OUTPUT ONLY the JSON object (no markdown fences, no comments, no explanations).
+- Ensure the JSON is valid and matches the schema.
+
+Sanity checklist BEFORE you output:
+- [ ] status is "disabled".
+- [ ] workflow is [].
+- [ ] icon is a Material Icon name (lowercase words with underscores if needed).
+- [ ] trigger.type is one of: "event", "api", "time", "user_journey".
+- [ ] If trigger.type == "event", data.event is one of the allowed event names.
+- [ ] No extra fields beyond schema (avoid typos like "workflows", "icone", etc.).

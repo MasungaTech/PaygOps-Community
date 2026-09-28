@@ -1,0 +1,850 @@
+{% extends "macros/base.html" %}
+{% import 'macros/form_macros.html' as forms with context %}
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'addon_categories_macros.html' as addons_categories with context %}
+{% import 'offline_token_config_macros.html' as offline_tokens with context %} 
+
+{% if this_offer is not defined %}
+    {% set Title='Add Offer' %}
+    {% set this_offer=EmptyObject %}
+    {% set Action='Add' %}
+    {% set async_url='/offers' %}
+    {% set editing = false %}
+    {% set edit_linked_to_product = false %}
+{% else %}
+    {% set Title=ftext('Edit Offer: {}', this_offer.id, novar=true) %}
+    {% set Action='Edit' %}
+    {% set async_url='/offers/' + this_offer.id|string %}
+    {% set editing = true  %}
+    {% set edit_linked_to_product = true if this_offer.contracts.count() or this_offer.leads.count() else false %}
+{% endif %}
+
+{% block title %}{{ Title }}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('Offers', Action, object=this_offer) }}{% endblock %}
+
+{% block content %}
+<form id="offerForm" action="" method="post">
+    <div {{ ui.card_start(title='Basic information', uicon='offer', body_class='row') }}>
+        {{ forms.input('name', 'Offer Name', value=this_offer.name, required=true, tooltip='The full name of the offer', size=6) }}
+        {{ forms.input('code', 'Code', value=this_offer.code, required=true, valid="nospaces", size=6,
+                        tooltip='The short code of the offer, used for quick identification in lists (must be unique).') }}
+
+        {# this select control the display of anything type specific #}
+        {{ forms.select('type', VALID_OFFER_TYPES, value=this_offer.type, 
+            onchange="selectToggleFormsMap(this, 'value', {'Lump Sum': '.onlumpsum', 'Loan': '.onloan', 'Usage Based': '.onusagebased', 'Time Based': '.ontimebased'});updatedProductType();", 
+            size=6, required=true, labeltag="Offer Type", disabled=true if editing else false, 
+            tooltip='Loan offers are paid over time, Lump Sum offers are paid all at once. ', id='offer_type_selector') }}
+
+        {{ forms.select('family', {'Home': 'Home Use', 'Business': 'Business Use'}, value=this_offer.family if editing else 'Home',
+                        size=6, label='Select Offer Target Use', labeltag='Offer Target Use',
+                        tooltip='This is just an indicative field. ') }}
+
+        {{ forms.select('approval_required', {'true': 'Yes', 'false': 'No'}, value=(not this_offer.no_approval_required),
+            size=6, required=True, labeltag='Approval Required', type='boolean',
+            tooltip='If set to No, the Lead will automatically be approved when the information is complete. ') }}
+            
+        {{ forms.checkbox('base_price_amount_can_be_negative:boolean', labeltag='Allow registering a lead with value ≤0 on this offer', 
+                        label='Allow registering a lead with value ≤0 on this offer', uicon='info', 
+                        tooltip='To allow registration of a lead with a balance value of 0 or negative on this offer. This is for specific use cases. For any clarification, please contact support.',
+                        selector_class='onlumpsum '+('onloan' if GlobalSetting('FeatureToggles').get('NoValueLoanContracts', true) else ''), checked=true if this_offer.base_price_amount_can_be_negative == True else False, size=6) }}
+
+        {% if (GlobalSetting('ContractDeviceRestrictions') == 'both' or GlobalSetting('ContractDeviceRestrictions') == 'require_device') and (not editing or this_offer.type == OfferType.loan) %}
+        {{ forms.select('automatic_unlock_code_sending', {'true': 'Yes', 'false': 'No'}, value=this_offer.automatic_unlock_code_sending if editing else true,
+            size=6, required=true, label='Choose auto-unlocking', selector_class=('onloan' if not editing else '')+(' linked_to_product' if GlobalSetting('ContractDeviceRestrictions') == 'both' else ''), type='boolean',
+            labeltag='Automatically Disable PAYG',
+            tooltip='If set to Yes, the PAYG disable code will be sent automatically to the client after
+            the last payment is made. Please be aware that by enabling this functionality a payment
+            erroneously sent to a wrong account of another client, might end up mistakenly fully unlocking
+            that client\'s device.  ') }}
+        {% endif %}
+        
+        {% if GlobalSetting('ContractDeviceRestrictions') == 'both' %}
+            {{ forms.checkbox('linked_to_product:boolean', labeltag='Linked to a product', label="The offer requires a product", tooltip='This offer requires that a product is selected for each offer, you can specify product  and device type if enabled', 
+                checked=this_offer.linked_to_product if editing else true, size='6', onchange='checkBoxToggleForms(this, ".linked_to_product")', 
+                disabled=edit_linked_to_product, value_false='false') }}
+        {% elif GlobalSetting('ContractDeviceRestrictions') == 'require_device' %}
+            <input type="hidden" name="linked_to_product:boolean" value="true">
+        {% elif GlobalSetting('ContractDeviceRestrictions') == 'no_device' %}
+            <input type="hidden" name="linked_to_product:boolean" value="false">
+        {% endif %}
+
+    </div {{ ui.card_end() }}>
+    
+    <div {{ ui.card_start(title='Payment Terms', uicon='payment', body_class='row', class='onloan ontimebased onusagebased') }}>
+        {{ forms.select('forgive_lateness',  {
+                'true': 'Enable forgiveness of lateness (default)',
+                'false': 'Disable forgiveness of lateness'
+            }, size=6, selector_class='onloan ontimebased', required=true, type='boolean', label='Choose configuration option', value=this_offer.forgive_lateness if editing else true,
+            labeltag='Forgiveness of lateness configuration', tooltip='If forgiveness of lateness enabled, late payments will buy time
+            from the time of the reconciliation onwards.<br> If disabled, late payments will pay first for the time in arrears and the
+            rest will be used for buying more time.<br> E.g. If the client pays for 2 weeks but is 1 week late they activation time
+            will be 1 week') }}
+
+        {{ forms.select('allow_pro_rata',  {
+                'true': 'Apply pro-rata when receiving a payment (default)',
+                'false': 'Do not apply pro-rata (pay only full pricing amounts)'
+            }, size=6, selector_class='onloan ontimebased onusagebased', required=true, type='boolean', label='Choose configuration option', value=this_offer.allow_pro_rata if editing else true,
+            onchange="selectToggleFormsMap(this, 'value', {'true': '.minimum'})", 
+            labeltag='Payment reconciliation configuration', tooltip='If pro-rata allowed, payments above the reference pricing amount
+            will be reconciled in full,<br> and credit given calculated proportionally.<br>If disabled, only exact bundles (reference,
+            or discounted ones) will be reconciled.<br>The remaining amount, if any, will stay as pending reconciliation. ') }}
+        
+        {{ forms.input('minimum_payment', ftext('Minimum Payment Accepted ({})', Currency, novar=true), value=this_offer.minimum_payment, min=0,
+            numeric=true, size=6, selector_class='onloan ontimebased minimum', 
+            tooltip='The minimum amount that will accepted as payment (if not provided the reference pricing amount will be used). Below, the payment will remain as pending. The pricing used will be the reference one (not discounted) adjusted proportionally (i.e. if the minimum is half of the reference it will entail half of the credit/days). It should be between 0 (included) and the Reference Pricing amount.') }}
+    </div {{ ui.card_end() }}>
+
+    <div {{ ui.card_start(title='Offer Availability', uicon='offer', body_class='row') }}>
+        {% set lead_restricted = this_offer.in_use_for_new_clients and this_offer.entities_allowed_for_leads.count() %}
+        {% set leads_value = "entities" if lead_restricted else "true" if this_offer.in_use_for_new_clients else "false" %}
+        {{
+            forms.select(
+                'in_use_for_new_leads',
+                [("true", 'Yes'), ("false", 'No'), ("entities", "Only in some entities")],
+                onchange="selectToggleFormsMap(this, 'value', {'entities': '.entities_leads'})", 
+                value=leads_value if editing else 'true',
+                size=6,
+                required=true,
+                type='boolean',
+                labeltag='Availability for sales',
+                tooltip='If set to No, only leads and clients already in this offer will be able to use it. '
+            )
+        }}
+        <input type="hidden" name="in_use_for_new_leads:boolean" class="entities_leads" value="true">
+        {{ 
+            forms.select(
+                'entities_allowed_for_leads_ids',
+                entities_leads,
+                type='number',
+                uicon='shop',
+                values=entities_allowed_for_leads if editing else [],
+                max_answers=1000,
+                size=6,
+                selector_class='entities_leads',
+                required=true,
+                labeltag='Entities available for sales',
+                source='entities_leads'
+            )
+        }}
+
+        {% set contract_restricted = this_offer.in_use and this_offer.entities_allowed_for_contracts.count() %}
+        {% set contracts_value = "entities" if contract_restricted else "true" if this_offer.in_use else "false" %}
+        {{
+            forms.select(
+                'can_be_approved_and_registered',
+                [("true", 'Yes'), ("false", 'No'), ("entities", "Only in some entities")],
+                onchange="selectToggleFormsMap(this, 'value', {'entities': '.entities_contracts'})", 
+                value=contracts_value if editing else 'true',
+                size=6,
+                required=true,
+                type='boolean',
+                labeltag='Availability for registration',
+                tooltip='If set to No, leads that already have the offer will not be able to get approved or registered and will need to change offer. '
+            )
+        }}
+        <input type="hidden" name="can_be_approved_and_registered:boolean" class="entities_contracts" value="true">
+        {{ 
+            forms.select(
+                'entities_allowed_for_contracts_ids',
+                entities_contracts,
+                type='number',
+                uicon='shop',
+                values=entities_allowed_for_contracts if editing else [],
+                max_answers=1000,
+                size=6,
+                selector_class='entities_contracts',
+                required=true,
+                labeltag='Entities available for registration',
+                source='entities_contracts'
+            )
+        }}
+        {{ forms.select(
+            'device_type',
+            device_types,
+            value=this_offer.get_required_device_type() if editing else None,
+            size=6,
+            labeltag='Required Device Type',
+            class='onloan ontimebased onusagebased onlumpsum',
+            tooltip='If selected, the offer will only be usable with devices of that type. ',
+            onchange='updatedProductType($(this))',
+            selector_class='linked_to_product',
+            translate=false
+        ) }}
+        
+        {{ 
+            forms.select(
+                'product_sub_type_id',
+                product_sub_types,
+                id="product_sub_type",
+                value=this_offer.product_sub_type.id if editing and this_offer.product_sub_type else None,
+                size=6, 
+                ajax=config.AJAX_SELECT_CLASS,
+                source="product_sub_types",
+                min_chars=0,
+                onchange="updatedProductSubType()",
+                labeltag='Required Product sub-type',
+                class='onloan ontimebased onusagebased onlumpsum',
+                tooltip='Select the required product sub-type for this offer.',
+                selector_class='linked_to_product',
+                translate=false,
+                data_attrs={'cache': 'false'}
+            ) 
+        }}
+        
+            
+    </div {{ ui.card_end() }}>
+
+
+    <div {{ ui.card_start(title='Add-Ons Configuration', uicon='addon', body_class='row') }}>
+        {% if not editing or this_offer.type == OfferType.loan %}
+        <div class="onloan row">
+            {{ forms.select('allow_loan_addons', {'true': 'Yes', 'false': 'No'}, value=this_offer.allow_loan_addons,
+                        size=6, required=true, labeltag="Allow loan addons", type='boolean',
+                        tooltip='If allowed, add-ons that alter the loan terms could be added (loan duration extension or repayment amount increase). ',
+                        onchange="selectToggleFormsMap(this, 'value', {'true': $('.addon_config_inputs')})") }}
+            {{ ui.info_card(uicon='info', color='secondary', in_card=true, class='mt-3 addon_config_inputs', text='The value of the Loan can be extended using loan addons. You can set a limit for the maximum add-ons value, the maximum total value of the loan or the % (extended/original value) that should be allowed. Leave empty for unlimited extensions.')}}
+            {{ forms.input('maximum_value_extension', 'Add-ons\' value', value=this_offer.maximum_value_extension,
+                numeric=true, min=0, size=4, selector_class='addon_config_inputs') }}
+            {{ forms.input('maximum_value_total:skip', 'Total value', selector_class='addon_config_inputs',
+                numeric=true, min=this_offer.get_total_value_with_deposit() if editing else 0, size=4) }}
+            {{ forms.input('maximum_value_percentage:skip', '% Extended',
+                numeric=true, min=0, size=4, selector_class='addon_config_inputs') }}
+        </div>
+        {% endif %}
+
+        {{ ui.info_card(uicon='info', color='secondary', in_card=true, class='mt-3', text='Only add-ons from the following categories will be available (leave blank to allow all):')}}
+        {{ addons_categories.addons_categories_navigation(callback="updateCategories",
+            tooltip="Category: ", size=6, placeholder="Search category", subcat_placeholder=ftext("Choose subcategory or add {}", "%cat_name%"),
+            btn_icon='add', btn_tooltip='Add Category', btn_action='addCategory()') }}
+        <div class="category_holder {{ui.col_size(6)}} mt-4">
+            {% if editing %}
+            {% for category in this_offer.addon_offer_categories_allowed %}
+             {{ category_badge_macro(category.id, category.name) }}
+            {% endfor %}
+            {% endif %}
+        </div>
+    </div {{ ui.card_end() }}>
+
+    {% set locked = this_offer.used %}
+    {% if locked %}{% set unlock_button = ui.button('Unlock Editing', uicon='lock_open', type='action', modal='unlock-modal') %}{% else %}{% set unlock_button='' %}{% endif %}
+    {# on lump sum #}
+    <div {{ ui.card_start(title='Paid at Once Pricing', uicon='money', class='onlumpsum', body_class='row', locked=locked, actions=unlock_button) }}>
+        {{ forms.input('base_price_amount_lump_sum', ftext('Price ({})', Currency, novar=true), value=this_offer.registration_fee,
+            required=true, numeric=true, tooltip='The amount to pay at once to buy the product. ', disabled=locked) }}
+    </div {{ ui.card_end() }}>
+
+    {# on loan, time-based or usage-based #}
+    <div {{ ui.card_start(title='Contract terms and pricing', uicon='money', class='onloan ontimebased onusagebased', body_class='row', locked=locked, actions=unlock_button) }}>
+        {# loan only #}
+        {% if not editing or this_offer.type == OfferType.loan %}
+        {{ ui.info_card(in_card=true, uicon='info', color='secondary', class='mt-3 onloan', text='The total loan value is calculated like this: (reference pricing amount / reference pricing time) * (time to ownership - free time given at start) + downpayment amount. <br> It is recommended that the reference pricing frequency needs to be divisible by the time to ownership to ensure that the required amount can actually be paid exactly
+        (otherwise the last payment will be different from the others). <br> <strong>Note that the values are automatically calculated based on changes you make once the required fields are filled so that you can preview the details of the offer. </strong>')}}
+        {{ forms.input('time_to_ownership_in_days', 'Time to ownership', selector_class='onloan',
+            value=ui.amount_normalize(this_offer.time_to_ownership_in_days), size=6, disabled=locked,
+            required=true, numeric=true, max_val=36500, tooltip='This is used to with the pricing to compute the total loan value. Maximum 100 years, for more use a subscription offer. ') }}
+        {% endif %}
+        {# time based only #}
+        {% if not editing or this_offer.type == OfferType.time_based %}
+        {{ forms.select('payment_frequency', config.AVAILABLE_OFFER_PAYMENT_FREQUENCIES, value=(this_offer.payment_frequency or 'DAILY'),
+            onchange="selectToggleFormsMap(this, 'value', {'DAILY': '.show-for-daily', 'MONTHLY': '.show-for-monthly'})",
+            size=6, disabled=locked, selector_class='ontimebased', required=true, label='Choose one', labeltag='Base payment frequency',
+            tooltip='Choose one of the available base payment frequencies to be used with this offer. ', id='offer_payment_frequency_select') }}
+
+        {{ forms.input('payment_day_of_month', 'Day of the month payments are due', numeric=true, 
+            valid="nospaces", value=this_offer.payment_day_of_month, is_int=true, min=1, max=31, type="number",
+            selector_class='ontimebased show-for-monthly', size=6, disabled=locked,
+            tooltip='Choose the day of the month that the monthly payments should be made. If the day you pick does not exist in a month, 
+            then the payment date will be set to the last day of that month', id='offer_day_of_month_select') }}
+        {% endif %}
+        {# usage based only #}
+        {% if not editing or this_offer.type in [OfferType.time_based, OfferType.loan, OfferType.usage_based] %}
+        {{ forms.select('credit_unit', {}, value=this_offer.credit_unit,
+            size=6, disabled=locked, selector_class='onusagebased offer_unit_select', required=true, label='Choose one', labeltag='Credit Unit',
+            tooltip='Choose one of the available unit types available for this device to be used with this offer. ', id='offer_unit_select') }}
+        {{ forms.input('credit_unit', 'Credit Unit', value=this_offer.credit_unit,
+            size=6, disabled=locked, selector_class='onusagebased offer_unit_input', required=true,
+            tooltip='Enter the unit type to be used with this offer. ') }}
+        {{ forms.input('free_credit_at_start_usage_based', 'Free units given at start', value=ui.amount_normalize(this_offer.free_credit_at_start), class='time_given_at_start_in_days',
+            size=6, disabled=locked, selector_class='onusagebased', required=false, numeric=true, tooltip='Free units given at the time of registration. ') }}
+        {# common #}
+        {{ forms.input('time_given_at_start_in_days', 'Free time given at start (included in total duration)', class='time_given_at_start_in_days',
+            value=ui.amount_normalize(this_offer.free_credit_at_start), size=6, disabled=locked,
+            selector_class='show-for-daily onloan ontimebased show-for-monthly', required=true, numeric=true, tooltip='Those days/months given at the time of registration will count towards the total number of days to be paid. ', id='time_given_at_start_in_days_time_based') }}
+        {{ forms.input('base_price_time_in_days', 'Reference Pricing Frequency', value=ui.amount_normalize(this_offer.base_price_credit),
+            selector_class='onloan ', size=6, disabled=locked, class='base_price_credit', min=0.001, id='base_price_time_in_days',
+            required=true, numeric=true, tooltip='Number of days/month of service given for the amount paid on the reference pricing. ') }}
+        {{ forms.input('total_installments_display:skip', 'Number of Repayments (excl. Downpayment)', value='', size=6, disabled=locked,
+            selector_class='onloan', required=false, id='total_installments_display', numeric=true, min=1,
+            tooltip='The total number of repayments (installments) required to complete the loan. You can edit this field to change the number of repayments.') }}
+        
+
+        
+
+        {{ ui.info_card(in_card=true, uicon='info', color='secondary', class='mt-3 onloan', text='<strong>Enter either the total loan amount or the reference pricing amount (price to be paid for each installment)</strong>, the other one will be automatically calculated. ')}}
+
+        {{ forms.input('downpayment', ftext('Initial downpayment ({})', Currency, novar=true), value=this_offer.registration_fee or 0 if editing else none,
+            size=6, disabled=locked, 
+            required=true, numeric=true, tooltip='This is the initial downpayment to be paid before registration. ') }}
+
+        {{ forms.input('loan_amount_without_downpayment:skip', ftext('Desired Loan Amount Excluding Downpayment ({})', Currency, novar=true), value=none,
+            size=6, disabled=locked, id='loan_amount_without_downpayment', selector_class='onloan', 
+            required=false, numeric=true, tooltip='The loan amount excluding the downpayment. This is the amount that will be paid in installments. You can edit this to automatically calculate the reference pricing amount. Note that it might be slightly changed to match the rounded repayment values. ') }}
+
+        {{ forms.input('total_loan_amount:skip', ftext('Desired Total Loan Amount ({})', Currency, novar=true), value=none,
+            size=6, disabled=locked, id='total_loan_amount', selector_class='onloan', 
+            required=false, numeric=true, tooltip='The total loan amount. You can enter this value to automatically calculate the reference pricing amount. Note that it might be slightly changed to match the rounded repayment values. ') }}
+
+        {{ forms.input('base_price_amount', ftext('Reference Pricing - Amount ({})', Currency, novar=true), value=this_offer.base_price_amount or 0 if editing else none,
+            size=6, disabled=locked, id='base_price_amount',
+            required=true, numeric=true, tooltip='The amount to pay for the reference (non-discounted) pricing. It is the amount for the smaller period of time allowed in your offer. ') }}
+        
+        {{ forms.input('base_price_time_in_days', 'Reference Pricing - Time Bought', value=ui.amount_normalize(this_offer.base_price_credit),
+            selector_class='ontimebased', size=6, disabled=locked, class='base_price_credit', min=0.001,
+            required=true, numeric=true, tooltip='Number of days/month of service given for the amount paid on the reference pricing. ') }}
+        {{ forms.input('base_price_credit_in_units', 'Reference Pricing - Units Bought', value=ui.amount_normalize(this_offer.base_price_credit),
+            selector_class='onusagebased', size=6, disabled=locked, class='base_price_credit', min=0.001,
+            required=true, numeric=true, tooltip='Number of units given for the amount paid on the reference pricing. ') }}
+        
+        
+        {{ ui.info_card(in_card=true, uicon='amount', color='secondary', class='onloan mt-3', text=ftext('The total value of the loan will be <var class="total-loan-value">-</var> {}, with <var class="downpayment-value">-</var> {} paid as downpayment and <var class="remaining-value">-</var> {} paid in <var class="total-installments">-</var> repayments of <var class="installment-value">-</var> {} paid every <var class="frequency-value">-</var> days during <var class="payment-duration">-</var> days. <span class="last-installment-info" style="display:none;">There will also be a <var class="last-installment-number">-</var>th repayment of <var class="last-installment-value">-</var> {}.</span> The first repayment is expected <var class="first-payment-days">-</var> days after the start of the loan, giving a total duration of <var class="total-duration">-</var> days.', Currency, Currency, Currency, Currency, Currency))}}
+        {% endif %}
+    </div {{ ui.card_end() }}>
+
+    <div {{ ui.card_start(title='Alternative (discounted) Pricing', uicon='money', class='onloan ontimebased onusagebased', body_class='row', locked=locked, actions=unlock_button) }}>
+        {% if this_offer.type == OfferType.usage_based %}
+            {{ ui.info_card(in_card=true, uicon='info', color='secondary', class='mt-3 onloan', text='You might give discount if users pays for more units (e.g paying 4000 litres at once gives you 400 litres for free). The reference pricing needs to have the lowest amount (but higher or equal total value to the discounted prices). ')}}
+        {% else %}
+            {{ ui.info_card(in_card=true, uicon='info', color='secondary', class='mt-3 onloan', text='You might give discount if users pays for a longer period of time (e.g paying 4 weeks at once gives you 1 week for free). The reference pricing needs to have the lowest amount (but higher or equal total value to the discounted prices). ')}}
+        {% endif %}
+
+        {{ forms.input('discount_price_1_amount', ftext('Discount Pricing 1 - Amount ({})', Currency, novar=true), value=this_offer.discount_price_1_amount,
+            size=6, disabled=locked,
+            required=false, numeric=true, tooltip='Must be higher than the reference pricing. Can be used to incentivise the clients to pay for more at once in exchange for a discount. ') }}
+        {{ forms.input('discount_price_1_time_in_days', 'Discount Pricing 1 - Time Bought', value=ui.amount_normalize(this_offer.discount_price_1_credit),
+            selector_class='onloan ontimebased', size=6, disabled=locked,
+            required=false, numeric=true, tooltip='Number of days/month of service given for the amount paid on the discount price 1, must be higher than the reference. ') }}
+        {{ forms.input('discount_price_1_credit_in_units', 'Discount Pricing 1 - Units Bought', value=ui.amount_normalize(this_offer.discount_price_1_credit),
+            selector_class='onusagebased', size=6, disabled=locked,
+            required=false, numeric=true, tooltip='Number of units of service given for the amount paid on the discount price 1, must be higher than the reference. ') }}
+        
+        {{ forms.input('discount_price_2_amount', ftext('Discount Pricing 2 - Amount ({})', Currency, novar=true), value=this_offer.discount_price_2_amount,
+            size=6, disabled=locked,
+            required=false, numeric=true, tooltip='Must be higher than the discount price 1 pricing. Can be used to incentivise the clients to pay for more at once in exchange for a discount. ') }}
+        {{ forms.input('discount_price_2_time_in_days', 'Discount Pricing 2 - Time Bought', value=ui.amount_normalize(this_offer.discount_price_2_credit),
+            selector_class='onloan ontimebased', size=6, disabled=locked,
+            required=false, numeric=true, tooltip='Number of days/month of service given for the amount paid on the discount price 2, must be higher than the discount 1. ') }}
+        {{ forms.input('discount_price_2_credit_in_units', 'Discount Pricing 2 - Units Bought', value=ui.amount_normalize(this_offer.discount_price_2_credit),
+            selector_class='onusagebased', size=6, disabled=locked,
+            required=false, numeric=true, tooltip='Number of units of service given for the amount paid on the discount price 2, must be higher than the discount 1. ') }}
+    </div {{ ui.card_end() }}>
+
+    <div {{ ui.collapsible_card_start(title='Additional Information', uicon='info', class='onloan ontimebased onusagebased onlumpsum', body_class='row', active=false) }}>
+        <div class="linked_to_product">
+            {{ ui.info_card(in_card=true, uicon='info', color='secondary', class='mt-3 onloan', text='Changes you make here will not be retro-active. For example, the lighting global compliance ratio for the past month will not be updated, it will only take effect for future months.')}}
+
+            {{ forms.input('raw_unit_cost', 'Raw Unit Cost', value=this_offer.unit_cost|int if this_offer.unit_cost else none, append_currency=true,
+                            numeric=true, is_int=true, size=6, tooltip='Used for the calculation of GOGLA KPIs. ') }}
+        
+            {{ forms.select('lighting_global_compliant', {'true': 'Yes', 'false': 'No'}, value=this_offer.lighting_global_compliant, type='boolean',
+                            size=6, label='Lighting Global Compliant device', labeltag='Lighting Global Compliant device',
+                            tooltip='Used for the calculation of GOGLA KPIs. ') }}
+        
+            {{ forms.input('panel_size_in_w', 'Panel Size (W)', value=this_offer.panel_size_in_w,
+                            numeric=true, is_int=true, size=6, tooltip='The size of the solar panel of the device, used for setup on some devices. ') }}
+            {{ forms.input('battery_size_in_ah', 'Battery Size (Ah)', value=this_offer.battery_size_in_ah,
+                            numeric=true, is_int=true, size=6, tooltip='The size of the battery of the device (in Ah), used for setup on some devices. ') }}
+        </div>
+
+        {{ forms.input('notes', 'Notes', type="textarea", value=this_offer.notes, tooltip='Other information about this offer. ', size=6) }}
+        
+    </div {{ ui.collapsible_card_end() }}>
+
+    <div {{ ui.collapsible_card_start(title='Offline Token Configuration', uicon='device', class='mt-4', active=false) }}>
+        {{ ui.info_card(type='info', in_card=true, class='mt-3', text='Use this menu to configure the type of tokens that will be available offline for this offer. Those will be usable for existing clients on that offer and must be valid amount of days to buy.')}}
+        {{ offline_tokens.offline_token_config_card(this_offer.offline_token_configs, no_submit=true) }}
+    </div {{ ui.collapsible_card_end() }}
+
+    {{ ui.button(uicon='save', label=Action+' Offer', type='action', fit=true, size=6, center=true, id='save_offer_button', size_class="mt-1",
+            action='async_post', async_url=async_url, success_message='Offer saved', redirect_url='/offers/', redirect_append='id') }}
+    
+    </form>
+    
+
+    <div {{ ui.modal_start('unlock-modal', 'Unlock Offer Editing') }}>
+        <form>
+            <div class="modal-body">
+                {{ ui.info_card('This offer has been already used and the pricing fields cannot be modified. You can create a new version of this offer based on this one so that you can edit the fields there. ', uicon='warning') }}
+            </div>
+            <div class="modal-footer">
+                {{ ui.modal_close_button() }}
+                {{ ui.button(type='action', uicon='lock_open', label='Create New Version of Offer', action='createNewOffer()') }}
+            </div>
+        </form>
+    </div {{ ui.modal_end() }}>
+{% endblock %}
+
+{% block scripts %}
+{{ offline_tokens.offline_token_scripts() }}
+{# maximum value of addons script #}
+<script>
+    function updateLoanCalculations(sourceField) {
+        // Get all input values
+        var totalLoanAmount = parseFloat($('#total_loan_amount').val()) || 0;
+        var loanAmountWithoutDownpayment = parseFloat($('#loan_amount_without_downpayment').val()) || 0;
+        var downpayment = parseFloat($('#downpayment').val()) || 0;
+        var credit_to_ownership = parseFloat($('#time_to_ownership_in_days').val()) || 0;
+        var time_given_at_start = parseFloat($('#time_given_at_start_in_days_time_based').val()) || 0;
+        var base_price_credit = parseFloat($('#base_price_time_in_days').val()) || 0;
+        var base_price_amount = parseFloat($('#base_price_amount').val()) || 0;
+        var editableInstallments = parseFloat($('#total_installments_display').val()) || 0;
+        
+        // Calculate number of installments - ensure this happens regardless of which field triggered the update
+        var numberOfInstallments = (base_price_credit > 0 && credit_to_ownership > 0) ? 
+            Math.max(0, (credit_to_ownership - time_given_at_start) / base_price_credit) : 0;
+        
+        // If we're editing the number of installments directly, use that value instead
+        if (sourceField === 'total_installments_display' && editableInstallments > 0) {
+            numberOfInstallments = editableInstallments;
+        }
+        
+        // Update display values for installments immediately
+        var installmentsDisplay = numberOfInstallments > 0 ? numberOfInstallments.toFixed(2) : '-';
+        $('.total-installments').text(installmentsDisplay);
+        
+        // Only update the field if it wasn't the source of the change
+        if (sourceField !== 'total_installments_display') {
+            $('#total_installments_display').val(installmentsDisplay === '-' ? '' : installmentsDisplay);
+        }
+        
+        // Update values based on which field was edited
+        switch(sourceField) {
+            case 'total_installments_display':
+                if (editableInstallments > 0) {
+                    // If we have valid base_price_credit, update time_to_ownership_in_days
+                    if (base_price_credit > 0) {
+                        credit_to_ownership = (editableInstallments * base_price_credit) + time_given_at_start;
+                        $('#time_to_ownership_in_days').val(credit_to_ownership.toFixed(2));
+                    }
+                    if (loanAmountWithoutDownpayment > 0) {
+                        // Update base price amount based on the new number of installments
+                        base_price_amount = loanAmountWithoutDownpayment / editableInstallments;
+                        $('#base_price_amount').val(base_price_amount.toFixed(2));
+                    }
+                }
+                break;
+                
+            case 'total_loan_amount':
+                if (totalLoanAmount > 0) {
+                    // Update loan without downpayment
+                    loanAmountWithoutDownpayment = Math.max(0, totalLoanAmount - downpayment);
+                    $('#loan_amount_without_downpayment').val(loanAmountWithoutDownpayment.toFixed(2));
+                    
+                    // Update base price amount if we have valid installments
+                    if (numberOfInstallments > 0) {
+                        base_price_amount = loanAmountWithoutDownpayment / numberOfInstallments;
+                        $('#base_price_amount').val(base_price_amount.toFixed(2));
+                    }
+                }
+                break;
+                
+            case 'loan_amount_without_downpayment':
+                if (loanAmountWithoutDownpayment >= 0) {
+                    // Update total loan amount
+                    totalLoanAmount = loanAmountWithoutDownpayment + downpayment;
+                    $('#total_loan_amount').val(totalLoanAmount.toFixed(2));
+                    
+                    // Update base price amount if we have valid installments
+                    if (numberOfInstallments > 0) {
+                        base_price_amount = loanAmountWithoutDownpayment / numberOfInstallments;
+                        $('#base_price_amount').val(base_price_amount.toFixed(2));
+                    }
+                }
+                break;
+                
+            case 'downpayment':
+                if (downpayment >= 0) {
+                    if (!isNaN(totalLoanAmount) && totalLoanAmount > 0) {
+                        // If total loan amount is set, update loan without downpayment
+                        loanAmountWithoutDownpayment = Math.max(0, totalLoanAmount - downpayment);
+                        $('#loan_amount_without_downpayment').val(loanAmountWithoutDownpayment.toFixed(2));
+                        
+                        // Update base price if we have valid installments
+                        if (numberOfInstallments > 0) {
+                            base_price_amount = loanAmountWithoutDownpayment / numberOfInstallments;
+                            $('#base_price_amount').val(base_price_amount.toFixed(2));
+                        }
+                    } else if (!isNaN(loanAmountWithoutDownpayment) && loanAmountWithoutDownpayment > 0) {
+                        // If loan without downpayment is set, update total loan amount
+                        totalLoanAmount = loanAmountWithoutDownpayment + downpayment;
+                        $('#total_loan_amount').val(totalLoanAmount.toFixed(2));
+                    } else if (!isNaN(base_price_amount) && base_price_amount > 0 && numberOfInstallments > 0) {
+                        // If we have base price and installments, calculate loan without downpayment
+                        loanAmountWithoutDownpayment = base_price_amount * numberOfInstallments;
+                        $('#loan_amount_without_downpayment').val(loanAmountWithoutDownpayment.toFixed(2));
+                        
+                        // Then update total loan amount
+                        totalLoanAmount = loanAmountWithoutDownpayment + downpayment;
+                        $('#total_loan_amount').val(totalLoanAmount.toFixed(2));
+                    }
+                }
+                break;
+                
+            case 'base_price_amount':
+                if (base_price_amount > 0 && numberOfInstallments > 0) {
+                    // Update loan without downpayment
+                    loanAmountWithoutDownpayment = base_price_amount * numberOfInstallments;
+                    $('#loan_amount_without_downpayment').val(loanAmountWithoutDownpayment.toFixed(2));
+                    
+                    // Update total loan amount
+                    totalLoanAmount = loanAmountWithoutDownpayment + downpayment;
+                    $('#total_loan_amount').val(totalLoanAmount.toFixed(2));
+                }
+                break;
+                
+            case 'time_to_ownership_in_days':
+            case 'time_given_at_start_in_days':
+            case 'base_price_time_in_days':
+                // Recalculate number of installments
+                numberOfInstallments = (base_price_credit > 0 && credit_to_ownership > 0 && time_given_at_start >= 0) ? 
+                    (credit_to_ownership - time_given_at_start) / base_price_credit : 0;
+                
+                if (numberOfInstallments > 0) {
+                    if (!isNaN(loanAmountWithoutDownpayment) && loanAmountWithoutDownpayment > 0) {
+                        // Update base price amount based on loan without downpayment
+                        base_price_amount = loanAmountWithoutDownpayment / numberOfInstallments;
+                        $('#base_price_amount').val(base_price_amount.toFixed(2));
+                    } else if (!isNaN(base_price_amount) && base_price_amount > 0) {
+                        // Update loan without downpayment based on base price
+                        loanAmountWithoutDownpayment = base_price_amount * numberOfInstallments;
+                        $('#loan_amount_without_downpayment').val(loanAmountWithoutDownpayment.toFixed(2));
+                        
+                        // Update total loan amount
+                        totalLoanAmount = loanAmountWithoutDownpayment + downpayment;
+                        $('#total_loan_amount').val(totalLoanAmount.toFixed(2));
+                    }
+                }
+                break;
+                
+            default:
+                // Default case - just update display values
+                break;
+        }
+        
+        // Update display values
+        updateDisplayValues(totalLoanAmount, downpayment, loanAmountWithoutDownpayment, 
+                            credit_to_ownership, time_given_at_start, base_price_credit, 
+                            base_price_amount, numberOfInstallments);
+        
+        // Update maximum value fields
+        updateMaximumValueFields(totalLoanAmount);
+    }
+
+    function updateDisplayValues(totalLoanAmount, downpayment, loanAmountWithoutDownpayment, 
+                                credit_to_ownership, time_given_at_start, base_price_credit, 
+                                base_price_amount, numberOfInstallments) {
+        // Calculate the exact remaining value based on rounded base_price_amount * numberOfInstallments
+        var exactRemainingValue = isNaN(base_price_amount) || isNaN(numberOfInstallments) ? 
+            NaN : (parseFloat(base_price_amount.toFixed(2)) * numberOfInstallments);
+        
+        // Format for display
+        var exactRemainingValueDisplay = isNaN(exactRemainingValue) ? '-' : exactRemainingValue.toFixed(2);
+        
+        // Calculate exact total loan amount (remaining value + downpayment)
+        var exactTotalLoanAmount = isNaN(exactRemainingValue) || isNaN(downpayment) ? 
+            NaN : exactRemainingValue + downpayment;
+        
+        // Update display values
+        $('.total-loan-value').text(isNaN(exactTotalLoanAmount) ? '-' : exactTotalLoanAmount.toFixed(2));
+        $('.downpayment-value').text(isNaN(downpayment) ? '-' : downpayment.toFixed(2));
+        $('.remaining-value').text(exactRemainingValueDisplay);
+        
+        // Update duration values
+        $('.total-duration').text(isNaN(credit_to_ownership) ? '-' : credit_to_ownership);
+        var paymentDuration = isNaN(credit_to_ownership) || isNaN(time_given_at_start) ? NaN : credit_to_ownership - time_given_at_start;
+        $('.payment-duration').text(isNaN(paymentDuration) ? '-' : paymentDuration);
+        
+        // Update installments display - show whole number for display
+        var wholeInstallments = !isNaN(numberOfInstallments) && numberOfInstallments > 0 ? 
+            Math.floor(numberOfInstallments) : 0;
+        $('.total-installments').text(wholeInstallments > 0 ? wholeInstallments : '-');
+        
+        // Update installment value
+        $('.installment-value').text(isNaN(base_price_amount) ? '-' : base_price_amount.toFixed(2));
+        
+        // Handle last installment if number of installments is not a whole number
+        if (!isNaN(numberOfInstallments) && numberOfInstallments > 0) {
+            var fractionalPart = numberOfInstallments - wholeInstallments;
+            
+            if (fractionalPart > 0.001) { // Using a small threshold to account for floating point imprecision
+                // Calculate the last installment value directly from the remaining loan amount
+                // This ensures mathematical accuracy and avoids rounding errors
+                var regularInstallmentsTotal = wholeInstallments * parseFloat(base_price_amount.toFixed(2));
+                var lastInstallmentValue = exactRemainingValue - regularInstallmentsTotal;
+                
+                // Ensure the value is positive and has proper precision
+                lastInstallmentValue = Math.max(0, parseFloat(lastInstallmentValue.toFixed(2)));
+                
+                // Update the last installment text to show it's the Nth installment
+                var lastInstallmentNumber = wholeInstallments + 1;
+                $('.last-installment-value').text(lastInstallmentValue.toFixed(2));
+                $('.last-installment-number').text(lastInstallmentNumber);
+                $('.last-installment-info').show();
+            } else {
+                $('.last-installment-info').hide();
+            }
+        } else {
+            $('.last-installment-info').hide();
+        }
+        
+        // Update frequency
+        $('.frequency-value').text(isNaN(base_price_credit) ? '-' : base_price_credit);
+        
+        // Update first payment days
+        $('.first-payment-days').text(isNaN(time_given_at_start) ? '-' : time_given_at_start);
+    }
+
+    function updateMaximumValueFields(totalLoanValue) {
+        if (isNaN(totalLoanValue) || totalLoanValue <= 0) return;
+        
+        var extension = parseFloat($('#maximum_value_extension').val());
+        var total = parseFloat($('#maximum_value_total').val());
+        var percentage = parseFloat($('#maximum_value_percentage').val());
+        
+        // If extension has a value, update the other fields based on it
+        if (!isNaN(extension)) {
+            $('#maximum_value_total').val((extension + totalLoanValue).toFixed(2));
+            $('#maximum_value_percentage').val((extension / totalLoanValue * 100).toFixed(2));
+        }
+        // If total has a value but extension doesn't, update based on total
+        else if (!isNaN(total)) {
+            var calculatedExtension = Math.max(0, total - totalLoanValue);
+            $('#maximum_value_extension').val(calculatedExtension.toFixed(2));
+            $('#maximum_value_percentage').val((calculatedExtension / totalLoanValue * 100).toFixed(2));
+        }
+        // If percentage has a value but the others don't, update based on percentage
+        else if (!isNaN(percentage)) {
+            var calculatedExtension = (percentage / 100 * totalLoanValue);
+            $('#maximum_value_extension').val(calculatedExtension.toFixed(2));
+            $('#maximum_value_total').val((calculatedExtension + totalLoanValue).toFixed(2));
+        }
+    }
+
+    // Set up event listeners
+    $(function() {
+        // Add event listeners for all relevant fields
+        $('#total_loan_amount').on('input', function() {
+            updateLoanCalculations('total_loan_amount');
+        });
+        
+        $('#loan_amount_without_downpayment').on('input', function() {
+            updateLoanCalculations('loan_amount_without_downpayment');
+        });
+        
+        $('#downpayment').on('input', function() {
+            updateLoanCalculations('downpayment');
+        });
+        
+        $('#base_price_amount').on('input', function() {
+            updateLoanCalculations('base_price_amount');
+        });
+        
+        $('#time_to_ownership_in_days').on('input', function() {
+            updateLoanCalculations('time_to_ownership_in_days');
+        });
+        
+        $('#time_given_at_start_in_days_time_based').on('input', function() {
+            updateLoanCalculations('time_given_at_start_in_days');
+        });
+        
+        $('#base_price_time_in_days').on('input', function() {
+            updateLoanCalculations('base_price_time_in_days');
+        });
+        
+        // Handle changes to maximum value fields
+        $('#maximum_value_extension').on('input', function() {
+            var totalLoanValue = parseFloat($('#total_loan_amount').val()) || 0;
+            if (isNaN(totalLoanValue) || totalLoanValue <= 0) return;
+            
+            var extension = parseFloat($(this).val()) || 0;
+            $('#maximum_value_total').val((extension + totalLoanValue).toFixed(2));
+            $('#maximum_value_percentage').val((extension / totalLoanValue * 100).toFixed(2));
+        });
+
+        $('#maximum_value_total').on('input', function() {
+            var totalLoanValue = parseFloat($('#total_loan_amount').val()) || 0;
+            if (isNaN(totalLoanValue) || totalLoanValue <= 0) return;
+            
+            var total = parseFloat($(this).val()) || 0;
+            var extension = Math.max(0, total - totalLoanValue);
+            $('#maximum_value_extension').val(extension.toFixed(2));
+            $('#maximum_value_percentage').val((extension / totalLoanValue * 100).toFixed(2));
+        });
+
+        $('#maximum_value_percentage').on('input', function() {
+            var totalLoanValue = parseFloat($('#total_loan_amount').val()) || 0;
+            if (isNaN(totalLoanValue) || totalLoanValue <= 0) return;
+            
+            var percentage = parseFloat($(this).val()) || 0;
+            var extension = (percentage / 100 * totalLoanValue);
+            $('#maximum_value_extension').val(extension.toFixed(2));
+            $('#maximum_value_total').val((extension + totalLoanValue).toFixed(2));
+        });
+        
+        // Add event listener for editable installments field
+        $('#total_installments_display').on('input', function() {
+            updateLoanCalculations('total_installments_display');
+        });
+        
+        // Initialize calculations on page load
+        updateLoanCalculations('init');
+    });
+</script>
+{# Available unit script: to put the correct units in the selector based on allowed devices #}
+<script>
+    const modelTypeMapping = {
+        {% for model in product_models_data -%}
+        {{model.id}}: "{{model.device_type}}"{%if not loop.last%},{%endif%}
+        {% endfor -%}
+    }
+    function updatedProductSubType() {
+        let device_type_selector = $('#device_type')
+        let model = $('#product_sub_type').val();
+        if (model) device_type_selector.val(modelTypeMapping[model]).change();
+    }
+    function updatedProductType() {
+        var offer_type_selector = $('#offer_type_selector');
+        var offer_type = offer_type_selector.val();
+        var device_type_selector = $('#device_type'); 
+        var selected_value = device_type_selector.val();
+        var device_types = JSON.parse('{{ device_types|tojson }}');
+
+        device_type_selector.find('option').remove();
+
+        Object.entries(device_types).forEach(([device_type, info]) => {
+            if(offer_type === 'Usage Based' && (info.supported_offer_type === 'USAGE_BASED' || info.supported_offer_type === 'BOTH')) {
+                device_type_selector.append(new Option(info.value, device_type));
+            } else if (offer_type !== 'Usage Based' && (info.supported_offer_type === 'TIME_BASED' || info.supported_offer_type === 'BOTH')) {
+                device_type_selector.append(new Option(info.value, device_type));
+            }
+        });
+
+        device_type_selector.val(selected_value);
+
+        // Handle unit field visibility for Usage Based offers
+        if(offer_type === 'Usage Based') {
+            // Store the previous device type to detect changes
+            var previous_device_type = $('#device_type').data('previous-value');
+            var device_type_changed = previous_device_type && previous_device_type !== selected_value;
+            
+            if(!selected_value || selected_value === 'NPG') {
+                // Clear unit select when switching to no device type or NPG
+                $('#offer_unit_select').val('').find('option').remove();
+                showForm('.offer_unit_input');
+                hideForm('.offer_unit_select');
+            } else {
+                var available_units = device_types[selected_value]?.supported_units;
+                // Check if device type accepts "ANY" unit - if so, show input field like NPG
+                var accepts_any = false;
+                if(available_units) {
+                    // Check if any key in supported_units is "ANY" (case-insensitive)
+                    accepts_any = Object.keys(available_units).some(function(key) {
+                        return key.toUpperCase() === 'ANY';
+                    });
+                }
+                if(available_units && !accepts_any) {
+                    // Always clear the select and its value when device type changes
+                    // This ensures the previous unit selection doesn't persist
+                    $('#offer_unit_select').find('option').remove();
+                    if(device_type_changed) {
+                        $('#offer_unit_select').val('');
+                    }
+                    addOptionsToSelect('#offer_unit_select', available_units);
+                    showForm('.offer_unit_select');
+                    hideForm('.offer_unit_input');
+                } else {
+                    // If no available units or device accepts ANY, show input field
+                    $('#offer_unit_select').val('').find('option').remove();
+                    showForm('.offer_unit_input');
+                    hideForm('.offer_unit_select');
+                }
+            }
+            
+            // Store current device type for next comparison
+            $('#device_type').data('previous-value', selected_value);
+        }
+
+        // Handle product_sub_type logic
+        $('#product_sub_type').attr('data-device_type', selected_value);
+        let selected_model = $('#product_sub_type').val();
+        if (selected_model && selected_value && modelTypeMapping[selected_model] != selected_value) {
+            $('#product_sub_type').find('option[selected]').remove();
+            $('#product_sub_type').attr('data-excluded', null);
+            $('#product_sub_type').val('').change();
+            refreshSelects($('#product_sub_type'));
+        }
+    }
+    
+    // Initialize on page load
+    $(function() {
+        // Call updatedProductType on page load to set initial state for Usage Based offers
+        // This ensures the unit field visibility is set correctly when editing an existing offer
+        var offerType = $('#offer_type_selector').val();
+        if (offerType === 'Usage Based') {
+            // Initialize the previous device type value before calling updatedProductType
+            var initialDeviceType = $('#device_type').val();
+            if (initialDeviceType) {
+                $('#device_type').data('previous-value', initialDeviceType);
+            }
+            // Use setTimeout to ensure this runs after other form initialization
+            setTimeout(function() {
+                updatedProductType();
+            }, 100);
+        }
+    });
+
+</script>
+{# New offer creation script #}
+<script>
+    function createNewOffer() {
+        SubmitForm($('#save_offer_button')[0], '/offers', {
+            "extra_data": {"based_on": {{this_offer.id}}, "type": "{{this_offer.type}}"},
+            "success_action": "redirect",
+            "redirect_url": "/offers/edit/",
+            "redirect_append": "id"
+        })
+    }
+</script>
+{# Allowed Addon category selector script #}
+<script>
+    let selectedCategoryData = null;
+    function updateCategories(data) {
+        selectedCategoryData = data;
+    }
+    function addCategory() {
+        if (!$('.category_holder #catChip-'+selectedCategoryData.id).length) {
+            let chip = $('<span class="badge bg-label-secondary main-badge mx-1 mt-2" id="catChip-'+selectedCategoryData.id+'"></span>')
+            .append('<input type="hidden" name="add_allowed_addon_offer_categories_ids[]:number" value="'+selectedCategoryData.id+'" />')
+            .append(selectedCategoryData.text)
+            .append('<i class="material-symbols-rounded tiny inline-icon-small" onclick="removeCategory('+selectedCategoryData.id+')">close</i>');
+            $('.category_holder').append(chip);
+        }
+        enableElement($('#save_offer_button'))
+    }
+    function removeCategory(id) {
+        $('.category_holder #catChip-'+id).remove();
+        {% if editing %}
+        $('.category_holder').append('<input type="hidden" id="removeCat-'+id+'" name="remove_allowed_addon_offer_categories_ids[]:number" value="'+id+'" />');
+        {% endif %}
+        enableElement($('#save_offer_button'))
+    }
+
+</script>
+{% endblock %}
+
+{% macro category_badge_macro(cat_id, cat_name) %}
+<span class="badge bg-label-secondary main-badge mx-1 mt-2" id="catChip-{{cat_id}}">
+    {{cat_name}}
+    <i class="material-symbols-rounded tiny inline-icon-small" onclick="removeCategory('{{cat_id}}');">close</i>
+</span>
+{% endmacro %}

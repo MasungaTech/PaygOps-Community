@@ -1,0 +1,55 @@
+{% macro table(contracts) -%}
+  {% import 'macros/general_macros.html' as ui with context %}
+
+  <table {{ ui.table_start(pagination) }}>
+      <thead>
+      <tr>
+          {{ui.sortable_header('id', "Reference", class='ps-4', pagination=pagination)}}
+          {{ui.sortable_header('client_name', "Client", pagination=pagination)}}
+          {{ui.sortable_header('offer_code', "Offer", pagination=pagination)}}
+          {{ui.sortable_header('custom_id', GlobalSetting('CustomId') or 'Custom ID', visible=GlobalSetting('CustomIdEnabled'), pagination=pagination)}}
+          {{ui.sortable_header('next_payment_due', uicon="expire", tooltip="Next payment due", pagination=pagination)}}
+          {{ui.sortable_header('progress', uicon="progression", tooltip="% Contract Paid", pagination=pagination)}}
+          {{ui.sortable_header('timeliness', uicon="activation_ratio", tooltip="Timeliness Ratio", pagination=pagination)}}
+          {{ui.sortable_header('days_late', uicon="days_late", tooltip="Cumulative number of days late", pagination=pagination)}}
+          {{ui.table_header(uicon='notes', tooltip='Notes')}}
+          {{ui.table_header(uicon='style', tooltip='Tags')}}
+          {{ui.sortable_header('status', "Status", pagination=pagination)}}
+      </tr>
+      </thead>
+      <tbody class="table-border-bottom-0">
+      {% for contract in contracts %}
+          <tr>
+          <td class="ps-4">{{ ui.contract_link(contract) }}</td>
+          <td class="truncate-hoverable">{{ ui.client_link(contract.client) }}</td>
+          <td class="truncate-hoverable">
+            {{ ui.offer_link_full(contract.offer) }}<br>
+            {{ ftext(contract.offer.get_human_readable_type_short()) }}
+          </td>
+          {% if GlobalSetting('CustomIdEnabled') %}<td class="truncate-hoverable">{{ contract.client.person.custom_id or '-' }}</td>{% endif %}
+          <td>
+            {% if contract.status in ['Active', 'Late'] and contract.offer.type != OfferType.usage_based %}
+                {{ ui.days_remaining(contract.next_repayment_due_time, NOW, short=true, with_colours=true) }}
+            {% else %}-{% endif %}</td>
+          <td>{{ ui.isnone(contract.get_percentage_repaid(), percent=true, decimals=0, suffix="%") }}</td>
+          <td>
+            {% set timeliness = contract.get_timeliness_ratio() %}
+            {% if timeliness %}{{ ui.activation_ratio_badge((timeliness*100)|round|int) }}
+            {% else %}-{% endif %}
+          </td>
+          <td>{{ ui.isnone(contract.get_cumulative_days_in_arrears(), contract.get_cumulative_days_in_arrears(), 'd', decimals=0) }}</td>
+          <td>
+              {% if contract.client.Assets != '' %}{{ ui.table_icon('notes', tooltip=contract.client.Assets|notranslate) }}
+              {% else %}{{ ui.table_icon('notes', color='grey') }}
+              {% endif %}
+          </td>
+          <td>
+              {% if contract.client.tags %}{{ ui.table_icon('tags', tooltip=contract.client.tags|map('tagsList')|join, translate_tooltip=false) }}{% else %}
+              {{ ui.table_icon('tags', color='grey') }}{% endif %}
+          </td>
+          <td class="pe-3">{{ ui.contract_status_tag(contract.status) }}</td>
+          </tr>
+      {% endfor %}
+      </tbody>
+  </table>
+{%- endmacro %}

@@ -1,0 +1,66 @@
+{% import 'person_macros.html' as person_macros with context %}
+
+{% macro general_info_form(Lead, edit=false, restrict_editing=false) -%}
+
+
+<div {{ ui.card_start(uicon='client', title='Personal Information') }}>
+    {% set leadconfig = GlobalSetting('LeadInfoSettings') %}
+
+    {% if Lead is not defined %}{% set Lead = EmptyObject %}{% endif %}
+    {% if edit %}<form>{% else %}<div>{% endif %}
+
+        <div class="row">
+        {% if not edit or not from_client %}{{ forms.checkbox('from_client', "Link to existing client" if edit else "Create Lead from existing client", 
+            labeltag='From Client', checked=from_client, skip_serial=true, size=6, 
+            onchange="checkBoxToggleForms(this, $('#existing-client-selector'), $('#person-data'))") }}{% endif%}
+        {{ forms.select('portfolio', portfolios, source='portfolios', labeltag="Portfolio", visible=leadconfig['portfolio']['visible'] and  GlobalSetting('FeatureToggles').get('SalesFeatures'),
+            value=Lead.portfolio.id if Lead and Lead.portfolio else none, uicon="work", size=6, translate=false,
+            required=leadconfig['portfolio']['required'] and  GlobalSetting('FeatureToggles').get('SalesFeatures')) }}
+        
+        </div>
+
+        <div id="existing-client-selector" class="row {% if not from_client %}hiddenform{% endif %}">
+            {% if edit %}{{ ui.info_card(class='mt-3', in_card=true, uicon='warning', text='Changing the Client will remove the personal data from the Lead and use the personal data from the Client selected, only do that if the selected client and this lead are the same person.') }}{% endif %}
+            {{ forms.select(name='client', labeltag='Client', uicon='client', size=6,
+                choices=client, required=true, source='client', value=from_client.id if from_client else none) }}
+            {% if from_client %}{{ forms.button(label='Go to Client Edit', uicon='forward', fit=true, link=url_for('client.edit_client', client_id=from_client.id), type='action', size=6, inline=true) }}{% endif %}
+        </div>
+
+        <div id="person-data" class="row {% if from_client %}hiddenform{% endif %}">
+            {{ person_macros.person_form_elements(Lead.person, lead=Lead, restrict_editing=restrict_editing)}}
+        </div>
+
+        {{ ui.button(uicon='save', label='Edit Lead', type='action', fit=true, size=6, center=true, visible=edit,
+                action='async_post', async_url='/leads/'+Lead.id|string if Lead else none, success_message='Lead Edited') }}
+        
+    {% if edit %}</form>{% else %}</div>{% endif %}
+</div {{ ui.card_end() }}>
+{% endmacro %}
+
+
+{% macro general_info_display(Lead, locked=false, active=true) -%}
+{% set can_edit_lead = (not Lead.installed and current_user.can_access('EditLeads', person=Lead.person)) %}
+{% if can_edit_lead and locked %}
+    {% set action_button = ui.button(tooltip='You need to save and lock the offer to be able to edit this lead', type='card-action-grey', uicon='info', action="document.getElementById('future-contract-info').scrollIntoView();") %}
+{% elif can_edit_lead %}
+    {% set action_button = ui.button(tooltip='Edit Personal Information', uicon='edit', type='card-action', action="loadRemoteHTMLInElement('"+url_for('leads.edit_lead_general_info', lead_id=Lead.id)+"', $('.general-info'), true, true);") %}
+{% else %}
+    {% set action_button = '' %}
+{% endif %}
+<div {{ ui.collapsible_card_start(uicon='client', title='Personal Information', class='locked-card' if locked else '', actions=action_button, active=active) }}>
+{% set person = Lead.person %}
+{% set leadconfig = GlobalSetting('LeadInfoSettings') %}
+<div class="row">
+    <div class="{{ ui.col_size(3) }} d-flex justify-content-center align-items-center">
+        <div class="text-center">
+            {{ ui.picture_square(ui.person_picture(Lead.person), 'Lead picture') }}
+            <h4 class="my-2">{{ Lead.full_name }}</h4>
+            {{ ui.badge(Lead.get_display_id()|notranslate, 'gray', uicon='lead') }}
+        </div>
+    </div>
+    <div class="{{ ui.col_size(9) }} row subcol off-by-1">
+        {{ person_macros.person_info_elements(lead=Lead) }}
+    </div>
+</div>
+</div {{ ui.collapsible_card_end() }}>
+{%- endmacro %}

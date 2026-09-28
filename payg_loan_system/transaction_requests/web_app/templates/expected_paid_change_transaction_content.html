@@ -1,0 +1,13 @@
+{% extends 'transaction_base.html' %}
+
+{% block title %}{{ ftext('Expected Paid Change') }}{% endblock %}
+
+{% block form %}
+    {{ transaction.device_selector_macro() }}
+    {{ forms.input('adjustment_amount:number', 'Amount to be adjusted* (positive to increase expected paid amount)', valid='req float', id="adjustment_amount") }}
+    {{ forms.input('note', 'Note', type="textarea", size=6 if lead is defined else 12, max=40) }}
+{% endblock %}
+
+{% block button %}
+    {{ ui.button('Expected Paid Change', color='danger', class='transaction_action', action="validateAndSubmit('/api/v1/transaction_requests/expected_paid_change/');") }}
+{% endblock %}

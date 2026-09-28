@@ -1,0 +1,45 @@
+
+{% macro lead_entry_info_form(Lead, edit=false) -%}
+{% if Lead is defined %}
+    {% set lead_generator=Lead.generator.id %}
+    {% set reception_time=Lead.receptionTime %}
+{% else %}
+    {% set lead_generator=default_lead_generator.id if default_lead_generator else none %}
+    {% set reception_time=NOW %}
+{% endif %}
+<div {{ ui.card_start(uicon='lead', title='Generation Information') }}>
+    {% if Lead is not defined %}{% set Lead = EmptyObject %}{% endif %}
+    {% if edit %}<form class="row">{% else %}<div class='row'>{% endif %}
+
+        {{ forms.input('generation_date', 'Lead Generation Date', value=reception_time, type='datepicker',
+            uicon='date', max_val=NOW, required=true, size=6) }}
+
+        {% if GlobalSetting('FeatureToggles').get('SalesFeatures') %}
+        {{ forms.select(name='generator', labeltag='Lead Generator', uicon='user', 
+            choices=lead_generators, value=lead_generator, required=true, source='lead_generators', size=6) }}
+        {% endif %}
+
+        {{ ui.button(uicon='save', label='Edit Lead', type='action', fit=true, size=6, center=true, visible=edit,
+            action='async_post', async_url='/leads/'+Lead.id|string if Lead else none, success_message='Lead Edited') }}
+
+    {% if edit %}</form>{% else %}</div>{% endif %}
+</div {{ ui.card_end() }}>
+{%- endmacro %}
+
+
+{% macro lead_entry_info_display(Lead, locked=false, active=true) -%}
+{% set can_edit_lead = (not Lead.installed and current_user.can_access('EditLeads', person=Lead.person)) or (Lead.installed and current_user.can_access('EditInstalledLeads', person=Lead.person)) %}
+{% if can_edit_lead and locked %}
+    {% set action_button = ui.button(tooltip='You need to save and lock the offer to be able to edit this lead', type='card-action-grey', uicon='info', action="document.getElementById('future-contract-info').scrollIntoView();") %}
+{% elif can_edit_lead %}
+    {% set action_button = ui.button(tooltip='Edit Lead Entry Information', uicon='edit', type='card-action', action="loadRemoteHTMLInElement('"+url_for('leads.edit_lead_entry_info', lead_id=Lead.id)+"', $('.entry-info'), true, true);") %}
+{% else %}
+    {% set action_button = '' %}
+{% endif %}
+<div {{ ui.collapsible_card_start(uicon='lead', title='Generation Information', class='locked-card' if locked else '', actions=action_button, body_class='row', active=active) }}>
+    {{ ui.report_field('Lead Generation Date', ui.datetime(Lead.receptionTime), 'event', size=6) }}
+    {{ ui.report_field('Lead Entry Date', ui.datetime(Lead.entryDate), 'event', size=6) }}
+    {{ ui.report_field('Lead Generator', ui.lead_generator_link(Lead.generator, link=false if is_custom_app else true), 'generator', size=6) }}
+    {{ ui.report_field('Lead Entry By', ui.user_link(Lead.reporter, link=false if is_custom_app else true), 'user', size=6) }}
+</div {{ ui.collapsible_card_end() }}>
+{%- endmacro %}

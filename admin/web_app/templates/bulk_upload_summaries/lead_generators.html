@@ -1,0 +1,21 @@
+{% extends 'bulk_upload_summaries/summary_base.html' %}
+{% set object_name = 'lead generators' %}
+{% set total_var = 'total_lg' %}
+{% set correct_var = 'correct_lg' %}
+
+{% block table %}
+<thead>
+    <tr>
+        <th>Type</th>
+        <th>Number of items</th>
+    </tr>
+</thead>
+<tbody>
+    {% for lg_type, count in analysis['lg_counts'].items() %}
+    <tr>
+        <td>{{lg_type}}</td>
+        <td>{{count}}</td>
+    </tr>
+    {% endfor %}
+</tbody>
+{% endblock %}
