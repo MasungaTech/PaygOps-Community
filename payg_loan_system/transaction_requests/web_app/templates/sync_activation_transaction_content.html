@@ -1,0 +1,11 @@
+{% extends 'transaction_base.html' %}
+
+{% block title %}{{ ftext('Get Token') }}{% endblock %}
+
+{% block form %}
+    {{ transaction.device_selector_macro(request_code=true) }}
+{% endblock %}
+
+{% block button %}
+    {{ ui.button('Get Token', color='danger', class='transaction_action', action="validateAndSubmit('/api/v1/transaction_requests/sync_activation/');") }}
+{% endblock %}

@@ -1,0 +1,77 @@
+{% extends "macros/base.html" %}
+{% import 'macros/general_macros.html' as ui with context %}
+
+{% block title %}{{ ftext('Settings') }}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('Settings', 'Home') }}{% endblock %}
+
+{% block content %}
+<section class="section" id="general_section">
+    {{ ui.divider('Editors') }}
+    <div class="row">
+        {{ ui.big_button('offer', 'Offers', url_for('offers.list_offers'), subtext='To create and edit the different offers for your clients. Offers are specific pricing and payment conditions (paid at once, loan, etc.) for products. ') }}
+        {{ ui.big_button('addon_offer', 'Add-On Offers', url_for('contract.addons_configuration'), premium=true, subtext='To create and edit the different add-on offers that you would like to offer your clients, as well as the bundles and categories in which you want to organize them.') }}
+        {{ ui.big_button('forms', 'Custom Forms', url_for('forms_blueprint.list_forms'), premium=true, subtext='To create and edit custom forms to be used for client/leads or interactions/issues. ') }}
+        {% if (config.ENABLE_ENTERPRISE_FEATURES and GlobalSetting('FeatureToggles').get('user_journey_editor', false) and current_user.can_access('ListUserJourney')) or current_user.can_access('SuperAdmin') %}
+            {% if config.ENABLE_ENTERPRISE_FEATURES %}
+                {{ ui.big_button('process', 'User Journey Editor', url_for('user_journey_editor.list_journeys'), premium=true, subtext='To create and edit User Journeys offering a seamless step-by-step experience for users. ', beta=true) }}
+            {% endif %}
+        {% endif %}
+        {% if (config.ENABLE_ENTERPRISE_FEATURES) and ((config.ENABLE_ENTERPRISE_FEATURES and GlobalSetting('FeatureToggles').get('CustomAppDesigner', false)) or current_user.can_access('SuperAdmin')) %}
+            {{ ui.big_button('mobile', 'Custom App Designer', url_for('admin.mobile_app_customization_card'), subtext='To create a "Custom App" for your organisation. You can pick which menus and User Journeys to include and you can define a branding that matches your company.', premium=true, beta=true) }}
+        {% endif %}
+        {{ ui.big_button('tags', 'Tags', url_for('admin.tags_editor'), subtext='To create new tags and edit existing tags name and colours. Create tag here before using them in the system. ') }}
+        {% if current_user.can_access('EditCustomSMSAdmin') %}
+            {{ ui.big_button('notes', 'Automated Custom Messages', url_for('message.custom_messages_list'), premium=true, subtext='To edit the messages that are automatically sent to client in different situations in order to match your processes and brand image. ') }}
+        {% endif %}
+        {% if config.ENABLE_ENTERPRISE_FEATURES and GlobalSetting('FeatureToggles').get('TaskSystem') and current_user.can_access('ConfigureTaskTypeAdmin') %}
+            {{ ui.big_button('task', 'Task Type', url_for('task_type.settings_task_category_view'), premium=true, subtext='To create and delete Default Task Type to be used for Tasks. ', beta=true) }}
+        {% endif %}
+        {% if (config.ENABLE_ENTERPRISE_FEATURES and GlobalSetting('FeatureToggles').get('automations') and current_user.can_access('ConfigureAutomationsAdmin')) or current_user.can_access('SuperAdmin') %}
+            {% if config.ENABLE_ENTERPRISE_FEATURES %}
+                {{ ui.big_button('automation', 'Automations', url_for('automations.list_automations'), subtext='Configure automations in PaygOps to automate repetitive tasks and workflows.', beta=true) }}
+            {% endif %}
+        {% endif %}
+    </div>
+</section>
+
+<section class="section"  id="general_section">
+    {{ ui.divider('Configuration') }}
+    <div class="row">
+        {% if current_user.can_access('ViewSettingsInterfaceAdmin') %}
+            {{ ui.big_button('admin', 'General', url_for('admin.settings_editor_get'), subtext='To setup the general settings of the platform (language, security, entity names, custom dashboard, devices, etc.). ') }}
+        {% endif %}
+        {% if current_user.can_access('ViewSettingsInterfaceAdmin') %}
+            {{ ui.big_button('client', 'Personal Information', url_for('admin.settings_editor_personal_get'), subtext='To setup what personal information is collected from leads and clients (e.g. birthdate, gender, custom id, custom forms, etc.). ') }}
+        {% endif %}
+        {% if current_user.can_access('ViewSettingsInterfaceAdmin') %}
+            {% if GlobalSetting('FeatureToggles').get('SalesFeatures')%}
+                {{ ui.big_button('sales', 'Sales', url_for('admin.settings_editor_sales_get'), subtext='Configure Lead statuses, allowed transitions as well as other sales aspects.') }}
+            {% endif %}
+        {% endif %}
+        {% if config.ENABLE_ENTERPRISE_FEATURES and GlobalSetting('FeatureToggles').get('AfterSales')%}
+            {{ ui.big_button('service', 'After-Sales', url_for('admin.interaction_settings'), premium=true, subtext='To create and edit interaction/issue types and select the forms associated. ') }}
+        {% endif %}
+        {% if current_user.can_access('ViewSettingsInterfaceAdmin') %}
+            {{ ui.big_button('payments', 'Payments', url_for('admin.settings_editor_payments_get'), subtext='Configure how payments are routed as well as limits on cash collection. ') }}
+        {% endif %}
+        
+        {% if current_user.can_access('ViewSettingsInterfaceAdmin') %}
+            {% if GlobalSetting('FeatureToggles').get('Inventory')%}
+                {{ ui.big_button('inventory', 'Inventory', url_for('admin.settings_editor_inventory_get'), subtext='Configure product sub-types and other aspect of the Inventory. ') }}
+            {% endif %}
+        {% endif %}
+
+        {% if current_user.can_access('SuperAdmin') %}
+            {{ ui.big_button('admin', 'Advanced', url_for('admin.settings_editor_get_advanced'), subtext='Technical configuration options for SuperAdmins (e.g. Device Clouds, etc.)') }}
+        {% endif %}
+        {% if current_user.can_access('CustomizePlatformAdmin') %}
+            {% if GlobalSetting('FeatureToggles').get('LoanAndSubscriptionContracts')%}
+                {{ ui.big_button('client', 'Clients', url_for('admin.settings_editor_clients'), subtext='Configure Contract statuses.') }}
+            {% endif %}
+        {% endif %}
+        
+    </div>
+</section>
+
+{% endblock %}

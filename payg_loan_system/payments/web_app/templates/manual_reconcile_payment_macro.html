@@ -1,0 +1,47 @@
+{% import 'macros/general_macros.html' as ui with context %}
+
+{% macro manual_reconcile_payment(payments, contracts, account, total_remaining) -%}
+<div {{ ui.card_start(title='Manually Reconcile Payment', tooltip='Use Payment or Amount to pay a Contract or Lead Downpayment', uicon='reconciliation', body_class='row') }}>
+    <form id="reconcile_form" action="" method="post" class="row">
+        {{ forms.select('source', {'payment': 'Payment', 'balance': 'Wallet Balance'},
+                        size=3, required=true, labeltag='Source', value='payment',
+                        onchange="selectToggleFormsMap(this, 'value', {'payment': '.payment_reference', 'balance': '#input_amount_to_repay'})") }}
+        {{ forms.select('payment_reference', payment_reference, selector_class='payment_reference',
+                        size=3, labeltag='Payment', required=true, errormsg="Please, choose a payment to reconcile.", translate=false) }}
+
+        {{ forms.checkbox('total_remaining', 'Total Amount', labeltag='Total Amount', size=3, selector_class='payment_reference', checked=true, value='checked', value_false=none) }}
+        {{ forms.input('amount', 'Amount to repay', selector_class='payment_reference', valid="float", size=3, required=true, value='', disabled=true) }}
+
+        {{ forms.input('amount_to_repay', 'Amount to reconcile', valid="float", size=3, required=true) }}
+
+        {{ forms.select('destination', {'contract': 'Contract', 'lead': 'Lead', 'addon': 'Addon', 'user': 'User'}, errormsg="Please, choose a destination.",
+                        size=2, required=true, labeltag='Destination',
+                        onchange="selectToggleFormsMap(this, 'value', {'contract': '#input_contract_reference', 'lead': '#input_lead_id', 'addon': '#input_addon_reference', 'user': '#input_user_id'})") }}
+        {{ forms.select('contract_reference', contract_reference, size=3, errormsg="Please, choose a Contract to reconcile with.",
+            labeltag='Destination Contract', source='contract_reference', required=true) }}
+        {{ forms.select('lead_id', lead_id, size=3, errormsg="Please, choose a Lead to reconcile with.",
+            labeltag='Destination Lead', source='lead_id', required=true) }}
+        {{ forms.select('addon_reference', addon_reference, size=3, errormsg="Please, choose an Addon to reconcile with.",
+            labeltag='Destination Addon', source='addon_reference', required=true) }}
+        {{ forms.select('user_id', user_id, size=3, errormsg="Please, choose a User to reconcile with.",
+            labeltag='Destination User', source='user_id', required=true) }}
+        <input type="hidden" name="account_id" value="{{ account.id }}">
+        
+        {{ forms.button(uicon='reconciliation', tooltip='Reconcile', type='action', inline=true, size=1, action='async_post', async_url='/payment_reconciliations', success_message='Successfully reconciled!') }}
+    </form>
+</div {{ ui.card_end() }}>
+{% endmacro %}
+
+{% macro manual_balance_transaction(account) -%}
+<div {{ ui.card_start(title='Manual Adjustment', uicon='payment', tooltip='Used to manually adjust the balance to correct errors', body_class='row') }}>
+    <form class="row">
+        {{ ui.info_card(text='The amount adjusted is added to the balance.', uicon='info', color='secondary', in_card=true, class='mt-2') }}
+        {{ forms.input('amount_inverted', 'Amount to adjust', valid="float", required=true, size=3) }}
+        {{ forms.input('note', 'Note about adjustment', required=true, size=6) }}
+        <input type="hidden" name="account_id" value="{{ account.id }}">
+        <input type="hidden" name="source" value="balance">
+        <input type="hidden" name="destination" value="adjustment">
+        {{ forms.button(label='Create Adjustment', type='action', inline=true, size=3, action='async_post', async_url='/payment_reconciliations', success_message='Successfully reconciled!') }}
+    </form>
+</div {{ ui.card_end() }}>
+{%- endmacro %}

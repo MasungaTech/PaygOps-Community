@@ -1,0 +1,379 @@
+{% extends "macros/base.html" %}
+{% import 'macros/form_macros.html' as forms with context %}
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'macros/filter_macros.html' as filter with context %}
+{% import 'macros/pagination.html' as pagination_nav with context %}
+
+{% block title %}{{ ftext('List Stock Movements') }}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('Stock Movements', 'List') }}{% endblock %}
+
+{% block page_actions %}
+{{ ui.button(link=url_for('.add_movements'), uicon='add', tooltip='Add Stock Movement', type='header-action') }}
+{% if not is_custom_app %}
+    {{ ui.button(link=url_for('admin.api_caller', action='AllStockMovementsResource_post'), uicon='cloud_upload', tooltip='Bulk
+    Upload Stock Movements', type='header-action') }}
+{% endif %}
+{{ filter.special_views_filter(views, view) }}
+{% endblock %}
+
+{% block content %}
+{% if not is_custom_app %}
+    {{ filter.entities_navigation_filter(entity) }}
+{% endif %}
+
+<div {{ ui.collapsible_card_start(title='Filters' , uicon='filter' , icon_color='' , active=any_filter([search,
+    begin_date, end_date, origin_status, origin_user, origin_client, origin_shop, destination_status, destination_user,
+    destination_client, destination_shop])) }}>
+    <form id="filter_form_v2" action="" method="get" class="row">
+        {{ forms.input('search', 'Search by Serial Number', size=6, value=search) }}
+
+        {% set selectedstatus = origin_status or 'any' %}
+        {{ forms.select('origin_status', statuses._human_codes, label='Any status', size=6, value=selectedstatus,
+        labeltag='Origin status', onchange="selectToggleFormsMap(this, 'value', {'" + statuses.with_user + "': '#input_origin_user', '" + statuses.installed + "': '#input_origin_client', '" + statuses.in_stock + "': '#input_origin_shop'})") }}
+        {# We dynamically show or hide extra filters based on status filter #}
+        {{ forms.input('origin_user', 'Origin user', placeholder='Search by origin user name', size=6,
+        value=origin_user, selector_class='origin_user hiddenform')}}
+        {{ forms.input('origin_client', 'Origin client', placeholder='Search by origin client name', size=6,
+        value=origin_client, selector_class='origin_client hiddenform')}}
+        {{ forms.select('origin_shop', choices=shoplist_orig, value=origin_shop, size=6, labeltag='Origin Entity', source='shoplist_orig', selector_class='origin_shop hiddenform')}}
+
+        {% set selectedstatus = destination_status or 'any' %}
+        {{ forms.select('destination_status', statuses._human_codes, label='Any status', size=6, value=selectedstatus,
+        labeltag='Destination status', onchange="selectToggleFormsMap(this, 'value', {'" + statuses.with_user + "': '.destination_user', '" + statuses.installed + "': '.destination_client', '" + statuses.in_stock + "': '.destination_shop'})") }}
+        {% set accepted_status = accepted_status or 'any' %}
+        {{ forms.select('accepted_status', stock_movement_statuses._human_codes, label='Any status', size=6, value=accepted_status,
+        labeltag='Accepted status') }}
+        {# We dynamically show or hide extra filters based on status filter #}
+        {{ forms.input('destination_user', 'Destination user', placeholder='Search by origin user name', size=6,
+        value=destination_user, selector_class='destination_user hiddenform')}}
+        {{ forms.input('destination_client', 'Destination client', placeholder='Search by origin client name', size=6,
+         value=destination_client, selector_class='destination_client hiddenform')}}
+        {{ forms.select('destination_shop', choices=shoplist_dest, value=destination_shop, size=6,
+        labeltag='Destination Entity', source='shoplist_dest', selector_class='destination_shop hiddenform')}}
+        {{forms.select('product_type', choices=product_types, value=product_type, size=6, labeltag='Product Type', onchange="updatedProductType()")}}
+        {{forms.select('product_subtype', choices=product_subtypes, value=product_subtype, size=6, labeltag='Product Sub-Type', source='product_subtypes', onchange="updatedProductSubType()", min_chars=0)}}
+        {{ forms.input('begin_date', 'From Date', value=begin_date, type='datepicker', uicon='date', size=5) }}
+        {{ forms.input('end_date', 'To Date', value=end_date, type='datepicker', uicon='date', size=5) }}
+
+        {{ filter.filter_buttons() }}
+    </form>
+</div {{ ui.collapsible_card_end() }}>
+<div class="card">
+    {% if current_user.can_access('ManageQuantityViewStock') %}
+    <div>
+        <ul {{ ui.tabs_ul() }}>
+            {{ ui.tabs_item('Serialized Items', 'serialized', uicon='contract', class='p-2', active=true) }}
+            {{ ui.tabs_item('Quantity Based', 'quantity', uicon='list', class='p-2') }}
+        </ul>
+    </div>
+
+    <div class="row p-2">
+        {% if is_custom_app %}
+            {{ forms.checkbox(
+                'show-all-columns',
+                value='false',
+                id="show-all-columns",
+                size=6,
+                labeltag='',
+                label='Show All Columns'
+            ) }}
+        {% endif %}
+        
+        {{ forms.checkbox(
+            'my-pending-stock-only',
+            value='false',
+            id="my-pending-stock-only",
+            size=6,
+            labeltag='',
+            label='My Pending Stock Only &nbsp; '+ ui.badge(text='0', color='grey', class='my-pending-stock-total-counter', tooltip='0') 
+        ) }}
+    </div>
+
+    {% endif %}
+    <div class="tab-content">
+        <div {{ ui.tabs_pane_div('serialized', active=true) }}>
+            <div class="table-responsive pt-3">
+                <table {{ ui.table_start(class='stock-movement-table',  pagination=pagination_serialized) }}>
+                    <thead>
+                        <tr>
+                            {{ui.sortable_header('date', "Date", pagination=pagination_serialized, class='ps-4')}}
+                            {{ui.sortable_header('serial_number', "Serial Number", pagination=pagination_serialized)}}
+                            {{ui.sortable_header('product_sub_type', "Product Sub-type", pagination=pagination_serialized, class="hidden-c-app")}}
+                            {{ui.sortable_header('user', "User", tooltip="User who performed the movement", class="hidden-c-app",
+                            pagination=pagination_serialized)}}
+                            {{ui.sortable_header('origin_location', "Origin Location", class="hidden-c-app", pagination=pagination_serialized)}}
+                            {{ui.sortable_header('destination_location', "Destination Location", class="hidden-c-app",
+                            pagination=pagination_serialized)}}
+                            {{ui.sortable_header('status', "Status", pagination=pagination_serialized)}}
+                            {{ui.table_header(uicon='notes', tooltip='Note')}}
+                            {{ui.table_header("action", tooltip='Action', class='pe-3')}}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for sm in pagination_serialized.objects %}
+                        <tr>
+                            <td class="ps-4 truncate-hoverable">{{ ui.datetime(sm.date) if not is_custom_app else sm.date.strftime("%d %b") }}</td>
+                            <td class="truncate-hoverable">{%if sm.stock_item.device%}<a
+                                    href="{{ url_for('device.view_device', device_id=sm.stock_item.device.id) }}">{{
+                                    sm.stock_item.device.composed_serial }}</a>{%else%}-{%endif%}</td>
+                            <td class="truncate-hoverable hidden-c-app">{%if sm.stock_item.device.product_sub_type %}{{
+                                sm.stock_item.device.product_sub_type.name }}{%else%}-{%endif%}</td>
+                            <td class="truncate-hoverable hidden-c-app">{{ ui.user_link(sm.user) }}</td>
+                            <td class="truncate-hoverable hidden-c-app">{{ ui.stock_location(sm, origin=true, show_status=True) }}
+                            </td>
+                            <td class="truncate-hoverable hidden-c-app">{{ ui.stock_location(sm, show_status=True) }}</td>
+                            <td class="truncate-hoverable">{{ ui.stock_movement_status(sm.approval_status) }}</td>
+                            <td class="pe-3">
+                                {% set note = '' %}
+                                {% if sm.note and sm.receiving_note %}
+                                    {% set note = sm.note +'\n' + sm.receiving_note %}
+                                {% elif sm.note or sm.receiving_note %}
+                                    {% set note = (sm.note or '') + (sm.receiving_note or '') %}
+                                {% endif %}
+                                {% if note %}{{ ui.table_icon('notes', tooltip=note|notranslate, color='red') }}
+                                {% else %}{{ ui.table_icon('notes', color='grey') }}
+                                {% endif %}
+                            </td>
+                            <td class="truncate-hoverable mx-0 px-0">
+                                {% if sm.approval_status == stock_movement_statuses.pending %}
+                                    {{ ui.button('', uicon='check', color="primary", class="p-0 btn-sm", disabled=false, tooltip="Accept", action="acceptOrRejectAllocatedStock("+sm.id | string+", 'serialized', 'accepted')") }}
+                                    {{ ui.button('', uicon='close', color="danger", class="p-0 btn-sm", disabled=false, tooltip="Reject", action="acceptOrRejectAllocatedStock("+sm.id | string+", 'serialized', 'rejected')") }}
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                <hr class="mt-0">
+                <div class="row mx-2 mt-2">
+                    {{ pagination_nav.render_pagination(pagination_serialized) }}
+                </div>
+            </div>
+        </div>
+        {% if current_user.can_access('ManageQuantityViewStock') %}
+        <div {{ ui.tabs_pane_div('quantity') }}>
+            <div class="table-responsive pt-3">
+                <table {{ ui.table_start(class='quantity-stock-movement-table', pagination=pagination_quantity) }}>
+                    <thead>
+                        <tr>
+                            {{ui.sortable_header('date', "Date", pagination=pagination_quantity, class='ps-4')}}
+                            {{ui.sortable_header('quantity', "Quantity", pagination=pagination_quantity)}}
+                            {{ui.sortable_header('product_sub_type', "Product Sub-type", class="hidden-c-app", pagination=pagination_quantity)}}
+                            {{ui.sortable_header('user', "User", tooltip="User who performed the movement", class="hidden-c-app",
+                            pagination=pagination_quantity)}}
+                            {{ui.sortable_header('origin_location', "Origin Location", class="hidden-c-app", pagination=pagination_quantity)}}
+                            {{ui.sortable_header('destination_location', "Destination Location", class="hidden-c-app",
+                            pagination=pagination_quantity)}}
+                            {{ui.sortable_header('status', "Status", pagination=pagination_quantity)}}
+                            {{ui.table_header(uicon='notes', tooltip='Note', class='')}}
+                            {{ui.table_header('action', tooltip='Action', class='pe-3')}}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for sm in pagination_quantity.objects %}
+                        <tr>
+                            <td class="ps-4 truncate-hoverable">{{ ui.datetime(sm.date) if not is_custom_app else sm.date.strftime("%d %b") }}</td>
+                            <td class="truncate-hoverable">{{sm.quantity}}</td>
+                            <td class="truncate-hoverable hidden-c-app">
+                                {{ (sm.origin or sm.destination).product_sub_type.name }}
+                            </td>
+                            <td class="truncate-hoverable hidden-c-app">{{ ui.user_link(sm.user) }}</td>
+                            <td class="truncate-hoverable hidden-c-app">{{ ui.quantity_stock_location(sm.origin) }}
+                            </td>
+                            <td class="truncate-hoverable hidden-c-app">{{ ui.quantity_stock_location(sm.destination) }}</td>
+                            <td class="truncate-hoverable">{{ ui.stock_movement_status(sm.approval_status) }}</td>
+                            <td class="pe-3">
+                                {% if sm.receiving_note %}{{ ui.table_icon('notes', tooltip=sm.receiving_note|notranslate, color='red') }}
+                                {% elif sm.note %}{{ ui.table_icon('notes', tooltip=sm.note|notranslate, color='red') }}
+                                {% else %}{{ ui.table_icon('notes', color='grey') }}
+                                {% endif %}
+                            </td>
+                            <td class="truncate-hoverable mx-0 px-0">
+                                {% if sm.approval_status == stock_movement_statuses.pending %}
+                                    {{ ui.button('', uicon='check', color="primary", class="p-0 btn-sm", tooltip="Accept", action="acceptOrRejectAllocatedStock("+sm.id | string+", 'quantity', 'accepted')") }}
+                                    {{ ui.button('', uicon='close', color="danger", class="p-0 btn-sm", tooltip="Reject", action="acceptOrRejectAllocatedStock("+sm.id | string+", 'quantity', 'rejected')") }}
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                <hr class="mt-0">
+                <div class="row mx-2 mt-2">
+                    {{ pagination_nav.render_pagination(pagination_quantity) }}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    $(document).ready(function () {
+        $('#filter_form_v2').validate();
+        $('#filter_form_v2 select:not(.category_selector), #filter_form_v2 .datepicker').change(function () {
+            //$(this).parents('form').submit();
+        });
+        $('#filter_form_v2').submit(function (e) {
+            e.preventDefault();
+            $('#filter_form_v2').validate();
+            if ($('#filter_form_v2').valid()) {
+                changeQueryParameters($(this).serializeJSON());
+            }
+            e.preventDefault();
+            return false;
+        });
+
+        addStockMovementTabClickEvent();        
+        presetCheckBoxValueFromRequestParam("show-all-columns", "show_all_columns", presetShowAllColumnsCallback, false)
+        presetCheckBoxValueFromRequestParam("my-pending-stock-only", "my_pending_stock_only", null, true, false)
+
+        document.getElementById('show-all-columns')?.addEventListener('change', function (e) {
+            toggleAndReloadURLOnCheckboxValueChange("show-all-columns", "show_all_columns", toggleShowAllColumnsCallback, false);
+        });
+        document.getElementById('my-pending-stock-only')?.addEventListener('change', function (e) {
+            toggleAndReloadURLOnCheckboxValueChange("my-pending-stock-only", "my_pending_stock_only", null, true, true);
+        });
+    });
+
+    const modelTypeMapping = {
+        {% for model in product_models_data -%}
+        {{model.id}}: "{{model.device_type}}"{%if not loop.last%},{%endif%}
+        {% endfor -%}
+    }
+
+    function updatedProductSubType() {
+        let device_type_selector = $('#product_type')
+        let model = $('#product_subtype').val();
+        if (model) device_type_selector.val(modelTypeMapping[model]).change();
+    }
+
+    function updatedProductType() {
+        let selected_value = $('#product_type').val()
+        $('#product_subtype').attr('data-device_type', selected_value)
+        let selected_model = $('#product_subtype').val();
+        if (selected_model && selected_value && modelTypeMapping[selected_model] != selected_value) {
+            $('#product_subtype').val('').change();
+        }
+    }
+
+    function presetShowAllColumnsCallback(url, elementID, requestParamKey) {
+        let value = getQueryParam(`${requestParamKey}`);
+        let element = document.getElementById(`${elementID}`);
+
+        // Show all columns in web
+        if("{{is_custom_app}}" !== "True") {
+            toggleShowAllColumns(true)
+            return;
+        }
+
+        const showAllColumns = value == "true" ? true : false;
+        toggleShowAllColumns(showAllColumns)
+    }
+
+    function toggleShowAllColumnsCallback(url, elementID, requestParamKey) {
+        let showAllColumnsElement = document.getElementById(`${elementID}`);
+        let showAllColumns = showAllColumnsElement.checked;;
+
+        // Show all columns in web
+        if("{{is_custom_app}}" !== "True") {
+            toggleShowAllColumns(true)
+            return;
+        }
+
+        toggleShowAllColumns(showAllColumns);
+    }
+
+    function toggleShowAllColumns(showAllColumns) {
+        if (showAllColumns) {
+            document.querySelectorAll(".stock-movement-table .hidden-c-app, .quantity-stock-movement-table .hidden-c-app").forEach(el => {
+                el.classList.remove("hidden");
+                el.classList.add("unhidden");
+            });
+        } else {
+            document.querySelectorAll(".stock-movement-table .hidden-c-app, .quantity-stock-movement-table .hidden-c-app").forEach(el => {
+                el.classList.remove("unhidden");
+                el.classList.add("hidden");
+            });
+        }
+    }
+
+    function acceptOrRejectAllocatedStock(stockItemID, type, approval_status) {
+        let endpoint = ''
+        
+        if (type == 'serialized') {
+            endpoint = '/stock_movements'
+        } else if ('quantity') {
+            endpoint = '/quantity_stock_movements'
+        }
+
+        const action = approval_status == 'accepted' ? 'Accept' : 'Reject';
+
+        sendDataToAPI({
+                    'approval_status': approval_status
+                }, 
+                `${endpoint}/${stockItemID}`,
+                {
+                    'error_action': _ => error_toast(`Unable to ${action} allocated stock movement.`),
+                    'success_action': _ => {
+                        success_toast(`Successfully ${action}ed allocated stock movement.`);
+                        setTimeout(_ => window.location.reload(), 1500)
+                    }
+                })
+        }
+    
+    function addStockMovementTabClickEvent(serialized_stock_movement_quantity_badge) {
+        let url = new URL(window.location.href);
+        let urlName = window.location.href.split("#")[1];
+        
+        // Set Default Value incase the name was set in the url
+        if(urlName && urlName != undefined) {
+            window.location.href =  window.location.href.split("#")[0] + `#${urlName}`;
+
+            const tabTriggerEl = document.querySelector(`button[data-bs-target="#${urlName}"]`);
+            const tab = new bootstrap.Tab(tabTriggerEl);
+            tab.show();
+
+            setMyPendingStockMovementBadgeLabel(urlName)
+        }
+
+        document.querySelectorAll('ul[role="tablist"] .tab-nav').forEach(button => {
+            button.addEventListener('click', function (event) {
+                let target = this.getAttribute('aria-controls');
+                let urlName = window.location.href.split("#")[1];
+            
+                if (target || (urlName && urlName != undefined)) {
+                    target = target ? target : urlName;
+                    setMyPendingStockMovementBadgeLabel(target);
+
+                    let url = setQueryParam("page", 1);
+                    window.location.href =  url.toString().split("#")[0] + `#${target}`;
+                    window.location.reload();
+                }
+            });
+        });
+    }
+
+    function setMyPendingStockMovementBadgeLabel(target) {
+        const pendingStockFormCheckLabelWrapper = document.getElementById('input_my-pending-stock-only')
+        const pendingStockFormCheckLabel = pendingStockFormCheckLabelWrapper
+                                                        .querySelector(".my-pending-stock-total-counter");
+        let targetQuantity =  target == "quantity"
+                            ? parseInt("{{quantity_movements_count}}") 
+                            : parseInt("{{serialized_movements_count}}")
+                            ;
+
+        if (targetQuantity == 0) {
+            pendingStockFormCheckLabelWrapper.style.display = "none";
+            pendingStockFormCheckLabel.setAttribute("data-bs-original-title", "0");
+        } else {
+            pendingStockFormCheckLabelWrapper.style.display = "";
+            pendingStockFormCheckLabel.innerHTML = targetQuantity;
+            pendingStockFormCheckLabel.setAttribute("data-bs-original-title", targetQuantity);
+        }
+    }
+</script>
+{% endblock %}

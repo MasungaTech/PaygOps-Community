@@ -1,0 +1,11 @@
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'macros/form_macros.html' as forms with context %}
+{% import 'question_macros.html' as questions with context %}
+<div class="question-template">
+    <div {{ ui.card_start(body_class='row', class='question-card') }}>
+        <input type="hidden" name="questions[][question]" value="{{question.id}}">
+        <input type="hidden" class="order-input" name="questions[][order]" value="">
+        <div class="{{ ui.col_size(1) }} d-flex align-items-center" style="width: 3rem;">{{ ui.icon('drag_indicator', color='lightgrey', style="cursor: move;") }}</div>
+        <div class="{{ui.col_size(11)}} question-content">{{questions.view_question_info(question, 0, 1)}}</div>
+    </div {{ ui.card_end() }}>
+</div>

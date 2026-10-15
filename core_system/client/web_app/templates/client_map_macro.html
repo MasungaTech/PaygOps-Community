@@ -1,0 +1,151 @@
+{% macro client_map_script(Clients) -%}
+<script>
+{% set l0_name = GlobalSetting('OperationalEntities')[0].name %}
+// We generate the points
+
+function startMaps() {
+    locations = [
+    {% for E in Clients -%}
+    ['{{ info_tip_content(E, l0_name)|replace("\n", "") }}',{{ E.person.GPSLat }},{{E.person.GPSLon}},'red',{{ E.id }}],
+    {%- endfor %}
+    ];
+    initMap();
+}
+</script>
+{{ google_maps_js() }}
+<script type="text/javascript" src="/static/js/client_map.js?commit_sha={{ COMMIT_SHA }}"></script>
+{%- endmacro %}
+
+{%- macro info_tip_content(E, l0_name) -%}
+<div style="width: 25em;">
+<a href="{{ url_for('client.view_client', client_id=E.id) }}"><img src="{{ ui.person_picture_thumb(E.person) }}" alt="" class="profile-pic" style="width: 8em; height:8em; float: left; margin-right: 1.5em; margin-top:0.3em;"></a>
+<a href="{{ url_for('client.view_client', client_id=E.id) }}"><b style="font-size: 1.5em;">{{ E.full_name|escapequote }}</b></a><br>
+<b>{{l0_name}}:</b> {{ ui.isnotempty(E.person.village.name)|escapequote|trim }}<br>
+<br>
+</div>
+{%- endmacro -%}
+
+{% macro device_map_script(coordinates) %}
+<script>
+    function startMaps() {
+      // We generate the points
+      locations = [[
+        `{{ coord_info_tip_content(coordinates[0], coordinates[1]) }}`, {{coordinates[1]}}, {{coordinates[0]}}, "blue", 0
+      ]];
+      initMap();
+    }
+</script>
+{{ google_maps_js() }}
+<script type="text/javascript" src="/static/js/client_map.js?commit_sha={{ COMMIT_SHA }}"></script>
+{% endmacro %}
+
+{%- macro coord_info_tip_content(GPSLon, GPSLat) -%}
+<div style="width: 25em;">
+<b>Latitude:</b> {{ GPSLat }}<br>
+<b>Longitude:</b> {{ GPSLon }}<br>
+</div>
+{%- endmacro -%}
+
+{% macro crop_map_script(coordinates, text, id='0') -%}
+{% set unit = GlobalSetting('GpsSurfaceMeasurementUnit') %}
+<script>
+function startMaps() {
+ for(i in maps) {
+    maps[i]()
+  }
+}
+window.startMaps = startMaps;
+
+function startMap_{{id}}() {
+      var coordinatesDict = {{ coordinates|tojson }};
+
+    var coordinatesArray = coordinatesDict.map(function(coord) {
+      var lat = Number(coord.gps_latitude);
+      var lng = Number(coord.gps_longitude);
+      if (isNaN(lat) || isNaN(lng)) {
+        console.error('Invalid coordinates:', lat, lng);
+      }
+      return {lat: lat, lng: lng};
+    });
+
+
+    initMap_{{id}}(coordinatesArray, '{{ unit }}');
+}
+maps.push(startMap_{{id}})
+
+function initMap_{{id}}(coordinatesArray, unit) {
+    let minLat = Math.min(...coordinatesArray.map((x) => x.lat))
+    let minLng = Math.min(...coordinatesArray.map((x) => x.lng))
+    let maxLat = Math.max(...coordinatesArray.map((x) => x.lat))
+    let maxLng = Math.max(...coordinatesArray.map((x) => x.lng))
+    let center = {lat: minLat+(maxLat-minLat)/2, lng: minLng+(maxLng-minLng)/2};
+    let mapDiv = document.getElementById('map_{{id}}');
+    console.log(mapDiv);
+    if (!mapDiv) { return }
+    var map_{{id}} = new google.maps.Map(mapDiv, {
+      zoom: 14,
+      center: center,
+      mapTypeId: 'terrain'
+    });
+
+    var polygon_{{id}} = new google.maps.Polygon({
+      paths: coordinatesArray,
+      strokeColor: '#FF0000',
+      strokeOpacity: 0.8,
+      strokeWeight: 2,
+      fillColor: '#FF0000',
+      fillOpacity: 0.35
+    });
+
+    polygon_{{id}}.setMap(map_{{id}});
+
+    var infowindow = new google.maps.InfoWindow({
+        content: '{{ text|replace("\n", "") }}'
+    });
+
+    polygon_{{id}}.addListener('click', function(event) {
+      infowindow.setPosition(event.latLng);
+      infowindow.open(map_{{id}});
+    });
+
+    // Calculate area of polygon
+    var areaMeters = google.maps.geometry.spherical.computeArea(polygon_{{id}}.getPath());
+    var areaHectares = areaMeters * 0.0001;
+    var areaAcres = areaMeters * 0.000247105;
+
+
+    switch(unit) {
+        case 'm2':
+            document.getElementById('areaValue_{{id}}').value = areaMeters.toFixed(2) + ' square meters';
+            break;
+        case 'ha':
+            document.getElementById('areaValue_{{id}}').value = areaHectares.toFixed(2) + ' hectares';
+            break;
+        case 'acre':
+            document.getElementById('areaValue_{{id}}').value = areaAcres.toFixed(2) + ' acres';
+            break;
+        default:
+            console.log('Unknown unit:', unit);
+    }
+
+}
+
+</script>
+{{ google_maps_js() }}
+{% endmacro %}
+
+{% macro google_maps_js(start='startMaps') %}
+<script>
+  if (!googleMapsLoaded)  {
+    googleMapsLoaded = true;
+    // Create the script tag, set the appropriate attributes
+    var script = document.createElement('script');
+    script.src = 'https://maps.googleapis.com/maps/api/js?key={{config.GOOGLE_MAPS_API_KEY}}&libraries=geometry{% if start %}&callback={{start}}{% endif %}';
+    script.async = true
+  
+    // Append the 'script' element to 'head'
+    document.head.appendChild(script);
+  }
+</script>
+{% endmacro %}
+

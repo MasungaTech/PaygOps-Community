@@ -1,0 +1,39 @@
+{% extends "macros/base.html" %}
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'custom_forms_macros.html' as custom_forms with context %}
+
+{% block title %}
+    {% if thisForm %}
+        {{ ftext('View Answers: {}' , thisForm.form.name | string, novar=true) }}
+    {% else %}
+        {{ ftext('View Answers: Form not found', novar=true) }}
+    {% endif %}
+{% endblock %}
+
+{% block page_title %}
+    {% if thisForm %}
+        {{ ui.page_title('Leads', thisForm.form.name) }}
+    {% else %}
+        {{ ui.page_title('Leads', 'Form not found') }}
+    {% endif %}
+{% endblock %}
+
+{% block content %}
+    {% if thisForm %}
+        {% for form_answer in surveyAnswers %}
+            {% if form_answer.lead_answering %}
+                {{ ui.info_card(class='interaction-issue-message', uicon='info', color='secondary',
+                text=ftext('This was answered on the {}, and linked to the lead  {} ({}). ', ui.datetime(form_answer.started), ui.lead_link(form_answer.lead_answering, opts=['id']), ui.contract_link(form_answer.lead_answering.contract))) }}
+            {% elif form_answer.client_answering %}
+                {{ ui.info_card(class='interaction-issue-message', uicon='info', color='secondary',
+                text=ftext('This was answered on the {}, and linked to the client  {}. ', ui.datetime(form_answer.started), ui.client_link(form_answer.client_answering))) }}
+            {% else %}
+                {{ ui.info_card(class='interaction-issue-message', uicon='info', color='secondary',
+                text=ftext('This was answered on the {}, but no lead or client information is available.', ui.datetime(form_answer.started))) }}
+            {% endif %}
+            {{ custom_forms.custom_form_view_card(form_answer, edit=false, is_required=false, hide_post_add=true)}}
+        {% endfor %}
+    {% else %}
+        <p>No form data available.</p>
+    {% endif %}
+{% endblock %}

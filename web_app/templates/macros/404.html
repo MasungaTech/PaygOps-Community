@@ -1,0 +1,17 @@
+{% import 'macros/error_view.html' as error %}
+{% extends "macros/base.html" %}
+{% import 'macros/general_macros.html' as ui with context %}
+
+{% block title %}{{ ftext('Page not found') }}{% endblock %}
+
+{% block content %}
+{% set support_text = 'The details of the page you tried to access have been saved and our team will investigate if a page should have been there. <br>' %}
+{% if config.SUPPORT_URL %}
+{% set support_text = support_text ~ 'Visit our <a href="' ~ config.SUPPORT_URL|string ~ '" target="_blank">support platform</a> or ' %}
+{% endif %}
+{% set support_text = support_text ~ 'contact <a href="mailto:' ~ config.SUPPORT_EMAIL|string ~ '">' ~ config.SUPPORT_EMAIL|string ~ '</a> if you believe a page should have been there and it is disrupting your operations or if you need assistance.' %}
+<div {{ ui.card_start(title='Page not found (404)', uicon='search_off', icon_color='red') }}>
+    {{ ui.info_card(uicon='search_off', class='mt-4', text='Oops, we are sorry, but there is no page here. <br>Maybe this feature has not been made yet, or maybe you got lost.') }}
+    {{ ui.info_card(uicon='info', color='secondary', text=support_text) }}
+</div {{ ui.card_end() }}>
+{% endblock %}

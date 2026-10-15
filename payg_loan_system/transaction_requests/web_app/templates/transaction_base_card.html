@@ -1,0 +1,20 @@
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'macros/form_macros.html' as forms with context %}
+{% import 'transaction_macros.html' as transaction with context %}
+
+
+<div {{ ui.card_start() }}>
+    <div class="{{ ui.card_header_class() }}">
+        <div class="align-items-center"><div class="card-action-title"><h3 class="card-collapsible-title">{% if card_uicon %}{{ ui.icon(card_uicon, 'main-badge icon-badge') }}<span class="icon-title">{% else %}<span class="card-title-text">{% endif %}{% block title %}{% endblock %}</span></h3></div></div>
+    </div>
+    <form id="MainForm" action="" method="post" class="transaction_card_form">
+        <div id="core_content" class="row">
+            {% block form %}{% endblock %}
+            {% block button %}{% endblock %}
+            {# ui.button('Send Token to Client', color='danger', action="sendAnswerToClient($(this).data('uuid'));", class='send_to_client hide') #}
+        </div>
+    </form>
+</div {{ ui.card_end() }}>
+
+{% block transaction_script %}{% endblock %}
+{{ transaction.transaction_script_macro() }}

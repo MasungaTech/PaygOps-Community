@@ -1,0 +1,146 @@
+{% extends "macros/base.html" %}
+{% import 'macros/form_macros.html' as forms with context %}
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'offline_token_view_macros.html' as offline_tokens_view with context %}
+{% import 'offer_macros.html' as offer_macros with context %}
+
+{% block title %}{{ ftext('View Offer') }}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('Offers', 'View', object=this_offer) }}{% endblock %}
+
+{% block page_actions %}
+    {{ ui.button(link=url_for('offers.edit_offers', offer_id=this_offer.id), uicon='edit', tooltip='Edit Offer', permission='EditOffers', type='header-action') }}
+    {{ ui.button(modal='delete-offer-modal', uicon='delete', tooltip='Delete Offer', permission='EditOffers', type='header-action') }}
+{% endblock %}
+
+{% block content %}
+<div {{ ui.card_start(title='Offer Details', uicon='offer', body_class='row') }}>
+    {{ ui.report_field('Name', this_offer.name, size=6) }}
+    {{ ui.report_field('Code', this_offer.code, size=6) }}
+    {{ ui.report_field('Type', ftext(this_offer.get_human_readable_type()), size=6) }}
+    {{ ui.report_field('Target Use', ftext(this_offer.family), size=6) }}
+    {{ ui.report_field('Approval required', ui.yes_no(not this_offer.no_approval_required), size=6) }}
+    {% if this_offer.type != OfferType.lump_sum %}{{ ui.report_field('Pro-rata payments allowed', ui.yes_no(this_offer.allow_pro_rata), size=6) }}{% endif %}
+    {% if this_offer.type == OfferType.loan %}{{ ui.report_field('Allow loan add-ons', ui.yes_no(this_offer.allow_loan_addons), size=6) }}{% endif %}
+    {{ ui.report_field('Allowed Add-on Offer categories', this_offer.addon_offer_categories_allowed|map(attribute='name')|join(', ') if this_offer.addon_offer_categories_allowed else ftext('All'), size=6) }}
+    {% if this_offer.linked_to_product %}{{ ui.report_field('Allowed device type', this_offer.get_human_readable_device_type(empty=ftext('Any')), size=6) }}{% endif %}
+    {{ ui.report_field('Allow lead registration with negative or 0 value', 'Yes' if this_offer.base_price_amount_can_be_negative else 'No', size=6) }}
+    {{ ui.report_field('Supported unit type', this_offer.credit_unit, size=6, visible=(this_offer.type == OfferType.usage_based)) }}
+    {% if this_offer.type == OfferType.loan and this_offer.linked_to_product %}{{ ui.report_field('Auto Disable PAYG', ui.yes_no(this_offer.automatic_unlock_code_sending), tooltip='Automatically send Disable PAYG code at end of lease', size=6) }}{% endif %}
+    {% if this_offer.type == OfferType.time_based %}
+        {{ ui.report_field('Base Payment frequency', config.AVAILABLE_OFFER_PAYMENT_FREQUENCIES.get(this_offer.payment_frequency) or 'daily', size=6) }}
+        {{ ui.report_field('Payment on day of month', this_offer.payment_day_of_month or '-', size=6, visible=(this_offer.payment_frequency is defined and this_offer.payment_frequency == 'MONTHLY')) }}
+    {% endif %}
+    {% if this_offer.type != OfferType.usage_based and this_offer.type != OfferType.lump_sum %}{{ ui.report_field('Forgive lateness', ui.yes_no(this_offer.forgive_lateness), size=6) }}{% endif %}
+    {% if this_offer.type == OfferType.loan %}{{ ui.report_field('Maximum add-on extensions', ftext('Unlimited') if this_offer.maximum_value_extension is none else (ui.amount(this_offer.maximum_value_extension)+('' if not this_offer.get_total_value_with_deposit() else ftext(', which means a {} increase', this_offer.total_percentage_extended))+ftext(' (total maximum extended: {})', ui.amount(this_offer.total_maximum_extended, true))), size=6) }}{% endif %}
+    {{ ui.report_field('Notes', this_offer.notes, size=12) }}
+</div {{ ui.card_end() }}>
+
+
+<div {{ ui.card_start(title='Offer Availability', uicon='offer', body_class='row') }}>
+    <div class="{{ ui.col_size(6) }}">
+        {{ ui.report_field('Available for Sales', ui.yes_no(this_offer.in_use_for_new_clients)) }}
+        {% if this_offer.in_use_for_new_clients and this_offer.entities_allowed_for_leads.count() %}
+            Only in&nbsp;{%- for entity in this_offer.entities_allowed_for_leads -%}{{ ui.entity_badge(entity) }}{%- endfor -%}
+        {% endif %}
+    </div>
+    <div class="{{ ui.col_size(6) }}">
+        {{ ui.report_field('Available for Registration', ui.yes_no(this_offer.in_use)) }}
+        {% if this_offer.in_use and this_offer.entities_allowed_for_contracts.count() %}
+            Only in&nbsp;{%- for entity in this_offer.entities_allowed_for_contracts -%}{{ ui.entity_badge(entity) }}{%- endfor -%}
+        {% endif %}
+    </div>
+</div {{ ui.card_end() }}>
+
+
+{% if this_offer.type == OfferType.lump_sum %}
+    <div {{ ui.card_start(title='Offer Pricing', uicon='payment', body_class='row') }}>
+        {{ ui.report_field('Price', ui.amount(this_offer.get_total_value_with_deposit(), true), size=6) }}
+    </div {{ ui.card_end() }}>
+{% else %}
+    {% set is_loan = (this_offer.type == OfferType.loan) %}
+    {% set is_credit = (this_offer.type == OfferType.usage_based) %}
+    <div {{ ui.card_start(title='Contract Terms', uicon='contract', body_class='row') }}>
+        {% if is_loan %}
+            {{ ui.report_field('Loan value', ui.amount(this_offer.get_total_value_with_deposit(), true), size=6) }}
+            {{ ui.report_field('Loan duration', ui.amount_normalize(this_offer.time_to_ownership_in_days), size=6) }}
+        {% endif %}
+        {{ ui.report_field('Downpayment', ui.amount(this_offer.registration_fee, include_currency=true), size=6) }}
+        {% if this_offer.type in [OfferType.loan, OfferType.time_based] %}
+            {{ ui.report_field('Free time given at start'+(' (counted in the loan duration)' if is_loan else ''), ui.amount_normalize(this_offer.free_credit_at_start)+' '+offer_macros.get_days_or_months(this_offer.payment_frequency), size=6) }}
+        {% else %}
+            {{ ui.report_field('Free credit at start', ui.amount_normalize(this_offer.free_credit_at_start)+' '+this_offer.credit_unit, size=6) }}
+        {% endif %}
+        {% if is_loan %}
+            {{ ui.info_card(uicon='info', color='secondary', in_card=true, class='mt-3', text='The total loan value includes downpayment and excludes the value of the free days given at start, it is the total amount that the client will need to pay.
+            The calculation is: loan value = (reference pricing amount / reference pricing duration in days) * (days to ownership - free days given at start) + downpayment amount') }}
+        {% endif %}
+    </div {{ ui.card_end() }}>
+
+
+    <div {{ ui.card_start(title='Payment options', uicon='payment', body_class='row') }}>
+        {% if this_offer.type == OfferType.usage_based %}
+            {% set unit_text = ftext('Units Bought') %}
+            {% set unit_name = this_offer.credit_unit %}
+        {% else %}
+            {% set unit_text = ftext('Duration') %}
+            {% set unit_name = offer_macros.get_days_or_months(this_offer.payment_frequency) %}
+        {% endif %}
+        {{ ui.report_field(ftext('Reference Pricing - {}', unit_text), ftext('{} {}', ui.amount_normalize(this_offer.base_price_credit), unit_name), size=6) }}
+        {{ ui.report_field(ftext('Reference Pricing - Amount', unit_text), ftext('{} (minimum {})', ui.amount(this_offer.base_price_amount, true), ui.amount(this_offer.minimum_payment, true)), size=6) }}
+
+        {{ ui.report_field(ftext('Discounted Pricing 1 - {}', unit_text), ftext('{} {}', ui.amount_normalize(this_offer.discount_price_1_credit), unit_name), size=6, visible=this_offer.discount_price_1_amount) }}
+        {{ ui.report_field(ftext('Discounted Pricing 1 - Amount', unit_text), ui.amount(this_offer.discount_price_1_amount, true), size=6, visible=this_offer.discount_price_1_amount) }}
+
+        {{ ui.report_field(ftext('Discounted Pricing 2 - {}', unit_text), ftext('{} {}', ui.amount_normalize(this_offer.discount_price_2_credit), unit_name), size=6, visible=this_offer.discount_price_2_amount) }}
+        {{ ui.report_field(ftext('Discounted Pricing 2 - Amount', unit_text), ui.amount(this_offer.discount_price_2_amount, true), size=6, visible=this_offer.discount_price_2_amount) }}
+    </div {{ ui.card_end() }}>
+
+    <div {{ ui.card_start(title='Additional Information', uicon='info', body_class='row') }}>
+        {{ ui.report_field('Purchase Cost', ui.amount(this_offer.unit_cost, true), size=6) }}
+        {{ ui.report_field('Lighting Global Approved Device', ui.yes_no(this_offer.lighting_global_compliant), size=6) }}
+        {{ ui.report_field('Solar Panel Size', ui.suffix(this_offer.panel_size_in_w, ' W'), size=6, visible=this_offer.panel_size_in_w) }}
+        {{ ui.report_field('Battery Size', ui.suffix(this_offer.battery_size_in_ah, ' Ah'), size=6, visible=this_offer.battery_size_in_ah) }}
+    </div {{ ui.card_end() }}>
+
+    {% if this_offer.parent_offer %}
+    <div {{ ui.card_start(title='Base Offer', uicon='offer', body_class='row') }}>
+        {{ ui.info_card(uicon='info', color='secondary', in_card=true, class='mt-3', text=ftext('This offer is based on the offer {} with the following changes:', ui.offer_link(this_offer.parent_offer)))}}
+        {% for diff in this_offer.changes -%}
+            {%- set name = config.OFFER_PROPERTIES_INFO[diff]['name'] -%}
+            {%- set new = this_offer.changes[diff][0] -%}
+            {%- set old = this_offer.changes[diff][1] -%}
+            {%- if 'macro' in config.OFFER_PROPERTIES_INFO[diff] -%}
+                {%- set params = config.OFFER_PROPERTIES_INFO[diff].get('params', {}) -%}
+                {%- set new = config.OFFER_PROPERTIES_INFO[diff]['macro']|macro(new, **params) -%}
+                {%- set old = config.OFFER_PROPERTIES_INFO[diff]['macro']|macro(old, **params) -%}
+            {%- endif -%}
+            {{ ui.report_field(name, ftext('{} (before: {})', new, old), size=6) }}
+        {%- else -%}
+            <div class="{{ ui.col_size(3) }}"></div>
+            <div class="{{ ui.col_size(6) }}">No changes</div>
+        {%- endfor %}
+    </div {{ ui.card_end() }}>
+    {% endif %}
+
+    {{ offline_tokens_view.offline_token_config_view(this_offer.offline_token_configs, this_offer) }}
+{% endif %}
+
+{# delete offer modal #}
+<div {{ ui.modal_start('delete-offer-modal', 'Delete Offer') }}>
+    <form>
+        <div class="modal-body">
+            {% if this_offer.used %}
+                {{ ui.info_card(uicon='warning', text='This offer has already been used and cannot be removed. If you continue this offer will be marked as "Not Available" for sales and new registrations will not be allowed.') }}
+            {% else %}
+                {{ ui.info_card(uicon='info', color='secondary', text='Do you want to remove the current offer? This action cannot be undone.') }}
+            {% endif %}
+        </div>
+        <div class="modal-footer">
+            {{ ui.modal_close_button() }}
+            {{ ui.button(uicon='delete', label='Delete Offer', type='action', action='async_delete', async_url='/offers/'+this_offer.id|string, redirect_url='/offers') }}
+        </div>
+    </form>
+</div {{ ui.modal_end() }}>
+
+{% endblock %}

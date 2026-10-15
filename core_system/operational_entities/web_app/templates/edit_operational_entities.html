@@ -1,0 +1,53 @@
+{% extends 'macros/base.html' %}
+{% import 'macros/general_macros.html' as ui with context %}
+
+{{ level }}
+
+{% if entity is not defined %}
+    {% set level_name = OPERATIONAL_ENTITIES_CONFIG[level].name|notranslate %}
+    {% set action='Add' %}
+    {% set title=ftext('Add {}', level_name, novar=true) %}
+    {% set entity=EmptyObject %}
+    {% set async_url='/entities' %}
+{% else %}
+    {% set level = entity.level %}
+    {% set level_name = OPERATIONAL_ENTITIES_CONFIG[level].name|notranslate %}
+    {% set action='Edit' %}
+    {% set title=ftext('Edit {}: {}', level_name, entity.name, novar=true) %}
+    {% set async_url='/entities/'+entity.id|string %}
+{% endif %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('operational_entities_l'+level|string, action, object=entity, display_name=level_name) }}{% endblock %}
+
+{% block content %}
+<div class="row">
+  <div {{ ui.card_start() }}>
+    <form class="row card-row">
+        {% if action == 'Add' %}<input name="level:number" value="{{level}}" type="hidden">{% endif %}
+
+        {% if level < OperationalEntitiesHelper.get_max_level_enabled() %}
+            {{ forms.select('parent_id', parents, labeltag=OPERATIONAL_ENTITIES_CONFIG[level+1].name, value=entity.parent.id if entity.parent else None, uicon=OperationalEntitiesHelper.get_icon(level+1), required=true, size=6) }}
+        {%endif%}
+
+        {{ forms.select('user_in_charge_id', users, 'None', labeltag="User in charge", value=entity.user_in_charge.id if entity.user_in_charge else None, uicon="account_box", 
+            required=level==OperationalEntitiesHelper.get_max_level_enabled(), clearable=level!=OperationalEntitiesHelper.get_max_level_enabled(), size=6, translate=false) }}
+        {{ forms.input('name', OPERATIONAL_ENTITIES_CONFIG[level].name+' Name', value=entity.name, uicon=OperationalEntitiesHelper.get_icon(level), required=true, size=6) }}
+
+        {{ forms.input('population:number', 'Population of the '+OPERATIONAL_ENTITIES_CONFIG[level].name, value=entity.population, uicon='people', valid='int', size=6) }}
+        {{ forms.input('admin_contact_name', 'Administrative Contact Name', value=entity.admin_contact_name, uicon='account_circle', size=6) }}
+        {{ forms.input('admin_phone_number', 'Administrative Contact Phone Number', value=entity.admin_phone_number, uicon='phone', valid='phoneTZ', size=6) }}
+
+        {{ forms.input('gps_longitude:number', 'GPS Longitude', value=entity.longitude, uicon='room', valid='longitude', size=6) }}
+        {{ forms.input('gps_latitude:number', 'GPS Latitude', value=entity.latitude, uicon='room', valid='latitude', size=6) }}
+
+        {{ forms.input('description', 'Additional information', type='textarea', value=entity.description, uicon="textsms", size=6) }}
+
+      {{ forms.button(label=ftext(action+' {}', level_name), uicon='save', type='action', fit=true, size=6, center=true,
+                      action='async_post', async_url=async_url, 
+                      redirect_url='/entities/', redirect_append='id') }}
+    </form>
+  </div {{ ui.card_end() }}>
+</div>
+{% endblock %}

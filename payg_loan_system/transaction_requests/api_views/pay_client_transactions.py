@@ -1,0 +1,7 @@
+from payg_loan_system.transaction_requests.services.pay_client_service import PayClientTransactionService
+from payg_loan_system.transaction_requests.api_views.transaction_resource import TransactionResource
+
+
+class PayClientTransactionResource(TransactionResource):
+
+    service = PayClientTransactionService

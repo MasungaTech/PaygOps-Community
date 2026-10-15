@@ -1,0 +1,16 @@
+{% import 'macros/general_macros.html' as ui with context %}
+
+{% macro add_variable_chip(variable) -%}
+    {%- if variable != 'custom_id' or GlobalSetting('CustomIdEnabled') -%}
+    <div class="chip tooltipped" data-tooltip="{{ config.SMS_VARIABLES_INFO[variable]['description']|replace('%CustomIDName%', GlobalSetting('CustomId')) }}. Example: {{ config.SMS_VARIABLES_INFO[variable]['example']|replace('%currency_sym%', GlobalSetting('CurrencySymbol')) }}">
+        <span class="label" data-variable="{{variable}}">{{config.SMS_VARIABLES_INFO[variable]['name']|replace('%CustomIDName%', GlobalSetting('CustomId'))}}</span>{{ui.icon('add','close waves-effect')}}
+    </div>
+    {%- endif -%}
+{%- endmacro %}
+
+{% macro variable_chip(variable) -%}
+{%- set name = config.SMS_VARIABLES_INFO[variable]['name'] if variable else '' -%}
+<div class="chip" contenteditable="false" data-variable="{{variable}}">
+    <span class="label">&nbsp;&nbsp;&nbsp;&nbsp;<span class="name">{{name|replace('%CustomIDName%', GlobalSetting('CustomId'))}}</span>&nbsp;&nbsp;&nbsp;&nbsp;</span>
+</div>
+{%- endmacro %}

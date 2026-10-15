@@ -1,0 +1,37 @@
+{% extends 'macros/base.html' %}
+{% import 'macros/form_macros.html' as forms %}
+
+{% block title %}{{ ftext('Edit Payment Wallet') }}{% endblock %}
+{% block page_title %}{{ ui.page_title('Payment Wallets', 'Edit', object=Account) }}{% endblock %}
+
+{% block content %}
+<div>
+    <div {{ ui.card_start(title='Wallet Details', uicon='wallet', tooltip='Change the wallet Details') }}>
+        <form method="post" class="row">
+            {{ forms.input('name', 'Wallet Name', Account.FullName, uicon='wallet', size=6, required=true) }}
+            {% if Account.Type not in [PaymentWalletType.agent_collection, PaymentWalletType.cash] %}
+                {{ forms.select('operator', wallet_operators_map, size=6, required=true, labeltag='Operator', value=Account.operator) }}
+            {% endif %}
+            {{ forms.button(label='Save Changes', uicon='edit', size=4, fit=true, inline=true, type='action') }}
+        </form>
+    </div {{ ui.card_end() }}>
+
+    {% if Account.Type not in [PaymentWalletType.agent_collection, PaymentWalletType.cash] %}
+        <div {{ ui.card_start(title='Change Wallet Owner', uicon='client', tooltip='Assign payment wallet to a Client or Lead') }}>
+            <form method="post" class="row">
+                {% set dest = 'lead' if Account.lead else 'user' if Account.user else 'client'%}
+                {{ forms.select('link_destination', {'client': 'Client', 'lead': 'Lead', 'user': 'User', 'none': 'No Owner'},
+                    size=3, required=true, labeltag='Assignee type', value=dest,
+                    onchange="selectToggleFormsMap(this, 'value', {'client': '#input_clients', 'lead': '#input_leads2', 'user': '#input_users'})") }}
+                {{ forms.select('clients', clients, size=5, required=true, errormsg="Please, choose a client to link the walet.",
+                    labeltag="Destination Client", source='clients', value=Account.client.id if Account.client else '') }}
+                {{ forms.searchable_select('leads2', leads2, size=5, required=true, errormsg="Please, choose a lead to to link the walet.",
+                    labeltag="Destination Lead", source='leads2', value=Account.lead.id if Account.lead else '') }}
+                {{ forms.searchable_select('users', users, size=5, required=true, errormsg="Please, choose user to to link the walet.",
+                    labeltag="Destination User", source='users', value=Account.user.id if Account.user else '') }}
+                {{ forms.button(label='Edit Wallet Owner', uicon='edit', size=4, fit=true, type='action', inline=true) }}
+            </form>
+        </div {{ ui.card_end() }}>
+    {% endif %}
+</div>
+{% endblock %}

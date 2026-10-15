@@ -1,0 +1,21 @@
+{% extends 'bulk_upload_summaries/summary_base.html' %}
+{% set object_name = 'operational entities' %}
+{% set total_var = 'total_entities' %}
+{% set correct_var = 'correct_entities' %}
+
+{% block table %}
+<thead>
+    <tr>
+        <th>Level</th>
+        <th>Number of items</th>
+    </tr>
+</thead>
+<tbody>
+    {% for level, count in analysis['level_counts'].items() %}
+    <tr>
+        <td>Level {{level}}</td>
+        <td>{{count}}</td>
+    </tr>
+    {% endfor %}
+</tbody>
+{% endblock %}

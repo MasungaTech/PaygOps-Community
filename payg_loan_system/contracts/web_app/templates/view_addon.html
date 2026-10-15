@@ -1,0 +1,60 @@
+{% extends "macros/base.html" %}
+{% import 'macros/form_macros.html' as forms %}
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'list_addons_macros.html' as fields_macros with context %}
+
+
+{% block title %}View Add-on {{ addon.reference }}{% endblock %}
+
+
+{% block page_title %}{{ ui.page_title('Add-Ons', 'View', object=addon) }}{% endblock %}
+
+
+{% block content %}
+
+{% if addon.contract %}
+    {% set person = addon.contract.client.person %}
+{% else %}
+    {% set person = addon.lead.person %}
+{% endif %}
+
+<div {{ ui.card_start(title='General information' , uicon='addon' , body_class='row') }}>
+    {{ ui.report_field('Reference',addon.reference, size=6) }}
+    {{ ui.report_field('Offer',fields_macros.get_field('offer', addon=addon), size=6) }}
+    {{ ui.report_field('Client/Lead', fields_macros.get_field('client', addon=addon), size=6) }}
+    {{ ui.report_field('Contract', fields_macros.get_field('contract', addon=addon), size=6) }}
+    {{ ui.report_field('Quantity',fields_macros.get_field('quantity_sold', addon=addon), size=6) }}
+    {{ ui.report_field('Addition date', fields_macros.get_field('time_created', addon=addon), size=6) }}
+    {{ ui.report_field('Approved by', fields_macros.get_field('approved_by', addon=addon), size=6) }}
+    {{ ui.report_field('Total value', fields_macros.get_field('final_value', addon=addon), size=6) }}
+    {{ ui.report_field('Loan value', fields_macros.get_field('total_addon_value ', addon=addon), size=6) }}
+    {{ ui.report_field('Progression', fields_macros.get_field('progression', addon=addon), size=6) }}
+    {{ ui.report_field('Already paid',fields_macros.get_field('already_paid', addon=addon), size=6) }}
+    {{ ui.report_field('Payment Source', fields_macros.get_field('payment_source', addon=addon), size=6) }}
+    {{ ui.report_field('Paid on', fields_macros.get_field('time_paid', addon=addon), size=6) }}
+    {{ ui.report_field('Contract Change Type', fields_macros.get_field('status', addon=addon), size=6) }}
+    {{ ui.report_field('Extension', fields_macros.get_field('extension', addon=addon), size=6) }}
+    {{ ui.report_field('Cancelled on' ,fields_macros.get_field('time_cancelled', addon=addon), size=6) }} 
+    {{ ui.report_field('Cancelled by', fields_macros.get_field('canceled_by', addon=addon), size=6) }}
+    {{ ui.report_field('Note', addon.note|urlize, size=6) }}
+ 
+</div {{ ui.card_end() }}>
+
+{% if current_user.can_access('EditPlannedDeliveryDateAddOns', person=person) %}
+<div {{ ui.card_start(uicon='inventory', title='Delivery Planning') }}>
+    <form class="row">
+        {% set min_day = none %}{% set max_day = none %}
+        {% if GlobalSetting('EnableLimitOnPlannedDeliveryDate') and not current_user.can_access('OverrideDeliveryDateLimitsLeads', person=addon.contract.client.person if addon.contract else addon.lead.person) %}
+            {% set min_day = NOW + timedelta(days=GlobalSetting('BeforeLimitOnPlannedDeliveryDate')|float) %}
+            {% set max_day = NOW + timedelta(days=GlobalSetting('AfterLimitOnPlannedDeliveryDate')|float) if GlobalSetting('AfterLimitOnPlannedDeliveryDate') else none %}
+        {% endif %}
+        {{ forms.input('planned_delivery_date', value=addon.derived_planned_delivery_date(), placeholder=addon.contract.lead.agreedDeliveryDate if addon.contract and addon.contract.lead else addon.lead.agreedDeliveryDate if addon.lead else 'Set a planned delivery date', type='datepicker', uicon='date', min=min_day, max=max_day, size=6, size_class="pt-2") }}
+
+        {{ ui.button(uicon='date', label='Save Delivery Date', type='action', fit=true, size=6, inline=true,
+                action='async_patch', async_url='/addons/'+addon.reference, success_message='Delivery planned!', success_action='message', size_class="") }}
+    </form>
+</div {{ ui.card_end() }}>
+{% endif %}
+
+
+{% endblock %}

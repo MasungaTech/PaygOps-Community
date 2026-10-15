@@ -1,0 +1,357 @@
+{% extends "macros/base.html" %}
+{% import 'macros/form_macros.html' as forms with context %}
+{% import 'macros/general_macros.html' as ui with context %}
+
+{% import 'macros/charts_macros.html' as charts with context %}
+{% import 'repayment_list_macros.html' as timeline_table with context %}
+{% import 'reconciled_payment_list_macros.html' as payments with context %}
+{% import 'contract_event_list_macros.html' as events with context %}
+{% import 'contract_summary_macro.html' as summary with context %}
+{% import 'list_addons_macros.html' as fields_macros with context %}
+{% import 'client_view_macros.html' as client_macros with context %}
+
+{% block title %}{{ ftext('View Contract') }}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('Contracts', 'View', object=contract) }}{% endblock %}
+
+{% block content %}
+<div class="row">
+<!-- Side Nav -->
+<div class="{{ui.col_size('2s')}}">
+    <nav {{ ui.side_nav() }}>
+        <ul {{ ui.side_ul() }}>
+        {{ ui.side_link(text='Basic Info', subtext='', uicon='info', target_id='general') }}
+        {{ ui.side_link(text='Details', subtext='', uicon='contract', target_id='details') }}
+        {{ ui.side_link(text='Quick Actions', subtext='Contract Actions', uicon='redo', target_id='actions') }}
+        {{ ui.side_link(text='History', subtext='Timeline / Events', uicon='history', target_id='timeline') }}
+        {{ ui.side_link(text='Payments', subtext='Past / Future', uicon='payment', target_id='payments') }}
+        {{ ui.side_link(text='Add-Ons', subtext='', uicon='addon', target_id='addons', last=true) }}
+        </ul>
+    </nav>
+</div>
+
+<div class="{{ ui.col_size('10s') }}">
+    {% if not GlobalSetting('EnableContractPaymentsForReversedDownpayments') and not contract.downpayment_fully_paid and contract.status != ContractStatus.cancelled %}
+    {{ ui.info_card('This contract\'s downpayment is not yet fully paid, payments made will be recorded as pending payments until the downpayment is paid.', uicon='warning')}}
+    {% endif %}
+    <div id="general">
+        <div {{ ui.card_start(title='Basic Contract Info', uicon='contract', body_class='row') if not is_custom_app else ui.collapsible_card_start(title='Basic Contract Info', uicon='contract', body_class='row', active=false) }}>
+            {% if contract.status == ContractStatus.overpaid %}
+                {{ui.info_card(
+                    uicon='warning',
+                    in_card=true,
+                    text=ftext('This contract has a balance of {}. The overpaid amount must be returned to the customer to complete the contract.',
+                    ui.amount(contract.get_outstanding_balance(), include_currency=true))
+                )}}
+            {% endif %}
+            {{ ui.report_field('Reference', contract.reference, size=6) }}
+            {{ ui.report_field('Client', ui.client_link(contract.client), size=6) }}
+            {{ ui.report_field('Type', ftext(contract.offer.get_human_readable_type()), size=6) }}
+            {{ ui.report_field('Status', ui.contract_status_tag(contract.status), size=6) }}
+            {{ ui.report_field('Start Date', ui.date(contract.start_time), size=6) }}
+            {{ ui.report_field('End Date', ui.date(contract.end_time), size=6) }}
+            {{ ui.report_field('Offer', ui.offer_link_full(contract.offer, link=false if is_custom_app else true), size=6) }}
+            {% if contract.linked_device %}
+            {{ ui.report_field('Linked Device', ui.device_link(contract.linked_device), size=6) }}
+            {% endif %}
+            {%if contract.portfolio %}
+            {{ ui.report_field_start('Associated Portfolio', size=6) }}
+                    {{ui.portfolio_link(contract.portfolio, link=false if is_custom_app else true)}} {% if current_user.can_access('EditPortfolioClients', person=contract.client.person) %}{{ ui.button(uicon='edit', modal='edit-portfolio', type='tiny-action') }}{% endif %}
+                {{ ui.report_field_end() }}
+            {% else %}
+                {{ ui.report_field('Associated Portfolio', '-', size=6) }}
+            {% endif %}
+            {{ ui.report_field('Lead', ui.lead_link(contract.lead), size=6) }}
+        </div {{ ui.card_end() if not is_custom_app else ui.collapsible_card_end() }}>
+
+        <div id="actions">
+            <div {{ ui.card_start(uicon='contract', title='Contract Actions') if not is_custom_app else ui.collapsible_card_start(uicon='contract', title='Contract Actions', active=false) }}>
+                <div class="align-items-center justify-content-between">
+                {% for action in config.QUICK_ACTIONS_SETTINGS %}
+                    {% if contract.status in action.statuses %}
+                    {% if not action.extra_check or action.extra_check(contract) %}
+                    {{ client_macros.quick_action(
+                        action.permission, action.name, action.icon, action.id, contract=contract
+                    ) }}
+                    {% endif %}
+                    {% endif %}
+                {% endfor %} 
+                {% for button in formattedCustomButtons %}
+                    {{ client_macros.quick_action('ViewCustomButtonActions', button.get('CustomButtonName'), button.get('CustomButtonIcon'), url=button.get('TargetUrl'), blank=true, contract=contract, client=contract.client) }}
+                {% endfor %}
+                </div>
+            </div {{ ui.card_end() if not is_custom_app else ui.collapsible_card_end() }}>
+        </div>
+        
+    
+        {% if contract.offer.type == OfferType.lump_sum %}
+            </div>
+            <div id="details">
+            <div {{ ui.card_start(title='Lump-sum Contract Characteristics', uicon='contract', body_class='row') }}>
+                {{ ui.report_field('Total value (without lump-sum add-ons)', ui.amount(contract.get_total_value(), include_currency=true), size=6) }}
+                {{ ui.report_field("Total lump-sum add-ons' value", ui.amount(contract.get_total_value_of_lumpsum_addons(include_pending=true), include_currency=true), size=6) }}
+                {{ ui.report_field('Total Value (with lump-sum add-ons)', ui.amount(contract.get_total_value_with_addons(include_pending=true), include_currency=true), size=6) }}
+                {{ ui.report_field('Paid on', ui.date(contract.start_time), size=6) }}
+            </div {{ ui.card_end() }}>
+        {% elif contract.offer.type == OfferType.time_based or contract.offer.type == OfferType.usage_based %}
+            {% if contract.offer.type == OfferType.time_based %}
+                <div {{ ui.card_start(title='Contract Payment Progression', uicon='progression') }}>
+                    {{summary.contract_progression_bar(contract)}}
+                </div {{ ui.card_end() }}>
+            {% endif %}
+            </div>
+            <div id="details">
+            
+            <div {{ ui.card_start(title='Service Characteristics', uicon='contract', body_class='row') }}>
+                {{ ui.report_field('Downpayment Amount', ui.amount(contract.offer.registration_fee, include_currency=true) , size=6) }}
+                {{ ui.report_field("Initial Asset Value", ui.amount(contract.offer.unit_cost, include_currency=true), size=6) }}
+                {{ ui.report_field("Initial Term (duration)", 'Unlimited', size=6, translatable=true) }}
+                {% if contract.offer.type == OfferType.time_based %}
+                    {{ ui.report_field("Yearly expected amount", ui.amount(contract.offer.get_yearly_value(), include_currency=true), size=6) }}
+                    {{ ui.report_field('Reference Pricing Frequency', ui.amount_normalize(contract.offer.base_price_credit), size=6) }}
+                    {{ ui.report_field_start('Reference Pricing Amount', size=6) }}{{ ui.amount(contract.reference_price, include_currency=true) }}{% if contract.reference_price != contract.minimum_payment %} {{ftext('(minimum {})', ui.amount(contract.minimum_payment, include_currency=true))}}{% endif %}{{ ui.report_field_end() }}
+                    {{ ui.report_field('Amount paid this year to date', ui.amount(contract.get_cumulative_amount_repaid_this_year(), include_currency=true), size=6) }}
+                {% elif contract.offer.type == OfferType.usage_based %}
+                    {{ ui.report_field("Reference Pricing Amount", ui.amount(contract.reference_price, include_currency=true), size=6) }}
+                    {% endif %}
+            </div {{ ui.card_end() }}>
+
+            <div {{ ui.card_start(title='Service Performance', uicon='contract', body_class='row') }}>
+                {% if contract.status == ContractStatus.paused %}
+                    {{ui.info_card(uicon='warning',text='As the contract is paused, the next payment due date will be updated once the contract is resumed')}}
+                {% endif %}
+                {{ ui.report_field("Seasoning (seniority)", ui.time_since(contract.start_time), size=6) }}
+                {{ ui.report_field("Amount paid (excl. discounts)", ui.amount(contract.get_amount_paid_without_discount(), include_currency=true), size=6) }}
+                {{ ui.report_field("Net paid", ui.amount(contract.get_cumulative_amount_repaid(), include_currency=true), size=6) }}
+                {{ ui.report_field("Amount discounted", ui.amount(contract.get_amount_discounted(), include_currency=true), size=6) }}
+                {{ ui.report_field("Number of repayments", contract.get_number_of_non_null_repayments(), size=6) }}
+
+                {% if contract.offer.type == OfferType.time_based %}
+                    {{ ui.report_field("Days before next payment", ui.isnone(contract.get_days_until_next_payment(), decimals=0, suffix=ftext(" days")), size=6) }}
+                    {{ ui.report_field("Expected paid", ui.amount(contract.get_expected_amount_repaid(cached=true), include_currency=true), size=6) }}
+                    {{ ui.report_field("Number of days overdue (incl. advance payments)", ui.days_late(contract.get_net_cumulative_days_in_arrears()), size=6) }}
+                    {{ ui.report_field("Amount in arrears", ui.amount(contract.get_cumulative_amount_in_arrears(include_negative=true), include_currency=true), size=6) }}
+                    {{ ui.report_field("Number of days overdue (excl. advance payments)", ui.days_late(contract.get_cumulative_days_in_arrears()), size=6) }}
+                    {{ ui.report_field("Date last time late", ui.date(contract.get_date_last_in_arrears()), size=6) }}
+                    {{ ui.report_field("Timeliness ratio", ui.percentage(contract.get_timeliness_ratio()), size=6) }}
+                    {{ ui.report_field("Number of times the client fell overdue", contract.get_number_of_times_lease_entered_arrears(), size=6) }}
+                    {{ ui.report_field("Days in arrears (not cumulative)", ui.days_late(-contract.get_days_until_next_payment() if contract.get_days_until_next_payment() else none), size=6) }}
+
+                {% elif contract.offer.type == OfferType.usage_based %}
+
+                    {{ ui.report_field("Total amount bought", ui.suffix(contract.get_credits_bought(), contract.offer.credit_unit), size=6) }}
+                    {{ ui.report_field("Total paid (incl. deposit)", ui.amount(contract.get_cumulative_amount_repaid(), include_currency=true), size=6) }}
+                    {{ ui.report_field("Total amount bought last year to date", ui.suffix(contract.get_credits_bought_this_year(), contract.offer.credit_unit), size=6) }}
+                    {{ ui.report_field("Total paid last year to date (incl. deposit)", ui.amount(contract.get_cumulative_amount_repaid_this_year(), include_currency=true), size=6) }}
+                    {{ ui.report_field("Total amount bought last month", ui.suffix(contract.get_credits_bought_last_month(), contract.offer.credit_unit), size=6) }}
+                    {{ ui.report_field("Total paid last month (incl. deposit)", ui.amount(contract.get_cumulative_amount_repaid_last_month(), include_currency=true), size=6) }}
+                    {{ ui.report_field("Total amount bought last week", ui.suffix(contract.get_credits_bought_last_week(), contract.offer.credit_unit), size=6) }}
+                    {{ ui.report_field("Total paid last week (incl. deposit)", ui.amount(contract.get_cumulative_amount_repaid_last_week(), include_currency=true), size=6) }}
+                    {{ ui.report_field("Average monthly consumption", ui.suffix(contract.get_average_monthly_usage(), contract.offer.credit_unit), size=6) }}
+                    {{ ui.report_field("Average monthly payments", ui.amount(contract.get_average_monthly_payments(), include_currency=true), size=6) }}
+                    {{ ui.report_field("Termination date", ui.isnone(ui.date(contract.end_time)), size=6) }}
+                    {% if contract.status != ContractStatus.paused %}
+                        {{ ui.report_field("Next payment due date", ui.date(contract.next_repayment_due_time) , size=6) }}
+                    {% endif %}
+                {% endif %}
+            </div {{ ui.card_end() }}>
+
+        {% elif contract.offer.type == OfferType.loan %}
+
+            <div {{ ui.card_start(title='Loan Summary', uicon='contract', body_class='row') if not is_custom_app else ui.collapsible_card_start(title='Loan Summary', uicon='contract', body_class='row', active=false) }}>
+                {% if contract.status == ContractStatus.paused %}
+                    {{ui.info_card(uicon='warning',text='As the contract is paused, the next payment due date will be updated once the contract is resumed')}}
+                {% endif %}
+                {{ ui.report_field('Seasoning (seniority)', ui.time_since(contract.start_time), size=6) }}
+                {% if contract.status != ContractStatus.paused %}
+                    {{ ui.report_field("Next payment due date", ui.date(contract.next_repayment_due_time) , size=6) }}
+                {% endif %}
+                {{ ui.report_field("Amount paid (excl. discounts)", ui.amount(contract.get_amount_paid_without_discount(), include_currency=true), size=6) }}
+                {{ ui.report_field("Amount discounted", ui.amount(contract.get_amount_discounted(), include_currency=true), size=6) }}
+                {{ ui.report_field('Reference Pricing Frequency', ui.amount_normalize(contract.offer.base_price_credit), size=6) }}
+                {{ ui.report_field_start('Reference Pricing Amount', size=6) }}{{ ui.amount(contract.reference_price, include_currency=true) }}{% if contract.reference_price != contract.minimum_payment %} {{ftext('(minimum {})', ui.amount(contract.minimum_payment, include_currency=true))}}{% endif %}{{ ui.report_field_end() }}
+                {{ ui.report_field('Net paid', ftext('{} ({})', ui.amount(contract.get_cumulative_amount_repaid(), include_currency=true), ui.percentage(contract.get_percentage_repaid()) if contract.status != ContractStatus.overpaid else '>100%'), size=6) }}
+                {{ ui.report_field("Expected net paid", ftext('{} ({})', ui.amount(contract.get_expected_amount_repaid(cached=true), include_currency=true), ui.percentage(contract.get_expected_percentage_repaid(cached=true))), size=6) }}
+                {{ ui.report_field("Timeliness ratio", ui.percentage(contract.get_timeliness_ratio()), size=6) }}
+                {{ ui.report_field("Average payment frequency", ftext('every {}d', contract.get_average_days_between_payments()|round|int), size=6) }}
+                {{ ui.report_field("Remaining due", ui.amount(contract.get_outstanding_balance(), include_currency=true), size=6) }}
+                {{ ui.report_field("Remaining due if paid now (discounted)", ui.amount(contract.get_outstanding_balance_discounted(), include_currency=true), size=6) }}
+            </div {{ ui.card_end() if not is_custom_app else ui.collapsible_card_end() }}>
+
+            <div {{ ui.card_start(title='Contract Payment Progression', uicon='progression') if not is_custom_app else ui.collapsible_card_start(title='Contract Payment Progression', uicon='progression', active=false) }}>
+                {{ summary.contract_progression_bar(contract) }}
+            </div {{ ui.card_end() if not is_custom_app else ui.collapsible_card_end() }}>
+
+            </div>
+            <div id="details">
+
+            <div {{ ui.card_start(title='Loan Characteristics', uicon='contract', body_class='row') if not is_custom_app else ui.collapsible_card_start(title='Loan Characteristics', uicon='contract', body_class='row', active=false) }}>
+                {{ ui.report_field('Original Balance', ui.amount(contract.offer.get_total_value_with_deposit(), include_currency=true), size=6) }}
+                {{ ui.report_field("Initial Term (duration)", ftext('{days} days ({weeks} weeks)', days=contract.offer.time_to_ownership_in_days|round(0), weeks=ui.days_to_weeks(contract.offer.time_to_ownership_in_days)), size=6) }}
+                {{ ui.report_field("Total extended contract value", ui.amount(contract.get_total_value(), include_currency=true), size=6) }}
+                {{ ui.report_field("Total Extended Term (duration)", ftext('{days} days ({weeks} weeks)', days=contract.get_total_days_to_ownership()|round(0), weeks=ui.days_to_weeks(contract.get_total_days_to_ownership())), size=6) }}
+                {{ ui.report_field('Initial Grace Period (time given at start)', ui.suffix(contract.offer.free_credit_at_start|int, ftext(' days')), size=6) }}
+                {{ ui.report_field("Reference Pricing Frequency", ui.suffix(ui.amount_normalize(contract.offer.base_price_credit), ftext(' days')), size=6) }}
+                {{ ui.report_field('Total Downpayment', ui.amount(contract.get_total_downpayment(), include_currency=true), size=6) }}
+                {{ ui.report_field_start('Total Reference Pricing', size=6) }}{{ ui.amount(contract.reference_price, include_currency=true) }}{% if contract.reference_price != contract.minimum_payment %} {{ftext('(minimum {})', ui.amount(contract.minimum_payment, include_currency=true))}}{% endif %}{{ ui.report_field_end() }}
+                {{ ui.report_field("Downpayment Amount from offer", ui.amount(contract.offer.registration_fee, include_currency=true), size=6) }}
+                {{ ui.report_field("Reference Pricing Amount from offer", ui.amount(contract.offer.base_price_amount, include_currency=true), size=6) }}
+                {{ ui.report_field("Downpayment Amount from add-ons", ui.amount(contract.loan_addons_downpayments, include_currency=true), size=6) }}
+                {{ ui.report_field("Reference Pricing Amount from add-ons", ui.amount(contract.reference_price-contract.offer.base_price_amount, include_currency=true), size=6) }}
+                {{ ui.report_field("Balance after Downpayment", ui.amount(contract.get_total_value_without_deposit(), include_currency=true), size=6) }}
+                {{ ui.report_field("Initial Asset Value", ui.amount(contract.offer.unit_cost, include_currency=true), size=6) }}
+            </div {{ ui.card_end() if not is_custom_app else ui.collapsible_card_end() }}>
+
+            <div {{ ui.card_start(title='Loan Performance', uicon='contract', body_class='row') if not is_custom_app else ui.collapsible_card_start(title='Loan Performance', uicon='contract', body_class='row', active=false) }}>
+                {{ ui.report_field("Date of maturity (completion) without lateness", ui.date(contract.get_date_of_maturity_without_lateness()), size=6) }}
+                {{ ui.report_field("Actual date of maturity (including arrears)", ui.date(contract.get_date_of_maturity()), size=6) }}
+                {{ ui.report_field("Current Outstanding Balance", ui.amount(contract.get_outstanding_balance(), include_currency=true), size=6) }}
+                {{ ui.report_field("Expected Outstanding Balance", ui.amount(contract.get_expected_oustanding_balance(cached=true), include_currency=true), size=6) }}
+                {{ ui.report_field("Days before next repayment", ui.isnone(contract.get_days_until_next_payment(), decimals=0, suffix=" days"), size=6) }}
+                {{ ui.report_field("Amount in arrears since last payment", ui.amount(contract.get_amount_in_arrears_since_last_payment(cached=true), include_currency=true), size=6) }}
+                {{ ui.report_field("Cumulative Days in arrears (incl. advance payments)", ui.days_late(contract.get_net_cumulative_days_in_arrears()), size=6) }}
+                {{ ui.report_field("Amount in arrears (cumulative)", ui.amount(contract.get_net_cumulative_amount_in_arrears(cached=true), include_currency=true), size=6) }}
+                {{ ui.report_field("Cumulative Days in arrears (excl. advance payments)", ui.days_late(contract.get_cumulative_days_in_arrears()), size=6) }}
+                {{ ui.report_field("Amount in arrears (excl. advance payments)", ui.amount(contract.get_cumulative_amount_in_arrears(cached=true), include_currency=true), size=6) }}
+                {{ ui.report_field("Days in arrears (not cumulative)", ui.days_late(-contract.get_days_until_next_payment() if contract.get_days_until_next_payment() else none), size=6) }}
+                {{ ui.report_field("Date last current", ui.date(contract.get_date_last_current()), size=6) }}
+                {{ ui.report_field("Date last in arrears", ui.date(contract.get_date_last_in_arrears()), size=6) }}
+                {{ ui.report_field("Number of contract payments", contract.get_number_of_non_null_repayments(), size=6) }}
+                {{ ui.report_field("Number of times the lease entered arrears", contract.get_number_of_times_lease_entered_arrears(), size=6) }}
+                {{ ui.report_field("Default date (to be uninstalled)", ui.date(contract.end_time), size=6) }}
+                {{ ui.report_field("Default date by GOGLA Churn Definition", ui.date(contract.get_gogla_default_date()), size=6) }}
+                {{ ui.report_field("Foreclosure date (repossessed)", ui.date(contract.repossession_time), size=6) }}
+                {{ ui.report_field("Default Amount", ui.amount(contract.get_default_amount(), include_currency=true), size=6) }}
+            </div {{ ui.card_end() if not is_custom_app else ui.collapsible_card_end() }}>
+            {% endif %}
+            
+        
+        <div {{ ui.card_start(title='Add-Ons Summary', uicon='addon', body_class='row') if not is_custom_app else ui.collapsible_card_start(title='Add-Ons Summary', uicon='addon', body_class='row', active=false) }}>
+            {{ ui.report_field("Paid lump-sum add-ons", ui.amount(contract.get_total_value_of_lumpsum_addons(), include_currency=true), size=6) }}
+            {{ ui.report_field("Amount of lump-sum add-ons (incl. pending)", ui.amount(contract.get_total_value_of_lumpsum_addons(include_pending=True), include_currency=true), size=6) }}
+            {{ ui.report_field("Total value w/ lump-sum add-ons", ui.amount(contract.get_total_value_with_addons(), include_currency=true), size=6) }}
+            {{ ui.report_field("Total value w/ lump-sum add-ons (incl. pending)", ui.amount(contract.get_total_value_with_addons(include_pending=True), include_currency=true), size=6) }}
+        </div {{ ui.card_end() if not is_custom_app else ui.collapsible_card_end() }}>
+    </div>
+    {% if not is_custom_app %}
+        <div id="timeline" class="row">
+                {% if contract.offer.type in [OfferType.loan, OfferType.time_based] %}
+                    <div {{ ui.card_start(title=ftext('Timeliness Ratio ({})', ui.percentage(contract.get_timeliness_ratio())), size=6, match_height=true) }}> 
+                        <canvas id="TimelinessRatio" height="200"></canvas>
+                    </div {{ ui.card_end() }}>
+
+                    <div {{ ui.card_start(title='Paid vs. Expected payments', size=6, match_height=true) }}>
+                        <canvas id="contract_timeline" width="400" height="275"></canvas>
+                    </div {{ ui.card_end() }}>
+                {% endif %}
+
+                {% if contract.offer.type == OfferType.usage_based %}
+                    <div {{ ui.card_start(title='Paid vs. Expected payments') }}>
+                        <canvas id="payment_graph_usage_based" width="400" height="275"></canvas>
+                    </div {{ ui.card_end() }}>
+                {% endif %}
+        </div>
+        <div {{ ui.collapsible_card_start(title='Events', uicon='event', body_class='table-responsive', active=false) }}>
+            {{ events.contract_event_table(contract) }}
+        </div {{ ui.collapsible_card_end() }}>
+    {% else %}
+        <div {{ ui.collapsible_card_start(title='Events', uicon='event', body_class='table-responsive', active=false) }}>
+            {{ events.contract_event_table(contract) }}
+        </div {{ ui.collapsible_card_end() }}>
+    {% endif %}
+    <div id="payments">
+        {% if not is_custom_app %}
+            {% if not GlobalSetting('EnableContractPaymentsForReversedDownpayments') and (contract.loan_addons_downpayments != contract.loan_addons_downpayments_paid or not contract.downpayment_fully_paid) %}
+                <div {{ ui.card_start(title="Pending downpayment", uicon='payment') }}>
+                {% set offer_downpayment_paid = [contract.pending_amount, contract.offer.registration_fee]|min %}
+                {# 
+                    in some cases the pending amount is higher than what would be reconciled as downpayment but
+                    still we cannot create downpayment because add-ons downpayment are not paid. Add-ons downpauyment
+                    cannot be paid using pending payments yet.
+                #}
+                {{ ui.report_field(
+                    "This contract has not finished paying the downpayment",
+                    ftext(
+                        '{} paid out of {} ({} left)',
+                        ui.amount(contract.loan_addons_downpayments_paid + offer_downpayment_paid, include_currency=true),
+                        ui.amount(contract.get_total_downpayment(), include_currency=true),
+                        ui.amount(contract.get_total_downpayment()-contract.loan_addons_downpayments_paid-offer_downpayment_paid, include_currency=true)
+                    ),
+                    size=12,
+                    class='mt-2'
+                )}}
+                </div {{ ui.card_end() }}>
+            {% endif %}
+            {% if contract.pending_reconciled_payments_filtered %}
+                <div {{ ui.card_start(title='Pending Payments', uicon='payment', body_class='table-responsive') }}>
+                    {{ timeline_table.contract_pending_table(contract) }}
+                </div {{ ui.card_end() }}>
+            {% endif %}
+        {% endif %}
+
+        <div {{ ui.card_start(title='Contract Payments'+(' (Repayments)' if contract.offer.type == OfferType.loan else ''), uicon='payment', body_class='table-responsive') if not is_custom_app else ui.collapsible_card_start(title='Contract Payments'+(' (Repayments)' if contract.offer.type == OfferType.loan else ''), uicon='payment', body_class='table-responsive', active=false) }}>
+            {{ timeline_table.contract_timeline_table(contract) }}
+        </div {{ ui.card_end() if not is_custom_app else ui.collapsible_card_end() }}>
+        {% if not is_custom_app %}
+            {% if contract.offer.type in [OfferType.loan, OfferType.time_based] %}
+                <div {{ ui.collapsible_card_start(title='Payment Planning', uicon='payment', active=false, body_class='table-responsive') }}>
+                    {{ timeline_table.payment_planning(contract) }}
+                </div {{ ui.collapsible_card_end() }}>
+            {% endif %}
+        {% endif %}
+    </div>
+
+
+    <div id="addons">
+        <div {{ ui.card_start() if not is_custom_app else ui.collapsible_card_start(title='Add-Ons', uicon='addon', active=false) }}>
+            <div class="{{ ui.card_header_class() }}">
+                {{ ui.card_title(title='Add-Ons', uicon='addon') }}
+                {{ ui.button(link=url_for('contract.add_contract_addon', contract_reference=contract.reference), uicon="add", tooltip="Add new addon", permission="AddToContractAddOns", person=contract.client.person, type='header-action') }}
+            </div>
+            {{fields_macros.addons_tabs(tabs, paginations, active_tab=active_tab, hide_contract=true, contract=contract)}}
+        </div {{ ui.card_end() if not is_custom_app else ui.collapsible_card_end() }}>
+    </div>
+</div>
+</div>
+
+{% if current_user.can_access('EditClients', person=contract.client.person) %}
+<div {{ ui.modal_start('edit-portfolio', 'Edit Contract Portfolio') }}>
+    <form>
+    <div class="modal-body">
+        {{ forms.select('portfolio_id:number', portfolios, label='None', labeltag="Portfolio", uicon='work',
+            value=contract.portfolio.id if contract.portfolio else none, required=false, translate=false, source='portfolios') }}
+    </div>
+    <div class="modal-footer">
+        {{ui.modal_close_button()}}
+        {{ ui.button(uicon='save', label='Edit Contract', color='danger', 
+            action='async_post', async_url='/contracts/'+contract.reference) }}
+    </div>
+    </form>
+</div {{ ui.modal_end() }}>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.24.0/moment.min.js" type="text/javascript"></script>
+<script src="/static/js/chart.min.js"></script>
+<script>
+    {% if contract.offer.type in [OfferType.loan, OfferType.time_based] %}
+
+        {% set timeliness_ratio = contract.get_timeliness_ratio() %}
+        {{ charts.pieJS('doughnut', 'TimelinessRatio', [('Active', timeliness_ratio*100), ('Inactive', (1-timeliness_ratio)*100)],
+            backgroundColors=['basecolor', 'colorGreybis'], hoverBackgroundColors=['basecolor', 'colorGreybis']) }}
+
+        {{ charts.timescaleJS_specific('line', 'contract_timeline', graph_data_2,
+            ['Ideal Repayment', 'Actual Repayment'], backgroundColors=['colorGreybis', 'basecolorbis'],
+            borderColors=['colorGreybis', 'basecolor'], noBezierCurve=true, displayLegend=true) }}
+
+    {% elif contract.offer.type == OfferType.usage_based %}
+
+        {{ charts.timescaleJS_specific('line', 'payment_graph_usage_based', graph_data_2,
+            ['Total paid'], backgroundColors=['basecolorbis'],
+            borderColors=['basecolor'], noBezierCurve=true, displayLegend=true) }}
+
+    {% endif %}
+</script>
+{% endblock %}

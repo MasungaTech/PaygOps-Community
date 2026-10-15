@@ -1,0 +1,35 @@
+{% macro pretty_data_render(pretty_data, error_name) %}
+<style>
+    .error_row:nth-child(2n) {
+        background: rgba(67,89,113,.05);
+    }
+    .highlight_row {
+        background: #ffc5bb;
+    }
+    .context_row {
+        background: #e8fadf;
+    }
+</style>
+<table style="display: block;">
+    {% for tb in pretty_data %}
+        <tr>
+            <th>File: </th><td><strong>{{ tb['file'] }}</strong></td>
+        </tr>
+        <tr class="context_row">
+            <th>Fn: </th>
+            <td>
+                <strong>{{ tb['fn_name'] }}()</strong> with variables: {{ tb['locals'] }}
+            </td>
+        </tr>
+        {% for l in tb['code'] %}
+            {% set line = loop.index + tb['code_start'] %}
+            <tr class="{% if line == tb['line'] %}highlight_row{% else %}error_row{% endif %}">
+                <th>{{ line }}</th>
+                <td>{{ l|replace(' ', '&#20;')|safe }}</td>
+            </tr>
+        {% endfor %}
+        <tr><td colspan="2"><hr/></td></tr>
+    {% endfor %}
+    <tr class="highlight_row"><th>Error: </th><td>{{ error_name }}</td></tr>
+</table>
+{% endmacro %}

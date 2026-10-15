@@ -1,0 +1,110 @@
+{% macro offline_token_config_card(existing_config=None, name='', no_submit=false) -%}
+{% set list_id = "sortable_list_"+name %}
+{% set button_id = "config_list_"+name %}
+{% if not no_submit %}<form id="offline_token_config_{{name}}">{% endif %}
+<div id="{{ list_id }}" class="row">
+{% if existing_config %}
+    {% for offline_config in existing_config|sort(attribute='order') %}
+        {{ offline_token_config_item(offline_config, name, loop.index) }}
+    {% endfor %}
+{% endif %}
+</div>
+{% if not no_submit %}</form>{% endif %}
+<div class="offline_template hiddenform">{{ offline_token_config_item(name=name, id="NEW_ID") }}</div>
+<div id="{{ button_id }}" class="row">
+{{ forms.button(label='Add Config', uicon='add_circle', id='add_button_'+name,
+action='add_option_row_'+name+'();', size=6, type='action', fit=true, center=no_submit) }}
+{{ forms.button(label='Save Changes', uicon='save',
+                    action='save_offline_token_config_form("'+name+'");',
+                    size=6, fit=true, type='action', visible=not no_submit) }}
+</div>
+<script>
+function update_add_button_{{ name }}() {
+    if($('#{{ list_id }}').children().length >= 5) {
+        disableElement($('#add_button_{{ name }}'))
+    } else {
+        enableElement($('#add_button_{{ name }}'))
+    }
+}
+function delete_option_row_{{ name }}() {
+    event.target.parentNode.parentNode.remove();
+    update_add_button_{{ name }}();
+    refreshTooltips();
+}
+
+// TODO: Show number of days only if add credit type
+
+function add_option_row_{{ name }}() {
+    deInitFormElements();
+    var tem = $('.offline_template').clone()
+    var id = Math.floor(Math.random()*999999)
+    tem = $(tem).html().replace(/NEW_ID/g, id)
+    $('#{{ list_id }}').append(tem);
+    refreshAllFormsElements();
+    init_sort_{{ name }}();
+    $('#offline_select_{{name}}_'+id).on('change', function() {
+        selectToggleFormsMap(this, 'value', {'ADD_CREDIT': '.offline_input_{{name}}_'+id})
+    })
+}
+
+function init_sort_{{ name }}() {
+    new Sortable($('#{{ list_id }}')[0], {
+        handle: 'i',
+        animation: 150
+    });
+}
+
+$(function() {
+    init_sort_{{ name }}();
+    $(".offline_option_row").each(function() { update_add_button_{{ name }}($(this)); });
+});
+</script>
+{%- endmacro %}
+
+
+{% macro offline_token_config_item(offline_config=None, name='', id='') -%}
+    <div {{ ui.card_start(body_class='offline_option_row row pt-2')}}>
+        <div class="{{ ui.col_size(1) }}">{{ ui.icon('drag_indicator', color='lightgrey', style="margin-top: 1.25em; margin-left: -0.5em;") }}</div>
+        {% set offline_name = ".offline_input_"+name+"_"+id|string %}
+        {{ forms.select('offline_token_config[][type]',
+        {'ADD_CREDIT': 'Add Days', 'DISABLE_PAYG': 'Disable PAYG'},
+        value=offline_config.type if offline_config else 'ADD_CREDIT',
+        class='offline_select',
+        id='offline_select_'+name+'_'+id|string,
+        size=4, labeltag="Token Type",
+        onchange="selectToggleFormsMap(this, 'value', {'ADD_CREDIT': '"+offline_name+"'})" if id != 'NEW_ID' else '') }}
+
+        {{ forms.input('offline_token_config[][value]', 
+        type='number',
+        selector_class='offline_input_'+name+'_'+id|string,
+        required=true, label="Number of Days", numeric=true,
+            is_int=true, value=offline_config.credit_value|int if offline_config else None, size=5, class='offline_value') }}
+
+        {{ ui.button(uicon='delete', type='card-action', tooltip='Remove configuration', class='ms-4 offline-delete-button', action="delete_option_row_"+name+"();") }}
+    </div {{ ui.card_end() }}>
+{%- endmacro %}
+
+
+{% macro offline_token_scripts() %}
+<script>
+    function save_offline_token_config_form(device_type_name) {
+      var data = $('#offline_token_config_' + device_type_name).serializeJSON();
+      debug_log('Sent Data', data)
+      $.ajax({
+        url: 'general/offline_token_config/' + device_type_name,
+        type: 'POST',
+        data: JSON.stringify(data),
+        contentType: 'application/json',
+        success: function (result) {
+          success_toast(PaygOps_LNG["CONFIGURATION_SAVED"]);
+        },
+        error: function (result, ajaxOptions, thrownError) {
+          var txt = result.responseJSON
+            ? result.responseJSON.error_message
+            : PaygOps_LNG["SAVING_ERROR"] + result.statusText;
+          error_toast(txt);
+        },
+      });
+    }
+  </script>
+  {% endmacro %}

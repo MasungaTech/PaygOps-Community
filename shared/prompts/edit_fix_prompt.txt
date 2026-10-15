@@ -1,0 +1,25 @@
+You are repairing an UPDATED Automatou workflow so it lints cleanly.
+
+    ## Inputs
+    - USER_EDIT_PROMPT:
+    <<USER_EDIT_PROMPT>>
+
+    - AUTOMATOU_DOCS_MD:
+    <<AUTOMATOU_DOCS_MD>>
+
+    - CURRENT_TRIGGER_JSON:
+    <<CURRENT_TRIGGER_JSON>>
+
+    - CURRENT_STEPS_JSON (the just-updated workflow to fix):
+    <<CURRENT_STEPS_JSON>>
+
+    - LINTER_ERRORS_JSON (array of error messages):
+    <<LINTER_ERRORS_JSON>>
+
+    - MODULE_DEFINITIONS_JSON (map of module_name -> module_json):
+    <<MODULE_DEFINITIONS_JSON>>
+
+    ## Requirements
+    - Output ONLY a valid JSON array of steps.
+    - Fix ALL errors: module names, inputs, types, snake_case ids, ordering, no trigger-as-step.
+    - Prefer minimal changes, preserving ids where possible.

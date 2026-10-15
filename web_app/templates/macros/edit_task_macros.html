@@ -1,0 +1,198 @@
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'macros/form_macros.html' as forms with context %}
+
+{% macro edit_task_form(task=none, markdown_tootip_text=none, selected_clients=none, force_assign_task=none) %}
+        {% set task_assignee = none %}
+        {% if task %}
+            {% set task_assignee = task.assignee %}
+        {% else %}
+            {% set task_assignee = current_user if force_assign_task else none %}
+        {% endif %}
+        {{ forms.select('task_type:number', task_category_id, labeltag='Task Type', translate=false, value=task.task_category.id|string if task and task.task_category else none, required=true, id='', class='add_task_category') }}
+        {% if selected_clients %}
+            {{ forms.input('assignee', 'Assign User', uicon='user', value='User in Charge', required=true, id='', disabled=force_assign_task) }}
+        {% else %}
+            {{ forms.searchable_select('assignee:number', 
+                                        labeltag='Assign User', 
+                                        uicon='user', 
+                                        choices=[(task_assignee.id, task_assignee.full_name_and_id)] if task_assignee else assignee, 
+                                        value=task_assignee.id if task_assignee else none, 
+                                        source='assignee' if not force_assign_task else none,
+                                        translate=false, 
+                                        required=true, 
+                                        placeholder='Choose User', 
+                                        id='',
+                                        disabled=force_assign_task
+            )}}
+        {% endif %}
+        {% if not selected_clients %}
+            {{ forms.searchable_select('contract', labeltag='Contract', uicon='description', choices=[(task.contract.reference, task.contract.reference_and_name)] if task and task.contract else [contract, 'reference', 'reference_and_name']|dictMapper, value=task.contract.reference if task and task.contract else none,
+            translate=false, required=true, placeholder='Choose Contract', source='contract', selector_class='reference hiddenform', id='') }}
+        {% endif %}
+        {% if selected_clients %}
+            <!-- Select Client if None is selected -->
+            <div id='selectable-client-select-wrapper'>
+                {{ forms.searchable_select( '', 
+                                            clients, 
+                                            labeltag="Assigned Client", 
+                                            uicon='user', 
+                                            source='clients', 
+                                            required=false, 
+                                            disabled=false, 
+                                            id='client-selector',
+                                            tooltip='You can also pick clients by selecting one from the client list table.',
+                                            onchange='selectClient("add")',
+                                            btn_icon='close',
+                                            btn_tooltip='Remove selected Client',
+                                            btn_action='selectClient("remove")'
+                ) }}
+            </div>
+
+            <div class="form-group" id='selectable-client-form-group'>
+                <label class="form-label">Assigned Client</label>
+                <div id="assigned-clients-label" class="form-control mt-2" readonly></div>
+            </div>
+            <div id="client-id-hidden-inputs"></div>
+
+            {% else %}
+            {{ forms.searchable_select(
+                'client:number', 
+                labeltag='Client', 
+                uicon='account_box', 
+                choices=[(task.client.id, task.client.full_name_and_id)] if task and task.client else clients, 
+                value=task.client.id if task and task.client  else none,
+                translate=false, 
+                required=true, 
+                source='clients', 
+                placeholder='Choose Client', 
+                selector_class='client_id hiddenform', 
+                id=''
+            ) }}
+            {% endif %}
+
+        {% if not selected_clients %}
+            {{ forms.searchable_select('device', labeltag='Device', uicon='device', choices=[(task.device.composed_serial, task.device.composed_serial)] if task and task.device else [device, 'composed_serial', 'composed_serial']|dictMapper, value=task.device.composed_serial if task and task.device else none,
+            translate=false, required=true, placeholder='Choose Device', source='device', selector_class='device_id hiddenform', id='') }}
+            {{ forms.searchable_select('lead:number', labeltag='Lead', uicon='contact_page', choices=[(task.lead.id, task.lead.full_name_and_id)] if task and task.lead else lead, value=task.lead.id if task and task.lead else none,
+            translate=false, required=true, source='lead', placeholder='Choose Lead', selector_class='lead_id hiddenform', id='') }}
+        {% endif %}
+        {{ forms.input('deadline', 'Deadline', type='datetimepicker', uicon='date', value=task.deadline if task else NOW, required=false) }}
+        {% if task %}
+            {{ forms.select('status', task_status, labeltag='Status', value=task.status if task else none, required=true, id='') }}
+            {{ forms.input('notes', 'Notes', type='textarea', value=task.notes if task else none, required=false, placeholder='Type Notes', tooltip=markdown_tootip_text) }}
+        {% endif %}
+        {{ forms.input('task_name', 'Task Name', type='name', value=task.task_name if task else none, required=true, placeholder='Type Task Name') }}
+        {{ forms.input('instructions', 'Instructions', type='textarea', value=task.instructions if task else none, required=false, placeholder='Type Instructions', tooltip=markdown_tootip_text) }}
+{%- endmacro %}
+
+{% macro edit_task_script() %}
+    <script>
+        // Store initial category ID for each modal when it's opened
+        $(document).on('shown.bs.modal', '.modal', function() {
+            const modal = $(this);
+            const categorySelect = modal.find('.add_task_category');
+            if (categorySelect.length) {
+                const initialCategoryId = categorySelect.val();
+                modal.data('initial-category-id', initialCategoryId);
+            }
+        });
+
+        $(document).on('change', '.add_task_category', function() {
+            // Determine the closest modal (either "add" or "edit")
+            const modal = $(this).closest('.modal');  // Get the closest modal ancestor
+            
+            // Get the selected option
+            const selectedOption = $(this).closest('.modal').find(':selected');
+            // Retrieve the value, task_name, and instructions from the selected option's data attributes
+
+            if (!selectedOption.val()) {
+                
+                return; // Exit early if no category is selected
+            }
+            const categoryId = selectedOption.val();
+            const taskName = selectedOption.data('task_name');
+            const instructions = selectedOption.data('instructions');
+            const allLinkedForms = ['.client_id', '.device_id', '.lead_id', '.reference'];
+            let linked_objects = selectedOption.data('linked_objects');
+        
+            // Convert linked_objects to array if it's a string
+            if (linked_objects && typeof linked_objects === 'string') {
+                // Convert the string to a valid JSON format (replace single quotes with double quotes)
+                linked_objects = linked_objects.replace(/'/g, '"');
+                
+                // Now parse it to convert to an array
+                try {
+                    linked_objects = JSON.parse(linked_objects); // Parse the cleaned string into an array
+                } catch (e) {
+                    console.error("Error parsing the array string", e);
+                    linked_objects = []; // Fallback to an empty array if parsing fails
+                }
+            }
+        
+            // Update fields when a valid category is selected
+            if (categoryId) {
+                // Get current values and last selected category ID
+                const currentTaskName = modal.find('#task_name').val();
+                const currentInstructions = modal.find('#instructions').val();
+                const lastCategoryId = modal.data('last-category-id');
+                const initialCategoryId = modal.data('initial-category-id');
+                const categoryChanged = lastCategoryId && (lastCategoryId !== categoryId);
+                
+                // Only populate task_name and instructions if fields are empty OR category has changed from last selection
+                if (!currentTaskName || categoryChanged) {
+                    modal.find('#task_name').val(taskName || '');
+                }
+                if (!currentInstructions || categoryChanged) {
+                    modal.find('#instructions').val(instructions || '');
+                }
+                
+                // Store the current category ID as the last selected one for future comparisons
+                modal.data('last-category-id', categoryId);
+
+               
+        
+                if (linked_objects && Array.isArray(linked_objects)) {
+                    // Hide all fields first (in case of a reset)
+                    allLinkedForms.forEach(selector => modal.find(selector).addClass('hiddenform'));
+        
+                    // Loop through the linked_objects array and remove 'hiddenform' from matching fields
+                    linked_objects.forEach(function(obj) {
+                        switch (obj) {
+                            case 'client':
+                                modal.find('.client_id').removeClass('hiddenform');
+                                break;
+                            case 'device':
+                                modal.find('.device_id').removeClass('hiddenform');
+                                break;
+                            case 'lead':
+                                modal.find('.lead_id').removeClass('hiddenform');
+                                break;
+                            case 'contract':
+                                modal.find('.reference').removeClass('hiddenform');
+                                break;
+                            default:
+                                break;
+                        }
+                    });
+                }
+            } else {
+                // Clear fields if the placeholder (empty) option is selected
+                modal.find('#task_name').val('');
+                modal.find('#instructions').val('');
+                modal.find('#task_name').prop('disabled', false);
+                modal.find('#instructions').prop('disabled', false);
+                allLinkedForms.forEach(selector => modal.find(selector).addClass('hiddenform'));
+            }
+        });
+        
+
+        function updateTaskStatus(status_button, status, task_id) {
+            var form = status_button.closest('form');
+            $(form).find('#status_input_'+task_id).val(status);
+            SubmitForm(status_button, '/tasks/'+task_id, {
+                "success_action": "reload",
+                "success_message": "Task status updated!",
+            })
+        }
+</script>
+{%- endmacro %}

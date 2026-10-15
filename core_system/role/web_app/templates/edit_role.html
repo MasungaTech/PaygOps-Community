@@ -1,0 +1,99 @@
+{% extends "macros/base.html" %}
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'macros/form_macros.html' as forms with context %}
+{% import 'macros/charts_macros.html' as charts with context %}
+
+
+{% if Role_To_Edit is not defined %}
+    {% set action='Add' %}
+    {% set title=ftext('Add Role') %}
+    {% set Role_To_Edit=EmptyObject %}
+    {% set async_url='/roles' %}
+    {% set role_permissions = [] %}
+    {% set redirect_url = '/permissions/roles' %}
+    {% set redirect_append = '' %}
+{% else %}
+  {% set action='Edit' %}
+  {% set title=ftext('Edit Role') %}
+  {% set async_url='/roles/'+Role_To_Edit.id|string %}
+  {% set redirect_url = '/permissions/role/' %}
+  {% set redirect_append = 'id' %}
+{% endif %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('User Roles', action) }}{% endblock %}
+
+{% block page_actions %}
+    {{ ui.button(modal='delete-role', uicon="delete", tooltip="Delete", type="header-action", visible=(action == 'Edit')) }}
+{% endblock %}
+
+{% block content %}
+<div class="row">
+
+<div class="{{ui.col_size('2s')}}">
+    <nav {{ ui.side_nav() }}>
+        <ul {{ ui.side_ul() }}>
+        {% for T in permission_themes %}
+            {{ ui.side_link(text=T, subtext='', uicon=theme_icons.get(T), target_id=T) }}
+        {% endfor %}
+        </ul>
+    </nav>
+</div>
+
+<div class="{{ ui.col_size('10s') }}">
+{% if action == 'Add' %}{{ ui.info_card(uicon='info', text='Putting "Admin" as the role type means a newly created user will get his default role in ALL ENTITIES by default. ', color='secondary') }}{% endif %}
+{% set disabled = Role_To_Edit.name in ['SolarisAdmin', 'Metrics API'] or Role_To_Edit.id == current_user.AuthorizationLevel.id %}
+<form id="PermissionsForm" method="post" action="{{async_url}}">
+    {%if disabled %}<fieldset disabled>{%endif%}
+    <div {{ ui.card_start(title='Role Name and Type', body_class='row') }}>
+            {{ forms.input('name', 'Role Name', value=Role_To_Edit.name, required=true, size=6) }}
+            {{ forms.select('type', choices=Types, labeltag='Role Type', value=Role_To_Edit.get_role_type_name() if Role_To_Edit.type != none else none, required=true, size=6) }}
+    </div {{ ui.card_end() }}>
+    {% set info_text = 'You cannot edit your own role or system roles' if disabled else 'Please tick below the permissions this role will have' %}
+    {{ ui.info_card(text=info_text, color='secondary', uicon='info') }} 
+        {% for T in permission_themes %}
+            <div id="{{T}}">
+                {{ ui.divider(permission_spacer(T))}}
+                {% for C in permission_themes[T] %}
+                    <div {{ ui.card_start(title=permission_spacer(C), body_class='row') }}>
+                    {% for P in all_permissions[C] %}
+                        {% if current_user.can_access_in_scope(P+C) %}
+                        {% set D = P+C %}
+                        {% if D in global_permissions %}
+                            {% set picon='public' %}
+                            {% set ptooltip='This permission applies globally for the default role (rather than for the User\'s entities)' %}
+                        {% else %}
+                            {% set picon='GPS' %}
+                            {% set ptooltip='This permission applies locally to the User\'s entities' %}
+                        {% endif %}
+                        {{ forms.checkbox('permissions['+D+']:boolean', permission_spacer(P), checked=(D in role_permissions), tooltip=ptooltip, uicon=picon, size=4) }}
+                        {%endif%}
+                    {% endfor %}
+                    </div {{ ui.card_end() }}>
+                {% endfor %}
+            </div>
+        {% endfor %}
+    {{ ui.button(uicon='save', label=title,fit=true, size=6, type='action', center=true,
+        action='async_post', async_url=async_url, redirect_url=redirect_url, redirect_append=redirect_append, success_message='Role saved successfully!') }}
+    {%if disabled %}</fieldset>{%endif%}
+</form>
+</div>
+</div>
+
+{# delete expense modal #}
+<div {{ ui.modal_start('delete-role', 'Confirm Role Deletion') }}>
+    <form>
+        <div class="modal-body">
+            {{ ui.info_card('Are you sure you want to delete the role? This is NOT reversible. ', uicon='warning') }}
+        </div>
+        <div class="modal-footer">
+            {{ ui.modal_close_button() }}
+            {{ ui.button(type='action', uicon='delete', label='Delete role', action='async_delete', async_url='/roles/'+Role_To_Edit.id|string, redirect_url='/permissions/roles') }}
+        </div>
+    </form>
+</div {{ ui.modal_end() }}>
+{% endblock %}
+
+
+

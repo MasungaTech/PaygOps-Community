@@ -1,0 +1,111 @@
+
+
+{% macro form_config_scripts(available_forms) %}
+<script>
+    var AVAILABLE_FORMS = {{ available_forms| tojson}}
+    function remove_form(e) {
+        $(e).parents('.form-card').remove();
+        config_changed()
+    }
+    function config_changed() {
+        enableElement($('.forms_save_button'))
+    }
+    $('.add-form-button').click(function () {
+        var form_id = $('#add_form_select').find(':selected').val();
+        if (!form_id) {
+            error_toast(PaygOps_LNG["FORM_INCORRECT"], PaygOps_LNG["FORM_INCORRECT_TITLE"])
+            return false;
+        }
+        var data = AVAILABLE_FORMS[form_id]
+        deInitFormElements();
+        var tem = $('.form-template').clone()
+        tem.find('.form_id').val(form_id);
+        var form_name = data['name']
+        var form_icon = data['icon']
+        tem = $(tem).html().replace(/FORM_ID/g, form_id).replace(/FORM_NAME/g, form_name).replace(/FORM_ICON/g, form_icon)
+        tem = $(tem)
+        for (const scope in data['scopes']) {
+            tem.find('select.scope-select').append('<option value="'+scope+'">'+data['scopes'][scope]+'</option>');
+        }
+        $('.forms_container').append(tem);
+        $('#add_form_select').val('').trigger('change');
+        config_changed();
+        refreshSelects();
+        updateSortable();
+    });
+    function updateSortable() {
+        new Sortable($('.forms_container')[0], {
+            handle: 'i',
+            animation: 150,
+            onSort: function (evt) {
+                config_changed()
+            },
+        });
+    }
+    $(document).ready(function () {
+        updateSortable();
+    });
+</script>
+{% endmacro %}
+
+{% macro rule_card(rule, offer_types) %}
+<div {{ ui.card_start(class='form-card') }}>
+    <input class="form_id" type="hidden" name="forms[][id]:number" value="{{rule.form.id}}">
+    <div style="width: 100%;">
+        {{ ui.icon('drag_indicator', color='lightgrey', style="cursor: move;") }} 
+        <a href="{{ url_for('forms_blueprint.view_form', form_id=rule.form.id) }}"
+            style="font-size: 2em;" {{ ui.tooltip_code('Edit Form' )}}>{{ ui.icon(rule.form.icon) }} {{rule.form.name}}</a>
+        {{ ui.button(uicon='delete', type='tiny-action', class='float-end', action='remove_form(this);')}}
+        <div class="row">
+            {{forms.select('forms[][status]', {1: 'Required', 2: 'Optional (always shown)', 3: 'Optional (show if present)'},
+                label="Choose form visibility...", type="number", size=4, value=rule.status, id='status_'+rule.id|string, labeltag="Visibility", required=true)}}
+            {{forms.select('forms[][scope]', rule.form.allowed_scopes_human(), label="Choose scope...", size=4, value=rule.scope, id='scope_'+rule.id|string, labeltag="Scope", type="number", required=true)}}
+            {{forms.select('forms[][offer_type]', offer_types, label="All offer types", labeltag="Offer type restriction", size="4", type="string", 
+                value=rule.offer_type if not rule.offers else 'specific', id='offer_type_'+rule.id|string, onchange="selectToggleFormsMap(this, 'value', {'specific': '."+'offers_'+rule.id|string+"'})")}}
+            {{ forms.checkbox('forms[][answer_for_each_lead]:boolean', checked=rule.answer_for_each_lead  if rule.answer_for_each_lead else false, value='true', size='12', 
+            labeltag="Lead/Contract Form", id='answer_each_'+rule.id|string, label='This form should be answered again for a new lead/contract of an existing client', selector_class='lead_contract_input', value_false=none, tooltip='The previous answer to the form will still be accessible though the form history menu.') }}
+            {{forms.select('forms[][offers]', [rule.offers, 'id', 'name']|dictMapper, type='number', size=12, label="Pick the offers for which the form will show", labeltag="Restrict form to the following specific offers", values=[rule.offers, 'id']|dictListMapper, max_answers=1000, id='offers_'+rule.id|string, selector_class='offers_'+rule.id|string+' hiddenform' if not rule.offers else '', ajax_url=url_for('offers.list_offers_select2'))}}
+        </div>
+    </div>
+</div {{ ui.card_end() }}>
+{% endmacro %}
+
+
+{% macro rule_card_template(offer_types) %}
+<div class="form-template hide">
+    <div {{ ui.card_start(class='form-card') }}>
+        <input class="form_id" type="hidden" name="forms[][id]" value="FORM_ID">
+        <div style="width: 100%;">
+            {{ ui.icon('drag_indicator', color='lightgrey', style="cursor: move;") }}
+            <a href="{{ url_for('forms_blueprint.view_form', form_id=0) }}FORM_ID" 
+                style="font-size: 2em;" {{ ui.tooltip_code('Edit Form' )}}>{{ ui.icon('FORM_ICON') }} FORM_NAME</a>
+            {{ ui.button(uicon='delete', type='tiny-action', class='float-end', action='remove_form(this);')}}
+            <div class="row">
+                {{forms.select('forms[][status]', {1: 'Required', 2: 'Optional (always shown)', 3: 'Optional (show if present)'},
+                label="Choose form visibility...", type="number", size=4, value=1, id='status_FORM_ID', labeltag="Visibility", required=true)}}
+                {{forms.select('forms[][scope]', {}, type="number", label="Choose scope...", size=4, value='', id='scope_FORM_ID', labeltag="Scope", required=true, class="scope-select")}}
+                {{forms.select('forms[][offer_type]', offer_types, type="string", label="All offer types", labeltag="Offer type restriction", size=4, 
+                    value='', id='offer_type_FORM_ID', onchange="selectToggleFormsMap(this, 'value', {'specific': '.offers_FORM_ID'})")}}
+                {{ forms.checkbox('forms[][answer_for_each_lead]:boolean', checked='', size='12', id='answer_each_FORM_ID',
+                    labeltag="Lead/Contract Form", label='This form should be answered again for a new lead/contract of an existing client', selector_class='lead_contract_input', value_false=none, tooltip='The previous answer to the form will still be accessible though the form history menu.') }}
+                {{forms.select('forms[][offers]', offers, type='number', size=12, label="Pick the offers for which the form will show", labeltag="Restrict form to the following specific offers", values=[], max_answers=1000, source='offers', id='offers_FORM_ID', selector_class='offers_FORM_ID')}}
+            </div>
+        </div>
+    </div {{ ui.card_end() }}>
+</div>
+{% endmacro %}
+
+
+{% macro add_rule_modal(forms_select) %}
+<div {{ ui.modal_start('add-form-modal', 'Add Form') }}>
+    <div class="modal-body">
+        <form class="novalidate">
+        {{ forms.searchable_select('add_form_select', choices=forms_select, translate=false, required=true) }}
+        </form>
+    </div>
+    <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        <button type="button" class="btn btn-danger add-form-button" data-bs-dismiss="modal">Add</button>
+    </div>
+</div {{ ui.modal_end() }}>
+{% endmacro %}

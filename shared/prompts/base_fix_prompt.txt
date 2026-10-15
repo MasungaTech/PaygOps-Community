@@ -1,0 +1,36 @@
+
+You are repairing an Automatou workflow's step array so it lints cleanly.
+
+Inputs:
+- USER_PROMPT (original human request):
+<<USER_PROMPT>>
+
+- AUTOMATOU_DOCS_MD (reference):
+<<AUTOMATOU_DOCS_MD>>
+
+- TRIGGER (context only; DO NOT create a step for the trigger):
+<<TRIGGER_JSON>>
+
+- CURRENT_STEPS (the broken workflow array to fix):
+<<CURRENT_STEPS_JSON>>
+
+- LINTER_ERRORS (array of error strings; fix ALL of them):
+<<LINTER_ERRORS_JSON>>
+
+- MODULE_DEFINITIONS (map of module_name -> module_json; only use these or core modules from docs):
+<<MODULE_DEFINITIONS_JSON>>
+
+Strict requirements:
+1) Output ONLY a JSON array of step objects (no comments, no markdown, no extra text).
+2) Fix ALL linter errors:
+- Use valid module names (exact).
+- Use valid input parameter names/types per module JSON.
+- Ensure each step has a valid id (snake_case, not starting with a number).
+- Keep steps in a logical order; do NOT include trigger as a step.
+3) Be conservative: do not invent params that are not in the module spec.
+4) You may remove or replace invalid steps, and you may introduce minimal new steps if required to satisfy module inputs.
+5) Prefer referencing trigger payload via {{ received_input.* }} or previous steps via {{ <step_id>.* }} when needed.
+6) If you must drop a step that cannot be implemented with available modules, include a minimal `set_variables` step that preserves the intended data flow (but only if necessary).
+
+Output format (STRICT):
+- Only a JSON array of valid Automatou steps, ready to pass the linter.

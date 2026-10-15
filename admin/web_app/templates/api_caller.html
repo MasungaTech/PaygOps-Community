@@ -1,0 +1,113 @@
+{% extends "macros/base.html" %}
+{% import 'macros/form_macros.html' as forms with context %}
+{% import 'macros/general_macros.html' as ui with context %}
+
+{% block title %}{{ ftext('Bulk Actions') }}{% endblock %}
+{% block page_title %}{{ ui.page_title('Admin', 'Bulk Actions') }}{% endblock %}
+
+{% block content %}
+    {% if task.status %}
+        <div id="task_status_wrapper" class="mt-2">
+            <div {{ ui.card_start() }}>
+            {{ ui.indeterminate_progress() }}
+            </div {{ ui.card_end() }}>      
+        </div>
+    {% else %}
+    <div {{ ui.card_start(title='Bulk Actions', uicon='upload') }}>
+        <form id="csv_file_form" class="row" action="{{ url_for('admin.api_caller', uuid=task.uuid) }}" method="POST" enctype="multipart/form-data">
+
+            {{ ui.info_card(type='info', text='This tool allows you to do any action available via API in bulk with data imported from a CSV file. To start, select the action you want to execute. ', in_card=true)}}
+            {{ forms.select('action', actions, value=action,  labeltag="Select Action", size="size", required=true, onchange="updatedAction(this)", class="nochangeonload" if subaction else none) }}
+            {% for a, subactions in subactions.items() %}
+                {{ forms.select('subaction', subactions, value=subaction, size_id="subactions_"+a, labeltag="Select sub-action", size="size subactions " + ("hiddenform" if a != action else ''), required=false, onchange="updatedSubaction(this)", id='subaction_'+a, class="nochangeonload" if not subaction or a != action else none) }}
+            {% endfor %}
+            <div class="{{ui.col_size(12)}} mt-4">
+                <div id="documentation">Select an action to see more details.</div>
+                {{ftext('<b>Important:</b><ul><li>The file must contain a first row of headers. Note that the names of the headers should correspond to one of the possible columns.</li><li>If you are editing an object, remove all the columns that are not going to be edited. If the column is present but values are not provided, that property will be removed or set to empty.</li></ul>')}}
+            </div>
+            <div class="{% if not action %}hiddenform{% endif %} row" id="csv_fields">
+            {{ forms.input('csv_file', 'CSV File', required=true, type='file', size=6)}}
+            <input type="hidden" name="headers" value="true" />
+            {{ forms.checkbox(
+                'unordered',
+                checked=true,
+                value='true',
+                id="unorderedCheckbox",
+                size=6,
+                labeltag='Order is not important (faster)',
+                label='Process rows in parallel (faster); order is not guaranteed'
+            ) }}
+            {{ forms.button('Preview', size=6, center=true, fit=true, inline=true, type='action')}}
+            </div>
+        </form>
+    </div {{ ui.card_end() }}> 
+    {% endif %}
+{% endblock %}
+
+{% block scripts %}
+    <script>
+        {% if task.status %}
+        $(document).ready(function() {
+            $('#task_status_wrapper').load("{{ url_for('admin.add_bulk_status', uuid=task.uuid, action=action, subaction=subaction) }}");
+        });
+        {%endif%}
+
+        let action = '{{action}}';
+        let subaction = '{{subaction}}';
+        const baseFormAction = "{{ url_for('admin.api_caller', uuid=task.uuid) }}";
+
+        function setFormAction() {
+            let query = '';
+            if (action) {
+                query = '?action=' + encodeURIComponent(action);
+                if (subaction) {
+                    query += '&subaction=' + encodeURIComponent(subaction);
+                }
+            }
+            $('#csv_file_form').attr('action', baseFormAction + query);
+        }
+
+        function updatedAction(el) {
+            const newAction = $(el).val();
+            if (newAction && action != newAction) {
+                action = newAction;
+                // Reset subaction when action changes
+                subaction = '';
+                history.pushState({ action: action}, '', action ? "?action="+action : '');
+            }
+            if (newAction) {
+                $('#documentation').load("{{ url_for('admin.api_caller_docs', action='') }}"+action);
+                hideForm(".subactions")
+                showForm("#csv_fields, #subactions_"+action)
+            } else {
+                hideForm("#csv_fields, .subactions")
+            }
+            setFormAction();
+        }
+
+        function updatedSubaction(el) {
+            const newSubaction = $(el).val();
+            if (newSubaction && newSubaction != subaction) {
+                subaction = newSubaction;
+                history.pushState(
+                    { action: action, subaction: newSubaction},
+                    '',
+                    subaction ? "?action="+action+"&subaction="+subaction : ''
+                );
+            };
+            if (!action) return;
+            if (newSubaction) {
+                $('#documentation').load("{{ url_for('admin.api_caller_docs', action='') }}"+action+":"+subaction);
+            } else {
+                $('#documentation').load("{{ url_for('admin.api_caller_docs', action='') }}"+action);
+            }
+            setFormAction();
+        }
+
+        // Initialize form action on load
+        $(document).ready(function() {
+            setFormAction();
+        });
+
+    </script>
+{% endblock %}

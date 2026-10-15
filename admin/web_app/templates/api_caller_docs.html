@@ -1,0 +1,73 @@
+{% macro example(ex, type) -%}
+{%- if type == 'array' -%}
+"{{ex|join(",")}}" (<b>*Quotes are needed, but some editors like Excel already include it when editing a cell content.</b>)
+{%- else -%}{{ex}}
+{%-endif-%}
+{%- endmacro %}
+{% macro properties_description(properties, restricted, generators, required=[]) %}
+{% for prop, data in properties.items() %}
+{% if not data.get('deprecated') and (not restricted or prop in restricted) and prop not in generators %}
+<li>
+    {% if data.get('type') == 'object' or (data.get('type') == 'array' and ('items' in data and data['items'].get('type') == 'object')) %}
+    <s><b>{{prop}}</b></s>: Not available via Bulk Actions, if you need to use it please use API directly.
+    {% else %}
+    <b>{{prop}}</b>{{'*' if prop in (docs['requestBody']['schema'].get('required', []) + required) else ''}}:
+    {{data['description']}} ({{data.get('type', 'string')}}).
+    {% if data.get('enum') -%}<em>Options</em>: {{data['enum']|join(", ")}}
+    {%- else -%}<em>Example</em>: {{example(data['example'], data.get('type'))}}{%- endif -%}
+    {%- if data.get('default') %}. <em>Default</em>: {{data['default']}} {%endif%}
+    {% endif %}
+</li>
+{% endif %}
+{% endfor %}
+{% endmacro %}
+{% set restricted = docs['subaction']['properties'] if 'subaction' in docs else {} %}
+{% set extra_required = docs['subaction'].get('required', []) if 'subaction' in docs else [] %}
+{% if 'subaction' in docs %}
+<h4>{{docs['subaction']['description']}}</h4>
+{% set permissions = docs['subaction'].get('permissions', docs['permissions']) %}
+{% if permissions %}
+<p>
+For this action you need at least one of the following permissions: <b>{{permissions|map("permission_spacer")|join(", ")}}</b>
+</p>
+{%endif%}
+{% else %}
+<h4>{{docs['description']}}</h4>
+{% if docs['permissions']%}
+<p>
+For this action you need at least one of the following permissions: <b>{{docs['permissions']|map("permission_spacer")|join(", ")}}</b>
+</p>
+{%endif%}
+{%endif%}
+<p>
+The CSV file can have some or all of the following columns (marked with * the ones that are required):
+<ul>
+{% if docs['parameters'] %}
+{% for prop in docs['parameters'] %}
+{% if prop['name'] not in docs['generators'] %}
+<li><b>{{prop['name']}}</b>{{'*' if prop['required'] else ''}}: {{prop['description']}} ({{prop['schema']['type']}}). <em>Example:</em> {{prop['example']}}</li>
+{%endif%}
+{% endfor %}
+{% endif %}
+{% if docs['requestBody'] and docs['requestBody']['schema'].get('properties') %}
+{{properties_description(docs['requestBody']['schema']['properties'], restricted, docs['generators'], extra_required)}}
+{% endif %}
+</ul>
+</p>
+{% if docs['requestBody'] and docs['requestBody']['schema'].get('oneOf') %}
+    <p>
+    In addition, one of the following formats is allowed for the rest of the columns:
+    </p>
+    {% for option in docs['requestBody']['schema']['oneOf'] %}
+    <b>Option {{loop.index}}: {{option.get('title')}}</b>:<br />
+    <ul>
+    {{properties_description(option['properties'], restricted, docs['generators'])}}
+    </ul>
+    You can download a CSV Template for Option {{loop.index}} <a href="{{url_for('admin.api_caller_csv_template', action=action)}}-{{loop.index}}">here</a>.
+    </p>
+    {%endfor%}
+{% else %}
+<p>
+You can download a CSV Template <a href="{{url_for('admin.api_caller_csv_template', action=action)}}">here</a>
+</p>
+{% endif %}

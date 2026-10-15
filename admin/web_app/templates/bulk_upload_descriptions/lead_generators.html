@@ -1,0 +1,28 @@
+{{ ftext('<p>This section is used to upload a list of lead generators with a CSV file. Once the list is uploaded all lead generators will be added to the platform. </p>
+
+<p>Before uploading the CSV file, lead generator types must be set up on the Platform.</p>
+
+<p>The file should be a CSV using "," as a delimiter.  </p>
+
+<p> Here are 2 options to upload a list of lead generators. </p>
+
+<strong> Option 1: </strong>
+
+<p> If you already have users on the platform it is possible to create a lead generator from an existing user. The CSV File should include a first line of headers with: User ID & Lead Generator Type. </p>
+
+
+<p> A template can be downloaded <a href="{}?version={}">here.</a></p>
+
+<p> <strong>Option 2:</strong> </p>
+
+<p> If you do not have users set up on the platform. The file should include a first line of headers with the data in the order found in the template. </p>
+
+
+<p> A template can be downloaded <a href="{}?version={}">here.</a></p>
+
+<p>
+    <strong>Please note:</strong>
+    <br> - Mandatory fields are: First Name, Surname & Lead Generator Type
+    <br> - Phone numbers should be delimited using ‘;’ and the first should be the preferred one
+    <br> - Gender can either be Male or Female
+</p>', url_for('lead_generator.static', filename='LeadgeneratorsbulkUploadTemplateOption1.csv'), COMMIT_SHA, url_for('lead_generator.static', filename='LeadgeneratorsbulkUploadTemplateOption2.csv'), COMMIT_SHA, novar=true) }}

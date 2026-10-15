@@ -1,0 +1,26 @@
+name: GHCR Stats
+
+on:
+  workflow_dispatch: # to debug via triggering the workflow manually.
+  schedule:
+    - cron: '0 0 * * *' # run job daily, I'd suggest not setting the interval too narrow, to avoid abusing GitHub resources.
+
+jobs:
+  ghcr-stats:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # generate the stats file.
+      - uses: actionstore/ghcr-stats@v1
+        with:
+          owner: MasungaTech # repository owner, required.
+          repo: PaygOps-Community # repository name, required.
+          name: paygops-community # package name, required.
+          path: ghcr-stats.json
+      
+      # commit the stats file.
+      - uses: EndBug/add-and-commit@v9
+        with:
+          add: ghcr-stats.json # MUST be same as the `path` of `actionstore/ghcr-stats` action.
+          message: 'chore: update GHCR stats [skip ci]' # `[skip ci]` to avoid triggering other workflows.

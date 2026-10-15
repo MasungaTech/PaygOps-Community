@@ -1,0 +1,25 @@
+{% extends "macros/base.html" %}
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'macros/form_macros.html' as forms with context %}
+{% import 'person_macros.html' as person_macros with context %}
+
+{% set level_name = OPERATIONAL_ENTITIES_CONFIG[entity.level]['name'] %}
+
+{% block title %}{{ ftext('Merge another {} into {}', level_name, entity.name, novar=true) }}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('operational_entities_l'+entity.level|string, 'Merge', object=entity, display_name=level_name) }} {% endblock %}
+
+{% block content %}
+<div {{ ui.card_start() }}>
+    {{ ui.info_card(uicon='warning', text=ftext('The objects (clients, users, stock items, notifications, etc.) from this {} will be merged into {}. <br>
+    <strong>Important: </strong> If a user already had a role in the current entity, it will prevail over role they had in the selected entity during the merge. <br>
+    <strong>The selected {} will then BE DELETED FOREVER.', level_name, entity.name, level_name)) }}
+    <form class="row card-row">
+        {{ forms.select(name='origin_entity_id:number', choices=entities, source='entities', labeltag=ftext('Source {}', level_name), uicon=OperationalEntitiesHelper.get_icon(entity.level), size=6) }}
+
+        {{ ui.button(uicon='merge', label=ftext('Merge {}', level_name), type='action', fit=true, size=6, inline=true,
+            action='async_post', async_url='/entities/'+entity.id|string+'/merge', success_message=ftext('{} merged!', level_name), 
+            redirect_url='/entities/', redirect_append='id') }}
+    </form>
+</div {{ ui.card_end() }}>
+{% endblock %}

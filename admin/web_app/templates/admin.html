@@ -1,0 +1,77 @@
+{% extends "macros/base.html" %}
+{% import 'macros/general_macros.html' as ui with context %}
+
+{% block title %}{{ ftext('Admin') }}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('Admin', 'Home') }}{% endblock %}
+
+{% block content %}
+
+<section class="section">
+    {{ ui.divider('Data') }}
+    <div class="row">
+        {{ ui.big_button('data_export', 'Data Exports', url_for('admin.data_exports'), subtext='To download key data from the platforms (clients, contracts, payments, etc.) in CSV format. ') }}
+        {{ ui.big_button('analytical_db', 'Analytical DB', url_for('admin.analytical_db'), premium=true, subtext='To get instructions to access to the Analytical DB through different method (remote, download, etc.). ') }}
+
+        {% if config.ENABLE_ENTERPRISE_FEATURES and current_user.can_access('ViewBillingAdmin') %}
+            {{ ui.big_button('billing', 'Billing', url_for('admin.billing'), subtext='To view past and current bills with the details of what you are being billed. ') }}
+        {% endif %}
+        {% if current_user.can_access(['ViewActivityLogAdmin', 'SuperAdmin']) %}
+            {{ ui.big_button('activity_log', 'Audit Log', url_for('admin.audit_log'), premium=true, subtext='To consult and search through the history of actions done by different users on the platform.') }}
+        {% endif %}
+    </div>
+</section>
+
+<section class="section">
+    {{ ui.divider('Tools') }}
+    <div class="row">
+        {% if current_user.can_access_in_any('AddOutgoingMessages') %}
+            {{ ui.big_button('communication', 'Communication Campaigns', url_for('admin.communication_campaigns'), subtext='To send messages to many client/leads at once following specific criterias (e.g. specific status, region, etc.)') }}
+        {% endif %}
+        {{ ui.big_button('phone', 'Phone Number Finder', url_for('phone_numbers.search_phone_numbers'), subtext='To find out who a phone number belongs to. Particularly useful for finding someone calling the call center.') }}
+        {{ ui.big_button('device', 'Owned Devices Sync', url_for('admin.sync_owned_devices_route'), subtext='To synchronise devices that were recently assigned to your account on a device cloud by a manufacturer. ') }}
+        {% if current_user.can_access('ViewSettingsInterfaceAdmin') %}
+            {{ ui.big_button('hierarchy', 'Hierarchy View', url_for('admin.view_full_hierarchy'), subtext='To visualize the hierarchy of the operational entities you have setup on your platform. ') }}
+        {% endif %}
+    </div>
+</section>
+
+<section class="section">
+    {{ ui.divider('Developers') }}
+    <div class="row">
+        {% if current_user.can_access('CreateAPITokenAdmin') %}
+            {{ ui.big_button('key', 'API Keys', url_for('api_system.create_token'), subtext='To create API tokens for use with 3rd party applications. Refer to the API documentation for how to use the generated keys. ') }}
+            {{ ui.big_button('api', 'API Documentation', url_for('admin.api_docs'), subtext='To view the detailed API documentation, full with examples and explanations. ', target='_blank') }}
+        {% endif %}
+        {% if current_user.can_access('APICallerAdmin') %}
+            {{ ui.big_button('upload', 'Bulk Actions', url_for('admin.api_caller'), subtext='To make bulk API calls. Select an API endpoint and upload a CSV file with the data. ') }}
+        {% endif %}
+        {% if current_user.can_access(['ViewActivityLogAdmin', 'SuperAdmin']) %}
+            {{ ui.big_button('activity_log', 'Access Log', url_for('admin.access_log'), premium=true, subtext='To download access logs for troubleshooting issues when integrating with the PaygOps API. ') }}
+            {{ ui.big_button('webhook', 'Webhook Log', url_for('admin.webhook_log'), premium=true, subtext='To download webhook logs for troubleshooting issues when integrating with the PaygOps API. ') }}
+        {% endif %}
+        {% if current_user.can_access('CreateAPITokenAdmin') %}
+            {{ ui.big_button('webhook', 'Webhook Manager', url_for('admin.webhooks'), premium=true, subtext='To manage webhook and 3rd party integrations. ') }}
+        {% endif %}
+        {% if config.ENABLE_ENTERPRISE_FEATURES and (current_user.can_access('ConfigurePackageInstallerAdmin') and GlobalSetting('FeatureToggles').get('PackageInstaller', false) or current_user.can_access('SuperAdmin')) %}
+            {{ ui.big_button('upload_file', 'Package Installer', url_for('admin.package_installer'), subtext='To install PaygOps packages (.pgapp files) containing forms, settings, and other configurations. ', premium=true, beta=true) }}
+        {% endif %}
+    </div>
+</section>
+
+
+{% if current_user.can_access('SuperAdmin') %}
+<section class="section">
+    {{ ui.divider('Advanced') }}
+    <div class="row">
+        {{ ui.big_button('move_entities_up', 'Hierarchy Adjustment Tool', url_for('admin.entity_level_adjustment_tool'), subtext='To bulk edit operational entities when adding or removing operational entity levels. ') }}
+        {{ ui.big_button('task', 'Task Manager', url_for('admin.tasks_queue'), subtext='To launch specific tasks as well as check the status and running time of currently running tasks. ') }}
+        {% if test_mode %}
+            {{ ui.big_button('bug_report', 'Test Menu', url_for('admin.menu_testing'), subtext='To perform testing tasks (it should only be used on test platforms). ') }}
+        {% endif %}
+    </div>
+</section>
+{% endif %}
+
+
+{% endblock %}

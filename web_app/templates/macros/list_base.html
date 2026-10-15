@@ -1,0 +1,37 @@
+{% extends "macros/base.html" %}
+{% import 'macros/pagination.html' as pagination_nav with context %}
+
+{% block content %}
+  {{ super() }}
+  {% block header %}{% endblock %}
+  <div class="card">
+    <div class="table-responsive pt-3">
+      {% block table %}{% endblock %}
+      <hr class="mt-0">
+      <div class="row mx-2 mt-2">
+        {{ pagination_nav.render_pagination(pagination) }}
+      </div>
+    </div>
+  </div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+$(document).ready(function(){
+  $('#filter_form_v2').validate();
+  $('#filter_form_v2 select:not(.category_selector), #filter_form_v2 .datepicker').change(function () {
+    //$(this).parents('form').submit();
+  });
+  $('#filter_form_v2').submit(function (e) {
+    e.preventDefault();
+    $('#filter_form_v2').validate();
+    if($('#filter_form_v2').valid()) {
+      changeQueryParameters($(this).serializeJSON());
+    }
+    e.preventDefault();
+    return false;
+  });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,64 @@
+{% extends "macros/list_base.html" %}
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'macros/form_macros.html' as forms with context %}
+{% import 'macros/filter_macros.html' as filter with context %}
+
+{% block title %}{{ ftext('User Requests List') }}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('User Requests', 'List') }}{% endblock %}
+
+{% block page_actions %}
+    <ul class="nav nav-pills" role="tablist">
+        <li class="nav-item me-2">
+            {{ ui.button('User', uicon='user', type='tab', class='active', link=url_for('mentor_request.list_request', view=view, client_id=client_id)) }}
+        </li>
+        <li class="nav-item">
+            {{ ui.button('Tokens', uicon='token', type='tab', link=url_for('mentor_request.token_list', view=view, client_id=client_id)) }}
+        </li>
+    </ul>
+    {{ui.button(link=url_for('mentor_request.direct_request'), uicon='send', label='Send Request', tooltip='Send User Request', permission='ViewActions', type='header-action')}}
+{% endblock %}
+
+{% block header %}
+    {{ filter.entities_navigation_filter(entity) }}
+    <div {{ ui.collapsible_card_start(title='Filters', uicon='filter', icon_color='', active=(timeFilter != timeDefault)) }}>
+    <form id="filter_form_v2" action="" method="get" class="row">
+        {{ filter.time_filter(timeFilter, default=timeDefault) }}
+        {{ filter.filter_buttons() }}
+    </form>
+    </div {{ ui.collapsible_card_end() }}>
+{% endblock %}
+
+{% block table %}
+<table {{ ui.table_start(pagination) }}>
+    <thead>
+        <tr>
+            {{ ui.sortable_header('id', 'ID', pagination=pagination, class='ps-4') }}
+            {{ ui.sortable_header('reception_time', 'Received', pagination=pagination) }}
+            {{ ui.sortable_header('type', 'Type', pagination=pagination) }}
+            {{ ui.sortable_header('activation_days', 'Credit', pagination=pagination) }}
+            {{ ui.sortable_header('agent', 'User', pagination=pagination) }}
+            {{ ui.sortable_header('client', 'Client', pagination=pagination) }}
+            {{ ui.sortable_header('device', 'Device', pagination=pagination, class='pe-3') }}
+        </tr>
+    </thead>
+    <tbody>
+    {% for R in pagination.objects %}
+    <tr>
+        <td class="ps-4">
+            <a href="{{ url_for('mentor_request.view_mentor_requests', request_id=R.id) }}">
+                {{ R.id }}
+            </a>
+        </td>
+        <td>{{ ui.datetime(R.ReceptionTime) }}</td>
+        <td>{{ ftext(R.Type) }}</td>
+        <td>{{ ftext('{} days', R.ActivationTimeAddedInDays) if R.ActivationTimeAddedInDays else '-' }}</td>
+        <td class="truncate-hoverable">{{ ui.user_link(R.user) }}</td>
+        <td class="truncate-hoverable">{{ ui.client_link(R.client) }}</td>
+        <td class="truncate-hoverable pe-3">{{ ui.device_link(R.Device) }}</td>
+    </tr>
+    {% else %}{{ui.no_results_row(7, 'No Token Requests with the selected filters.')}}
+    {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

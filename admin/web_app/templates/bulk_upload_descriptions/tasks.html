@@ -1,0 +1,19 @@
+{{ ftext('
+<p>This section is used to upload a list of tasks with a CSV file. Once the list is uploaded all tasks will be added to the platform. </p>
+
+<p>Before uploading the CSV file, task_type and users must be set up on the platform.</p>
+
+<p>The file should be a CSV using "," as a delimiter. It should include a first line of headers with the data in the following order: <br>
+
+<br>Task Name, Notes, Deadline, Task Type ID, Assignee <br><br>
+
+<p> A template can be downloaded <a href="{}?version={}">here.</a></p>
+
+<p>
+    <strong>Please note:</strong>
+    <br> - Mandatory fields are: Deadline, Task Type ID, Assignee.
+    <br> - The Asignee column can only accept Integer values which is the id of an existing user.
+    <br> - Format of the deadline date should be: YYYY-MM-DD HH:MM
+    <br> - Notes and Task Name Should be Text
+    <br> - The Task Type ID can only accept Integer values which is the id of an existing Task Type.
+</p>', url_for('task_type.static', filename='TasksbulkUploadTemplate.csv'), COMMIT_SHA, novar=true) }}

@@ -1,0 +1,21 @@
+{% extends "macros/base.html" %}
+{% import 'macros/form_macros.html' as forms with context %}
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'custom_forms_macros.html' as custom_forms with context %}
+
+{% block title %}{{ ftext('Preview Form') }}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('Forms', 'Preview', object=form, object_name=(ui.icon(form.icon, 'inline-icon') if form.icon else '')+' '+form.name) }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="{{ui.col_size(2)}}"></div>
+    <div class="{{ui.col_size(8)}}">
+        {{ custom_forms.custom_form_edit_card(version, is_required=false, active=true, preview=true) }}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+    {# Your JS scripts here (if any) #}
+{% endblock %}

@@ -1,0 +1,30 @@
+<div {{ ui.card_start(title='Bulk Upload Analysis Summary', uicon='cloud_upload', body_class='table-responsive mb-2') }}>
+    <div class="{{ ui.col_size(8) }}">
+
+        {{ ui.info_card(text=ftext('Total {} found: <b>{}</b>', object_name, analysis[total_var])+(ftext(' (<b>{}</b> of them correct)', analysis[correct_var]) if analysis['errors'] else ''), uicon='info', color='secondary', class='mt-3 mb-2', in_card=true) }}
+        
+        <table {{ ui.table_start() }}>
+            {% block table %}{% endblock %}
+        </table>
+    {% if analysis['errors'] %}
+        <div class="mt-3">
+            <h6>{{ ftext('The following {} will not be imported due to the following issues:', object_name) }}</h6>
+            {% for error in analysis['errors'] %}
+            - {{ ftext('{} <b>#{}</b>: {}<br>', object_name.capitalize(), error, analysis['errors'][error]) }}
+            {%endfor%}
+        </div>
+    {% endif %}
+    </div>
+    <div class="{{ ui.col_size(4) }}">
+    <form method="POST" class="d-inline">
+        <input type="hidden" name="cancel" value="true" />
+        {{forms.button('Retry' if analysis['errors'] else 'Discard file', class='my-1', type='action', disabled=false)}}
+    </form>
+    {% if analysis[correct_var] != 0 %}
+    <form method="POST" class="d-inline">
+        <input type="hidden" name="process" value="true" />
+        {{forms.button('Execute anyway' if analysis['errors'] else 'Execute', class='my-1', type='action', disabled=false)}}
+    </form>
+    {%endif%}
+    </div>
+</div {{ ui.card_end() }}> 

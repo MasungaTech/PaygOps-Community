@@ -1,0 +1,172 @@
+{% extends "macros/list_base.html" %}
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'macros/form_macros.html' as forms with context %}
+{% import 'macros/filter_macros.html' as filter with context %}
+{% import 'send_message_modal.html' as send_messages_modal with context %}
+
+{% block title %}{{ ftext('Messages List') }}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('Messages','List') }}{% endblock %}
+
+{% block page_actions %}
+    {{ ui.button(   label="Send Message", 
+                    modal='send-message', 
+                    uicon='send', 
+                    tooltip='Send Message', 
+                    permission='AddOutgoingMessages', 
+                    type='header-action') 
+    }}
+{% endblock %}
+
+{% block header %}
+    <!-- Sent and Received SMS Filter -->
+    <div class="row mb-4">
+        {{ ui.button(   id='sent-messages-btn',
+                        label='Sent', 
+                        type='action-grey' if inoutFilter == 'in' else '', 
+                        fit=true, 
+                        size=6, 
+                        disabled=false,
+                        action="filterInOutMessages('out')")
+        }}
+        {{ ui.button(   id='received-messages-btn',
+                        label='Received', 
+                        type='action-grey' if inoutFilter == 'out' else '', 
+                        fit=true, 
+                        size=6, 
+                        disabled=false,
+                        action="filterInOutMessages('in')")
+        }}
+    </div>
+    <!-- / Sent and Received SMS Filter -->
+
+    <div {{ ui.collapsible_card_start(title='Filters', uicon='filter', icon_color='', active=true) }}>
+    <form id="filter_form_v2" action="" method="get" class="row">
+        {{forms.input(
+            'search',
+            label='Search',
+            value=search,
+            size=4,
+            placeholder=ftext("Search by clients or leads"),
+            translate_placeholder=false,
+            icon='info'
+        )}}
+        {{ forms.select('scope_filter', 
+            choices={
+                'all': 'All messages (global)',
+                'clients_only': 'Client messages only', 
+                'leads_only': 'Leads messages only', 
+                'users_only': 'User messages only', 
+                'orphaned': 'Orphaned messages (global)'
+            }, 
+            labeltag='Filter by Sender' if inoutFilter == 'in' else 'Filter by Receiver', 
+            value=scopeFilter, 
+            size=4, 
+            onchange="selectToggleFormsMap(this, 'value', {'clients_only': '.clients_only', 'users_only': '.users_only', 'leads_only': '.leads_only'})"
+        ) }}    
+        {{ forms.input('from_date', 'From Date', type='datetimepicker',
+            uicon='date', size=4, value=from_date) }}
+        {{ forms.input('to_date', 'To Date', type='datetimepicker',
+            uicon='date', size=4, value=to_date) }}
+        {{ forms.select('status_filter', choices=SMS_STATUS_MAP_SHORT, labeltag='Filter by Status', value=status_filter, size=4, clearable=true, visible=inoutFilter == 'out') }}
+        {{ forms.select('client_id', client_id, value=client.id if client else none, labeltag='Filter by Client', source='client_id', size=6, size_class='mt-1 clients_only')}}
+        {{ forms.select('lead_id', lead_id, value=lead.id if lead else none, labeltag='Filter by Lead', source='lead_id', size=6, size_class='mt-1 leads_only')}}
+        {{ forms.select('user_id', user_id, value=user.id if user else none, labeltag='Filter by User', source='user_id', size=6, size_class='mt-1 users_only')}}
+        {{ forms.select('sender_type', 
+                        choices=SENDER_USER_TYPES, 
+                        labeltag='Sender Type', 
+                        value=sender_type, 
+                        size=4, 
+                        clearable=true, 
+                        visible=inoutFilter == 'out',
+                        onchange="selectToggleFormsMap(this, 'value', {'automation': '.automation', 'manually_sent': '.manually_sent'})"
+        ) }}
+        {{ forms.select('sender_user_id', 
+                        sender_user_id,
+                        value=sender_user.id if sender_user else none, 
+                        labeltag='Filter by Sender User', 
+                        source='sender_user_id', 
+                        size=6, 
+                        size_class='mt-1 manually_sent',
+                        visible=inoutFilter == 'out')
+        }}
+        <input name="inout_filter" type="text" value={{inoutFilter}} hidden="true"></input>
+        {{ filter.filter_buttons() }}
+    </form>
+    </div {{ ui.collapsible_card_end() }}>
+{% endblock %}
+
+{% block table %}
+<table {{ ui.table_start(pagination) }}>
+    <thead>
+    <tr>
+        {{ui.table_header('Time', class='ps-4')}}
+        {{ui.table_header('Sender' if inoutFilter == 'in' else 'Receiver')}}
+        {{ui.table_header('Message', class='pe-3')}}
+        {% if inoutFilter == 'out' %}
+            {{ui.table_header('', class='pe-3')}}
+            {{ui.table_header('Status', class='pe-3')}}
+            {{ui.table_header('Resend', class='pe-3')}}
+        {% endif %}
+    </tr>
+    </thead>
+    <tbody>
+        {% for message in pagination.objects %}
+        <tr>
+            {%- set M = message.to_standard() -%}
+            <th class="ps-4">
+                {{ ui.datetime(M.Time) }}
+            </th>
+            <th>
+                {%- set messagePerson = M.person -%}
+                {%- if messagePerson -%}
+                {%- if messagePerson.user -%}
+                {{ui.user_link(messagePerson.user)}}
+                {%- elif messagePerson.client -%}
+                {{ui.client_link(messagePerson.client)}}
+                {%- elif messagePerson.lead -%}
+                {{ui.lead_link(messagePerson.lead.select().first())}}
+                {%- elif messagePerson.leadGenerator -%}
+                {{ui.lead_generator_link(messagePerson.leadGenerator, link=false if is_custom_app else true)}}
+                {%- endif -%}<br>
+                {{ M.Number }}
+                {%- else -%}
+                {{ M.Number }}
+                {%- endif -%}
+            </th>
+            <td>{{ M.Body }}</td>
+            {% if inoutFilter == 'out' %}
+                <td>
+                    {{ ui.table_icon('person', color='blue', tooltip='Sent manually by %s : (ID: %d)' % (M.sending_user_object.full_name, M.sending_user_object.id)) 
+                        if M.sending_user_object 
+                        else ui.table_icon('smart_toy') }}
+                </td>
+                <td>{{ui.message_status(M.status, SMS_STATUS_MAP, SMS_STATUS_MAP_SHORT)}}</td>
+                <td class="pe-4">
+                    <form id="messages_resend" action="" method="POST">
+                        <input type=hidden name='body' value="{{ M.Body }}">
+                        <input type=hidden name='to_number' value="{{ M.Number }}">
+                        {{ ui.button(uicon='send', tooltip='Resend this SMS to the same phone number', action='async_post', disabled=false, type='card-action',
+                            async_url='/outgoing_messages', success_message='Message resent', success_action='message', permission='ViewMessages') }}
+                    </form>
+                </td>
+            {% endif %}
+        </tr>
+        {% endfor %}
+    </tbody>
+    <tfoot></tfoot>
+</table>
+
+{{ send_messages_modal.send_message_macro() }}
+{% endblock %}
+
+{% block scripts %}
+    <script>
+        function filterInOutMessages(direction) {
+            setQueryParam('inout_filter', direction);
+            setTimeout(() => location.reload(), 300); 
+        }
+    </script>
+
+    {{ send_messages_modal.send_message_macro_scripts() }}
+{% endblock %}

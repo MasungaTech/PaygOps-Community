@@ -1,0 +1,220 @@
+{% extends 'macros/base.html' %}
+{% import 'macros/form_macros.html' as forms with context %}
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'question_macros.html' as questions with context %}
+
+{% block title %}{{ ftext('Edit Form: {}', form.name, novar=true) }}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('Forms', 'Edit', object=form, object_name=((ui.icon(form.icon, 'inline-icon') if form.icon else '')+' '+form.name)|notranslate) }}{% endblock %}
+
+{% block page_actions %}
+    {% if version %}
+        <button class="btn btn-danger dropdown-toggle ms-2" type="button" id="special-views-dropdown" data-trigger="hover" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+            {{ ui.icon('history', 'dropdown-button-icon') }} v{{version.version}}
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="special-views-dropdown">
+            {% for v in form.versions|sort(attribute="version", reverse=true) %}
+            <li>
+                <a class="dropdown-item d-flex align-items-center {%if v == version.version %}active{%endif%}" href="?version={{v.version}}">v{{v.version}} (ID: {{v.id}})</a>
+            </li>
+            {% endfor %}
+        </ul>
+    {% endif %}
+    {{ ui.button(uicon='edit', tooltip='Edit form name or icon', modal='edit-form-name-modal', type='header-action') }}
+    {%  if version %}
+    {{ ui.button(uicon='file_copy', tooltip='Create new form from this one (Duplicate)', action='duplicate_form('+version.id|string+')', type='header-action') }}
+    {{ ui.button(uicon='visibility', tooltip='Preview Form', type='header-action', link=url_for('forms_blueprint.preview_form', form_id=form.id)) }}
+    {{ ui.button(uicon='download', tooltip='Download as PaygOps package', type='header-action', link=url_for('forms_blueprint.download_form', form_version_id=version.id), visible=current_user.is_admin) }}
+    {% endif %}
+{% endblock %}
+
+{% block content %}
+{% if form.is_system %}{{ ui.info_card(uicon='warning', text='This form is a default form and cannot be edited. Please make a duplicate if you want to make changes.')}}{% endif %}
+<form id="edit-general-info" action="" class="row {% if not version %}hiddenform{% endif %}">
+{% set avail_tooltip = 'This only defines the availability. You will need to set it up in the {} settings page after this' %}
+{% set disabl_tooltip = 'Since this form is being used for {} already, you cannot disable this' %}
+{{ forms.checkbox('for_leads:boolean', checked=form.for_leads, size=4, onclick='saveInfo()', labeltag='Form Availability', class='nochangeonload', disabled=configured_for_leads, tooltip=ftext(disabl_tooltip, 'leads') if configured_for_leads else ftext(avail_tooltip, 'personal information'), label='Leads')}}
+{% if configured_for_leads %}<input name="for_leads:boolean" type="hidden" value="true"/>{% endif %}
+{{ forms.checkbox('for_clients:boolean', checked=form.for_clients, size=4, onclick='saveInfo()', labeltag='Form Availability', class='nochangeonload', disabled=configured_for_clients, tooltip=ftext(disabl_tooltip, 'clients') if configured_for_clients else ftext(avail_tooltip, 'personal information'), label='Clients')}}
+{% if configured_for_clients %}<input name="for_clients:boolean" type="hidden" value="true"/>{% endif %}
+{{ forms.checkbox('for_interactions:boolean', checked=form.for_interactions, size=4, onclick='saveInfo()', labeltag='Form Availability', class='nochangeonload', disabled=configured_for_interactions, tooltip=ftext(disabl_tooltip, 'interactions') if configured_for_interactions else ftext(avail_tooltip, 'after-sales'), label='Interactions')}}
+{% if configured_for_interactions %}<input name="for_interactions:boolean" type="hidden" value="true"/>{% endif %}
+{{ forms.checkbox('restrict_editing:boolean', checked=form.restrict_editing, size=4, onclick='saveInfo()', labeltag='Restricted Personal Details', class='nochangeonload', tooltip=ftext(disabl_tooltip, 'restricting editing of personal details'), label='Add to restricted personal details')}}
+</form>
+
+{% if not version or version.is_editable %}
+<div class="row mb-3">
+    {% set save_tip = 'Save as new version' if form.versions.count() > 1 else 'Save form' %} 
+    {{ ui.button(uicon='save', label=save_tip, size=3, fit=true, type='action', action='createVersion()', disabled=true, class='form-save-button') }}
+    {{ ui.button(uicon='undo', label='Undo changes', size=2, fit=true, type='action', action='undo()', disabled=true, class='undo-button') }}
+    {{ ui.button(uicon='add', label='Add Question', size=2, fit=true, modal='create-question-modal', type='action') }}
+    {{ ui.button(uicon='import', label='Import Question', size=2, fit=true, modal='import-question-modal', type='action') }}
+    {% set delete_tip = 'Delete version' if form.versions.count() > 1 else 'Delete form' %} 
+    {% set delete_disabled = true if version and (version.in_settings or version.answers.count() or form.is_system) else false %}
+    {{ ui.button(uicon='delete', label=delete_tip, disabled=delete_disabled, size=3, fit=true, type='action', action='delete_form('+form.id|string+')') }}
+</div>
+{% endif %}
+
+{{ ui.divider('Questions', small=true)}}
+
+<form id="version-form" class="mt-3">
+    <div class="questions-wrapper">
+    {% if version %}
+        {%- for oq in version.questions|sort(attribute="order") -%}
+            {% if oq.question.type != 0 %}
+                <div id="question-{{oq.question.id}}">
+                <div {{ ui.card_start(body_class='row', class='question-card') }}>
+                    <input type="hidden" name="questions[][question]" value="{{oq.question.id}}">
+                    <input type="hidden" class="order-input" name="questions[][order]" value="{{oq.order}}">
+                    {% if version.is_editable %}
+                        <div class="{{ ui.col_size(1) }} d-flex align-items-center" style="width: 3rem;">{{ ui.icon('drag_indicator', color='lightgrey', style="cursor: move;") }}</div>
+                    {%endif%}
+                    <div class="{{ui.col_size(11)}} question-content">
+                        {{ questions.view_question_info(oq.question, oq.minAnswers, oq.maxAnswers, freeze=(not version.is_editable), protected=oq.protected) }}
+                    </div>
+                </div {{ ui.card_end() }}>
+                </div>
+            {% endif %}
+        {% endfor %}
+    {% endif %}
+    </div>
+</form>
+
+{# edit name and icon modal #}
+<div {{ ui.modal_start('edit-form-name-modal', 'Edit Form Name or Icon') }}>
+    <form>
+        <div class="modal-body">
+            {{ ui.info_card(type='info', text='This change will affect all versions of the form.')}}
+            {{forms.input('name', value=form.name, label='Name')}}
+            {{forms.select_icon('icon', label='Icon', value=form.icon)}}
+        </div>
+        <div class="modal-footer">
+            {{ ui.modal_close_button() }}
+            {{ ui.button(uicon='save', label='Edit Form', type='action', action='async_patch', async_url='/forms/'+form.id|string) }}
+        </div>
+    </form>
+</div {{ ui.modal_end() }}>
+
+{# Import quesiton modal #}
+<div {{ ui.modal_start('import-question-modal', 'Import Existing Question') }}>
+    <form>
+        <div class="modal-body">
+            {{forms.select('add_question_select', choices=questions_select, translate=false)}}
+        </div>
+        <div class="modal-footer">
+            {{ ui.modal_close_button() }}
+            {{ ui.button(uicon='add', label='Add Question to Form', type='action', action='addQuestion()', form='create-question-form') }}
+        </div>
+    </form>
+</div {{ ui.modal_end() }}>
+
+<div {{ ui.modal_start('create-question-modal', 'Create New Question') }}>
+    <div class="modal-body">
+        {{questions.edit_question_form(types_dict=types_dict)}}
+    </div>
+    <div class="modal-footer">
+        {{ ui.modal_close_button() }}
+        {{ ui.button(uicon='add', label='Create New Question', type='action', action='async_post', async_url='/questions', success_action='createQuestionCallBack', form='create-question-form', disabled=false) }}
+    </div>
+</div {{ ui.modal_end() }}>
+
+<div {{ ui.modal_start('edit-question-modal', 'Edit Question') }}>
+    <div class="modal-body question-form-wrapper">
+        {# loaded html goes here #}
+    </div>
+    <div class="modal-footer">
+        {{ ui.modal_close_button() }}
+        {{ ui.button(uicon='edit', label='Edit Question', type='action', action='editQuestion(this)', disabled=false) }}
+    </div>
+</div {{ ui.modal_end() }}>
+
+{% endblock %}
+
+{% block scripts %}
+{{ questions.form_editor_scripts() }}
+{{ questions.ordered_question_scripts() }}
+
+<script>
+/* ---- questions ----*/
+function remove_question(el) {
+    $(el).parents('.question-card').remove()
+    refreshTooltips()
+    versionEdited()
+}
+
+function addQuestion(id) {
+    // We get the ID of the question
+    var qid = id || $('#add_question_select').find(':selected').val()
+    // We load the template and append it to the wrapper
+    var question_url = "{{url_for('forms_blueprint.view_question', question_id=888888)}}".replace('888888', qid)
+    $.get(question_url, function(qcontent) {
+        $('.questions-wrapper').append(qcontent)
+        // We update stuff
+        updateSortable();
+        refreshAllFormsElements();
+        versionEdited();
+        success_toast(PaygOps_LNG["QUESTION_ADDED"])
+        closeModal($('#import-question-modal'))
+    });
+}
+
+function createQuestionCallBack(result, callback_opts) {
+    resetForm($("#create-question-form"))
+    enableElement($(callback_opts.submit_button))
+    $("#create-question-form").find('.options-wrapper').each(function () {
+        $(this).html('');
+    });
+    addQuestion(result.id);
+    closeModal($("#create-question-modal"))
+}
+
+var editing_question_id;
+function loadQuestionToEdit(question_id) {
+    $('#edit-question-modal .question-form-wrapper').load("{{url_for('forms_blueprint.edit_question', question_id=0)}}".replace(0,question_id), function () {
+      editing_question_id=question_id
+      refreshAllFormsElements();
+      showModal($('#edit-question-modal'));
+    });
+}
+
+function editQuestionCallBack(result, callback_opts) {
+    resetForm($("#create-question-form"))
+    enableElement($(callback_opts.submit_button))
+    $("#create-question-form").find('.options-wrapper').each(function () {
+        $(this).html('');
+    });
+    var question_url = "{{url_for('forms_blueprint.view_question', question_id=888888)}}".replace('888888', callback_opts.editing_question_id)
+    $.get(question_url, function(qcontent) {
+        $('#question-'+callback_opts.editing_question_id).html(qcontent)
+        // We update stuff
+        updateSortable();
+        refreshAllFormsElements();
+        success_toast(PaygOps_LNG["QUESTION_EDITED"])
+        closeModal($("#edit-question-modal"))
+    });
+}
+
+function editQuestion(edit_button) {
+    $(edit_button).attr('form', 'edit'+editing_question_id+'-question-form');
+    SubmitForm(edit_button, '/questions/'+editing_question_id, {
+        "success_action": editQuestionCallBack,
+        "method": "PUT",
+        "callback_options": {"editing_question_id": editing_question_id, "submit_button": edit_button}
+    })
+}
+</script>
+
+<script>
+/* ---- General stuff ---- */
+$(document).ready(function () {
+    updateSortable();
+    refreshQuestionInputs();
+    $(".questions-wrapper input").change(versionEdited)
+    $(window).on('beforeunload', function(){
+        if (EDITED) {
+            return 'Your changes have not been saved. You still want to leave the page?';
+        }
+    });
+});
+</script>
+{% endblock %}

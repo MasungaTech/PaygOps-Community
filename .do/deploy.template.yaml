@@ -1,0 +1,331 @@
+spec:
+  name: paygops-community
+  region: nyc3
+  envs:
+    - key: SECRET_KEY
+      scope: RUN_TIME
+      type: SECRET
+    - key: INITIAL_ADMIN_EMAIL
+      scope: RUN_TIME
+    - key: INITIAL_ADMIN_PASSWORD
+      scope: RUN_TIME
+      type: SECRET
+  services:
+    - name: web
+      image:
+        registry_type: GHCR
+        registry: masungatech
+        repository: paygops-community
+        tag: latest
+      http_port: 8000
+      # Use /health, not /: the app root requires login and returns 302, which fails HTTP readiness checks.
+      health_check:
+        http_path: /health
+        initial_delay_seconds: 45
+        period_seconds: 10
+        timeout_seconds: 10
+        success_threshold: 1
+        failure_threshold: 9
+      routes:
+        - path: /
+      instance_count: 2
+      instance_size_slug: apps-s-1vcpu-2gb
+      run_command: bash -lc "mkdir -p /setup_data && touch /setup_data/ready && /crm/entrypoint.sh start_web_app"
+      envs:
+        - key: ENV_VAR
+          value: PROD
+        - key: MAIN_DB_NAME
+          value: db
+        - key: SMS_DB_NAME
+          value: db
+        - key: ACCOUNTING_DB_NAME
+          value: db
+        - key: AUDIT_DB_NAME
+          value: db
+        - key: ANALYTICAL_DB_NAME
+          value: analyticaldb
+        - key: PAYG_URL
+          value: ${APP_URL}
+        - key: PG_HOST
+          value: ${db.HOSTNAME}
+        - key: PG_PORT
+          value: ${db.PORT}
+        - key: PG_USER
+          value: ${db.USERNAME}
+        - key: PG_PASSWORD
+          value: ${db.PASSWORD}
+          type: SECRET
+        - key: PGSSLMODE
+          value: require
+        - key: REDIS_SERVER_ADDRESS
+          value: redis
+        - key: ANALYTICAL_DB_HOST
+          value: ${analyticaldb.HOSTNAME}
+        - key: ANALYTICAL_DB_PORT
+          value: ${analyticaldb.PORT}
+        - key: ANALYTICAL_DB_USER
+          value: ${analyticaldb.USERNAME}
+        - key: ANALYTICAL_DB_PASSWORD
+          value: ${analyticaldb.PASSWORD}
+          type: SECRET
+    - name: api
+      image:
+        registry_type: GHCR
+        registry: masungatech
+        repository: paygops-community
+        tag: latest
+      http_port: 6789
+      health_check:
+        http_path: /api/v1/health
+        initial_delay_seconds: 45
+        period_seconds: 10
+        timeout_seconds: 10
+        success_threshold: 1
+        failure_threshold: 9
+      routes:
+        - path: /api/v1
+      instance_count: 2
+      instance_size_slug: apps-s-1vcpu-2gb
+      run_command: bash -lc "mkdir -p /setup_data && touch /setup_data/ready && /crm/entrypoint.sh start_api_app"
+      envs:
+        - key: ENV_VAR
+          value: PROD
+        - key: MAIN_DB_NAME
+          value: db
+        - key: SMS_DB_NAME
+          value: db
+        - key: ACCOUNTING_DB_NAME
+          value: db
+        - key: AUDIT_DB_NAME
+          value: db
+        - key: ANALYTICAL_DB_NAME
+          value: analyticaldb
+        - key: PAYG_URL
+          value: ${APP_URL}
+        - key: PG_HOST
+          value: ${db.HOSTNAME}
+        - key: PG_PORT
+          value: ${db.PORT}
+        - key: PG_USER
+          value: ${db.USERNAME}
+        - key: PG_PASSWORD
+          value: ${db.PASSWORD}
+          type: SECRET
+        - key: PGSSLMODE
+          value: require
+        - key: REDIS_SERVER_ADDRESS
+          value: redis
+        - key: ANALYTICAL_DB_HOST
+          value: ${analyticaldb.HOSTNAME}
+        - key: ANALYTICAL_DB_PORT
+          value: ${analyticaldb.PORT}
+        - key: ANALYTICAL_DB_USER
+          value: ${analyticaldb.USERNAME}
+        - key: ANALYTICAL_DB_PASSWORD
+          value: ${analyticaldb.PASSWORD}
+          type: SECRET
+    - name: openpaygo
+      image:
+        registry_type: GHCR
+        registry: masungatech
+        repository: openpaygo-docker
+        tag: latest
+      http_port: 8000
+      health_check:
+        http_path: /health
+        initial_delay_seconds: 45
+        period_seconds: 10
+        timeout_seconds: 10
+        success_threshold: 1
+        failure_threshold: 9
+      routes:
+        - path: /openpaygo
+      instance_count: 1
+      instance_size_slug: apps-s-1vcpu-1gb
+      envs:
+        - key: DB_PROVIDER
+          value: postgres
+        - key: DB_HOST
+          value: ${openpaygodb.HOSTNAME}
+        - key: DB_PORT
+          value: ${openpaygodb.PORT}
+        - key: DB_USER
+          value: ${openpaygodb.USERNAME}
+        - key: DB_PASSWORD
+          value: ${openpaygodb.PASSWORD}
+          type: SECRET
+        - key: DB_NAME
+          value: openpaygodb
+        - key: PGSSLMODE
+          value: require
+        - key: API_BEARER_TOKEN
+          type: SECRET
+        - key: CSV_UPLOAD_USERNAME
+          value: admin
+        - key: CSV_UPLOAD_PASSWORD
+          type: SECRET
+    - name: redis
+      image:
+        registry_type: DOCKER_HUB
+        registry: library
+        repository: redis
+        tag: "7-alpine"
+      internal_ports: [6379]
+      instance_count: 1
+      instance_size_slug: apps-s-1vcpu-1gb
+      health_check:
+        initial_delay_seconds: 10
+        period_seconds: 10
+        timeout_seconds: 5
+        success_threshold: 1
+        failure_threshold: 9
+        port: 6379
+  workers:
+    - name: celery-worker
+      image:
+        registry_type: GHCR
+        registry: masungatech
+        repository: paygops-community
+        tag: latest
+      instance_count: 1
+      instance_size_slug: apps-s-1vcpu-2gb
+      run_command: bash -lc "mkdir -p /setup_data && touch /setup_data/ready && /crm/entrypoint.sh start_worker"
+      envs:
+        - key: ENV_VAR
+          value: PROD
+        - key: MAIN_DB_NAME
+          value: db
+        - key: SMS_DB_NAME
+          value: db
+        - key: ACCOUNTING_DB_NAME
+          value: db
+        - key: AUDIT_DB_NAME
+          value: db
+        - key: ANALYTICAL_DB_NAME
+          value: analyticaldb
+        - key: PAYG_URL
+          value: ${APP_URL}
+        - key: PG_HOST
+          value: ${db.HOSTNAME}
+        - key: PG_PORT
+          value: ${db.PORT}
+        - key: PG_USER
+          value: ${db.USERNAME}
+        - key: PG_PASSWORD
+          value: ${db.PASSWORD}
+          type: SECRET
+        - key: PGSSLMODE
+          value: require
+        - key: REDIS_SERVER_ADDRESS
+          value: redis
+        - key: ANALYTICAL_DB_HOST
+          value: ${analyticaldb.HOSTNAME}
+        - key: ANALYTICAL_DB_PORT
+          value: ${analyticaldb.PORT}
+        - key: ANALYTICAL_DB_USER
+          value: ${analyticaldb.USERNAME}
+        - key: ANALYTICAL_DB_PASSWORD
+          value: ${analyticaldb.PASSWORD}
+          type: SECRET
+    - name: celery-heavy-worker
+      image:
+        registry_type: GHCR
+        registry: masungatech
+        repository: paygops-community
+        tag: latest
+      instance_count: 1
+      instance_size_slug: apps-s-1vcpu-2gb
+      run_command: bash -lc "mkdir -p /setup_data && touch /setup_data/ready && /crm/entrypoint.sh start_heavy_worker"
+      envs:
+        - key: ENV_VAR
+          value: PROD
+        - key: MAIN_DB_NAME
+          value: db
+        - key: SMS_DB_NAME
+          value: db
+        - key: ACCOUNTING_DB_NAME
+          value: db
+        - key: AUDIT_DB_NAME
+          value: db
+        - key: ANALYTICAL_DB_NAME
+          value: analyticaldb
+        - key: PAYG_URL
+          value: ${APP_URL}
+        - key: PG_HOST
+          value: ${db.HOSTNAME}
+        - key: PG_PORT
+          value: ${db.PORT}
+        - key: PG_USER
+          value: ${db.USERNAME}
+        - key: PG_PASSWORD
+          value: ${db.PASSWORD}
+          type: SECRET
+        - key: PGSSLMODE
+          value: require
+        - key: REDIS_SERVER_ADDRESS
+          value: redis
+        - key: ANALYTICAL_DB_HOST
+          value: ${analyticaldb.HOSTNAME}
+        - key: ANALYTICAL_DB_PORT
+          value: ${analyticaldb.PORT}
+        - key: ANALYTICAL_DB_USER
+          value: ${analyticaldb.USERNAME}
+        - key: ANALYTICAL_DB_PASSWORD
+          value: ${analyticaldb.PASSWORD}
+          type: SECRET
+  jobs:
+    - name: runtime-setup
+      kind: PRE_DEPLOY
+      instance_count: 1
+      image:
+        registry_type: GHCR
+        registry: masungatech
+        repository: paygops-community
+        tag: latest
+      run_command: /crm/entrypoint.sh runtime_setup
+      envs:
+        - key: ENV_VAR
+          value: PROD
+        - key: MAIN_DB_NAME
+          value: db
+        - key: SMS_DB_NAME
+          value: db
+        - key: ACCOUNTING_DB_NAME
+          value: db
+        - key: AUDIT_DB_NAME
+          value: db
+        - key: ANALYTICAL_DB_NAME
+          value: analyticaldb
+        - key: PG_HOST
+          value: ${db.HOSTNAME}
+        - key: PG_PORT
+          value: ${db.PORT}
+        - key: PG_USER
+          value: ${db.USERNAME}
+        - key: PG_PASSWORD
+          value: ${db.PASSWORD}
+          type: SECRET
+        - key: PGSSLMODE
+          value: require
+        - key: ANALYTICAL_DB_HOST
+          value: ${analyticaldb.HOSTNAME}
+        - key: ANALYTICAL_DB_PORT
+          value: ${analyticaldb.PORT}
+        - key: ANALYTICAL_DB_USER
+          value: ${analyticaldb.USERNAME}
+        - key: ANALYTICAL_DB_PASSWORD
+          value: ${analyticaldb.PASSWORD}
+          type: SECRET
+  databases:
+    - name: db
+      engine: PG
+      production: false
+      version: "16"
+    - name: analyticaldb
+      engine: PG
+      production: false
+      version: "16"
+    - name: openpaygodb
+      engine: PG
+      production: false
+      version: "16"

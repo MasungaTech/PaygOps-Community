@@ -1,0 +1,85 @@
+
+You are generating Automatou workflow step JSON for All the steps of an automation.
+
+Inputs:
+- USER_PROMPT (original human request):
+<<USER_PROMPT>>
+
+- AUTOMATOU_DOCS_MD (reference):
+<<AUTOMATOU_DOCS_MD>>
+
+- TRIGGER (how the workflow starts; DO NOT create a step for the trigger):
+<<TRIGGER_JSON>>
+# Example shapes:
+# Event:
+# {
+#   "type": "event",
+#   "data": { "event": "new_issue" },
+#   "payload": {
+#     "issue_id": "12345",
+#     "client_id": "98765",
+#     "created_at": "2025-08-27T06:54:12Z",
+#     "severity": "high",
+#     "title": "Device not powering on"
+#   }
+# }
+# Time:
+# { "type": "time", "data": {"time": "every_day_at_given_time", "time_of_day": "14:00"} }
+# API:
+# { "type": "api", "data": {} }
+# User Journey:
+# { "type": "user_journey", "data": {} }
+
+- ALL_STEP_TEXT (numbered instructions of all steps):
+<<ALL_STEP_TEXT>>
+
+- MODULE_DEFINITIONS (JSON map of module_name -> module_json, limited to modules referenced in ALL_STEP_TEXT; may include 1+ modules):
+<<MODULE_DEFINITIONS_JSON>>
+
+Rules (IMPORTANT):
+1) The trigger is NOT a workflow step. Do not add “monitor/listen/poll” steps.
+2) Assume the trigger payload is available in the workflow as {{ received_input.* }}.
+- For event triggers, map TRIGGER.payload fields directly to {{ received_input.* }} (e.g., {{ received_input.issue_id }}).
+3) Interpret ALL_STEP_TEXT and select the most appropriate module(s) from MODULE_DEFINITIONS.
+4) Construct Automatou workflow step JSON for all steps (per docs).
+- Each step MUST include: "id" (snake_case, not starting with a number), "module", "input".
+- The id should be unique for all steps.
+- Optional: "name", "description", "allow_fail", "config", "debug", "skip_output_log", "error_workflow" if warranted.
+5) Map inputs exactly as per the module spec (correct names/types). Prefer minimal valid inputs.
+6) Use templating to reference prior data when needed:
+- {{ received_input.* }} for trigger payload
+- {{ <previous_step_id>.* }} for outputs of earlier steps (if any are already present in the workflow)
+7) If ALL_STEP_TEXT implies multiple actions with multiple modules, emit multiple step objects in run order.
+8) If no suitable module exists, DO NOT fabricate one; instead return exactly:
+{
+    "needs_module": true,
+    "reason": "short explanation of what module is missing for CURRENT_STEP_TEXT",
+    "suggested_keywords": ["keywords to re-query for a better module"]
+}
+
+Output format (STRICT):
+- Output ONLY a JSON array.
+- If you produced steps, the array contains 1..N Automatou step objects.
+- If you couldn't produce any step because no module fits, the array contains exactly one object with "needs_module": true.
+
+Examples of valid step objects (shape only; adapt to the module you pick):
+
+{
+"id": "get_client_details",
+"module": "get_clients",
+"description": "Retrieve client details by ID for downstream steps.",
+"input": {
+    "id": "{{ received_input.client_id }}"
+}
+}
+
+{
+"id": "send_sms_notification",
+"module": "create_outgoing_messages",
+"description": "Send SMS to the client about the new issue.",
+"input": {
+    "phone_number": "{{ get_clients.output.phone_number }}",
+    "message": "{{ 'Issue #' ~ get_issues.output.id ~ ' opened: ' ~ get_issues.output.title }}"
+},
+"allow_fail": false
+}

@@ -1,0 +1,72 @@
+{% extends "macros/list_base.html" %}
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'macros/form_macros.html' as forms with context %}
+{% import 'macros/filter_macros.html' as filter with context %}
+
+{% block title %}{{ ftext('List Client Groups') }}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('Client Groups', 'List') }}{% endblock %}
+
+{% block page_actions %}
+    {% if not is_custom_app %}
+        {{ui.button(link=url_for('admin.bulk_upload_task_view',  entity='client_groups'), uicon='edit_note', tooltip='Bulk Edit Client Groups', permission='EditClientGroups', type='header-action')}}
+    {% endif %}
+    {{ui.button(link=url_for('entities.add_client_group'), uicon='add', tooltip=ftext('Add Client Groups'), type='header-action')}}
+{% endblock %}
+
+{% block header %}
+    {% if not is_custom_app %}
+    <div {{ ui.collapsible_card_start(title='Filters', uicon='filter', icon_color='', active=any_filter([pagination.search])) }}>
+    <form id="filter_form_v2" action="" method="get" class="row">
+        {{ forms.input('search', 'Search Client Groups', value=pagination.search, size="10") }}
+        {{ filter.filter_buttons() }}
+    </form>
+    </div {{ ui.collapsible_card_end() }}>
+    {% else %}
+    <form id="filter_form_v2 mt-2rem" action="" method="get" class="row">
+        <div class="col-10 pe-0">
+            {{ forms.input('search', 'Search Client Groups', value=pagination.search, class='form-control') }}
+        </div>
+        <div class="col-2 mt-2rem">
+            {{ ui.button(uicon='filter', tooltip='Apply filters', color='danger', inline=false, class='btn btn-outline-secondary', action='') }}
+        </div>
+    </form>
+    
+    {% endif %}
+{% endblock %}
+
+{% block table %}
+<table {{ ui.table_start(pagination) }}>
+    <thead>
+    <tr>
+        {% if not is_custom_app %}
+            {{ui.sortable_header('id', "ID", class='ps-4', pagination=pagination)}}
+            {{ui.sortable_header('name', "Name", pagination=pagination)}}
+            {{ui.sortable_header('user_in_charge', "User in charge", pagination=pagination)}}
+        {% else %}
+            {{ui.table_header("Id/Client Group", class='ps-4')}}
+            {{ui.table_header('User in charge')}}
+        {% endif %}
+    </tr>
+    </thead>
+    <tbody>
+        {% for entity in pagination.objects %}
+            <tr>
+                {% if not is_custom_app %}
+                    <td class="ps-4"><a href="{{url_for('entities.edit_client_groups', id=entity.id)}}">{{ entity.id }}</a></td>
+                    <td class="truncate-hoverable">{{ entity.name }}</td>
+                    <td class="truncate-hoverable">{{ui.user_link(entity.user_in_charge, link=false) }}</td>
+                {% else %}
+                    <td class="truncate-hoverable">
+                        <a href="{{url_for('entities.edit_client_groups', id=entity.id)}}">({{ entity.id }})</a>
+                        <p>{{ entity.name }}</p>
+                    </td>
+                    <td class="truncate-hoverable">
+                        {{ui.user_link(entity.user_in_charge, link=false) }}
+                    </td>
+                {% endif %}
+            </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

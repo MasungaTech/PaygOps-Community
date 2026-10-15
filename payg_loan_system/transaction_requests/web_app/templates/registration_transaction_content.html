@@ -1,0 +1,106 @@
+{% set card_uicon='contract' %}
+{% if not this_lead %}{% extends 'transaction_base.html' %}{% else %}{% extends 'transaction_base_card.html' %}{% endif %}
+
+{% block title %}{{ ftext('Register Contract') }}{% endblock %}
+
+{% set mark_not_delivered_default = GlobalSetting('MarkAddOnsNotDeliveredDefault') %}
+{% set user_can_mark = current_user.can_access('MarkAsDeliveredAddOns', person=this_lead.person) %}
+{% set cannot_mark_delivered_not_planned = mark_not_delivered_default and not current_user.can_access('MarkAsDeliveredWithoutPlannedDateAddOns', person=this_lead.person) %}
+
+
+{% block form %}
+    {% if can_transition_to_installed %}
+        <input type="hidden" name="lead_id:number" value="{{ this_lead.id }}">
+        {% if this_lead.offer.linked_to_product  and not GlobalSetting('ContractDeviceRestrictions') == 'no_device' %}
+            {{ transaction.device_selector_macro(request_code=true, new_device=true, size=6 if this_lead else 12, force_ajax=true, force_nonpayg=force_nonpayg) }}
+        {% endif %}
+        {{ forms.input('note', 'Notes', type="textarea", size=6, max=40) }}
+        {% if this_lead.addons and user_can_mark %}
+            {{ forms.checkbox('partial_addon_delivery:boolean', checked=true, selector_class='pt-4 mt-2 mb-2',
+                label="Select Add-ons delivery status", size=6, onchange='checkBoxToggleForms(this, ".addon_delivery_status")' )}}
+
+            <div class="addon_delivery_status">
+                <form>
+                    <table {{ ui.table_start() }}>
+                        <thead>
+                            {{ ui.table_header('Offer') }}
+                            {{ ui.table_header('Reference') }}
+                            {{ ui.table_header('Delivery Date') }}
+                            {{ ui.table_header('Delivered') }}
+                        </thead>
+                        <tbody>
+                            {% for addon in this_lead.not_contract_term_changes_addons %}
+                                <tr>
+                                    <td>{{ addon.offer_version.offer.name }}</td>
+                                    <td>{{ addon.reference }}</td>
+                                    <td>{{ ui.date(addon.derived_planned_delivery_date()) }}</td>
+                                    <td>{{ forms.checkbox_simple('delivered_addons[]:number', value=addon.id, checked=true if not mark_not_delivered_default else false, mt=0, disabled=cannot_mark_delivered_not_planned and not addon.derived_planned_delivery_date())}}</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </form>
+            </div>
+        {% endif %}
+    {% else %}
+        {{ ui.info_card(type='warning', in_card=true, class='mt-2', text='You cannot register this lead because the transition from the current status is restricted in the settings. ') }}
+    {% endif %}
+
+    {# The confirmation modal if addons are not marked as delivered #}
+    <div {{ ui.modal_start('mark-delivered-confirm-modal', 'Confirm Delivered Add-Ons') }}>
+        <form>
+            <div class="modal-body">
+                {{ ui.info_card(type='warning', in_card=true, class='mt-2', text='There are add-ons scheduled for today that are not marked as delivered. Do you want to continue?') }}
+            </div>
+            <div class="modal-footer">
+                {{ ui.modal_close_button('No') }}
+                {{ ui.button(label='Yes', color='danger', action="closeModal('#mark-delivered-confirm-modal');validateAndSubmit('/api/v1/transaction_requests/registration/');") }}
+            </div>
+        </form>
+    </div {{ ui.modal_end() }}>
+    {# The confirmation modal if addons are not marked as delivered #}
+    <div {{ ui.modal_start('nothing-mark-delivered-confirm-modal', 'No Add-Ons Marked as Delivered') }}>
+        <form>
+            <div class="modal-body">
+                {{ ui.info_card(type='warning', in_card=true, class='mt-2', text='None of the add-ons are marked as delivered. Please review the add-on delivery status before registering. Do you want to continue?') }}
+            </div>
+            <div class="modal-footer">
+                {{ ui.modal_close_button('No') }}
+                {{ ui.button(label='Yes', color='danger', action="closeModal('#nothing-mark-delivered-confirm-modal');validateAndSubmit('/api/v1/transaction_requests/registration/');") }}
+            </div>
+        </form>
+    </div {{ ui.modal_end() }}>
+{% endblock %}
+
+{% block button %}
+    {% if can_transition_to_installed %}
+        {{ ui.button('Register Contract', uicon='contract', color='danger', class='transaction_action', action="warnAndSubmit();", size=6 if this_lead else 12, inline=true, fit=this_lead) }}
+    {% endif %}
+{% endblock %}
+
+{% block transaction_script %}
+<script>
+    var checkEnabled = ('{{ mark_not_delivered_default and user_can_mark }}' == 'True');
+    var addon_planned_today = [{% for addon in this_lead.not_contract_term_changes_addons if (addon.derived_planned_delivery_date() and addon.derived_planned_delivery_date().date() == NOW.date()) %}{{addon.id}}{% if not loop.last %},{% endif%}{% endfor %}]
+    function warnAndSubmit() {
+        if(checkEnabled) {
+            var thisForm = $("#MainForm");
+            if(thisForm.valid()) {
+                var data = thisForm.serializeJSON({useIntKeysAsArrayIndex: true});
+                if(data.delivered_addons && data.delivered_addons.filter(item => !isNaN(item)).length == 0) {
+                    showModal('#nothing-mark-delivered-confirm-modal')
+                } else {
+                    if(!addon_planned_today.every(element => data.delivered_addons.includes(element))) {
+                        showModal('#mark-delivered-confirm-modal')
+                    } else {
+                        validateAndSubmit('/api/v1/transaction_requests/registration/');
+                    }
+                }
+                
+            }
+        } else {
+            validateAndSubmit('/api/v1/transaction_requests/registration/');
+        }
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,71 @@
+{% macro lead_table(pagination, columns_to_filter) -%}
+<table {{ ui.table_start(pagination) }}>
+    <thead>
+        <tr>
+            {% if is_custom_app %}
+                {{ ui.table_header("Id/Lead", class='ps-4') }}
+                {{ ui.sortable_header('status', "Status", pagination=pagination) }}
+            {% else %}
+                {{ ui.sortable_header('id', "ID", pagination=pagination, class='ps-4') }}
+                {{ ui.sortable_header('name', "Full Name", pagination=pagination, visible=(GlobalSetting('LeadInfoSettings')['first_name']['visible'] or GlobalSetting('LeadInfoSettings')['surname']['visible'])) }}
+                {{ ui.sortable_header('custom_id', GlobalSetting('CustomId') or 'Custom ID', pagination=pagination, visible=GlobalSetting('CustomIdEnabled')) }}
+                {{ ui.sortable_header('first_interaction', "First Interaction", pagination=pagination) }}
+                {{ ui.sortable_header('last_contact', "Last Contact", pagination=pagination, visible='last_contact' not in columns_to_filter) }}
+                {{ ui.sortable_header('next_contact', "Next Contact", pagination=pagination, visible='next_contact' not in columns_to_filter) }}
+                {{ ui.sortable_header('requested_offer', "Requested Offer", pagination=pagination, visible='requested_offer' not in columns_to_filter) }}
+                {{ ui.sortable_header('approved_since', "Approved Since", pagination=pagination, visible='approved_since' not in columns_to_filter) }}
+                {{ ui.sortable_header('promised_pay', "Promised To Pay", pagination=pagination, visible='promised_pay' not in columns_to_filter) }}
+                {{ ui.sortable_header('delivery_date', "Delivery Date", pagination=pagination, visible='delivery_date' not in columns_to_filter) }}
+                {{ ui.sortable_header('status', "Status", pagination=pagination) }}
+            {% endif %}
+        </tr>
+    </thead>
+    <tbody>
+    {% for L in pagination.objects %}
+        <tr>
+            {% if is_custom_app %}
+                {% if GlobalSetting('LeadInfoSettings')['first_name']['visible'] or GlobalSetting('LeadInfoSettings')['surname']['visible'] %}
+                    <td class="truncate-hoverable">
+                        <a href="{{ url_for('.view_lead', lead_id=L.id) }}">({{ L.id }})</a>
+                        <p>{{ L.person.full_name }}</p>
+                    </td>
+                {% endif %}
+                <td class="truncate-tag-cell pe-3">{{ ui.lead_status_tag(L) }}</td>
+                <td class="ps-4">{{ui.button(uicon='chevron_right', link=url_for('.view_lead', lead_id=L.id), type='tiny-action')}}</td>
+            {% else %}
+                <td class="ps-4"><a href="{{ url_for('.view_lead', lead_id=L.id) }}">{{ L.id }}</a></td>    
+                {% if GlobalSetting('LeadInfoSettings')['first_name']['visible'] or GlobalSetting('LeadInfoSettings')['surname']['visible'] %}
+                    <td class="truncate-hoverable">{{ L.person.full_name }}</td>
+                {% endif %}
+                {% if GlobalSetting('CustomIdEnabled') %}
+                    <td>{{ L.person.custom_id or '-' }}</td>
+                {% endif %}
+                <td>{{ ui.date(L.receptionTime) }}</td>
+                {% if 'last_contact' not in columns_to_filter %}
+                    <td>{{ ui.datetime(L.get_last_contact()) }}</td>
+                {% endif %}
+                {% if 'next_contact' not in columns_to_filter %}
+                    <td>{{ ui.datetime(L.get_next_contact()) }}</td>
+                {% endif %}
+                {% if 'requested_offer' not in columns_to_filter %}
+                    <td class="truncate-hoverable">{{ ui.offer_link(L.get_offer()) }}</td>
+                {% endif %}
+                {% if 'approved_since' not in columns_to_filter %}
+                    <td>{{ ui.datetime(L.decisionTime) }}</td>
+                {% endif %}
+                {% if 'promised_pay' not in columns_to_filter %}
+                    <td>{{ ui.date(L.promisedToPay) }}</td>
+                {% endif %}
+                {% if 'delivery_date' not in columns_to_filter %}
+                    <td>{{ ui.date(L.agreedDeliveryDate) }}</td>
+                {% endif %}
+                <td class="truncate-tag-cell pe-3">{{ ui.lead_status_tag(L) }}</td>
+            {% endif %}
+        </tr>
+    {% else %}
+        {{ ui.no_results_row(11, 'No leads found') }}
+    {% endfor %}
+    </tbody>
+</table>
+{%- endmacro %}
+

@@ -1,0 +1,43 @@
+{{ ftext('
+    <p>
+        This section is used to upload a list of entities with a CSV file. 
+        Once the list is uploaded all entities will be set up on the platform.
+    </p>
+
+    <p>
+        Before uploading the CSV file, entities must be configured and enabled on the Platform Configuration
+        <a href="{}#operational_entities" target="_blank">here</a>.
+        The file should be a CSV using "," as a delimiter. It should include a first line of headers with the data
+        in the following order:
+    </p>
+
+    <p>
+        Level 0, Level 1, Level 2, Level 3, Level 4, User In Charge ID, GPS Longitude, GPS Latitude,
+        Administrative Contact Name, Administrative Contact Number, Population & Description.
+    </p>
+
+    <p>A template can be downloaded <a href="{}?version={}">here</a>.</p>
+
+    <p>
+        <b>Please note:</b><br/>
+        - The entities should be entered in by level in descending order, i.e., higher levels first and lower levels afterward. You can only upload one 
+        entity per row starting with the entity from upper level. (ie. It\'s not possible to create a "Hub 1" (level 2) in "Zone 1" (level 3) if "Zone 1" does not already exist.)<br/><br/>
+
+        <em>E.g. When importing a level 3 and a level 2 entity, level 2 should go after the one at level 3:</em><br/>
+
+        <em>For instance to upload the operational entities Village 1 (level 0) < Cluster 1 (level 1) < Hub 1 (level 2) < Zone 1  (level 3) (see example in CSV template): </em><br/>
+        
+        <ul class="custom-numbered-list">
+            <li> In the 1st row, populate "Zone 1" in column Level 3</li>
+            <li> In the 2nd row, populate "Hub 1" in column Level 2 and "Zone 1" under column Level 3</li>
+            <li> In the 3rd row, populate "Cluster 1" in column Level 1, "Hub 1" in column Level 2, and "Zone 1" in column Level 3</li>
+            <li> In the 4th row, populate "Village 1" in column Level 0, "Cluster 1" in column Level 1, "Hub 1" in column Level 2, and "Zone 1" in column Level 3</li>
+        </ul>
+        - The User In Charge ID is mandatory for entities in the higher level enabled.<br/>
+        - If some levels are disabled, those columns can be empty (will be ignored).<br/>
+        - All entities entered should have their parent entity entered as well on the same row.<br/>
+        - GPS coordinates & Administrative Contact information entered should be those of the lowest entity level in the row.
+    </p>
+'
+, 
+    url_for('admin.settings_editor_get'), url_for('entities.static', filename='bulk_entities_example.csv'), COMMIT_SHA, novar=true) }}

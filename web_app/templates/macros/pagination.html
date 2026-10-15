@@ -1,0 +1,116 @@
+{% import 'macros/general_macros.html' as ui with context %}
+
+{% macro render_pagination(pagination, tab='', small=false) %}
+    {% if not tab and pagination.tab %}{% set tab = pagination.tab %}{% endif %}
+    
+    {% if (pagination.has_pages() or pagination.all()) and not is_custom_app and not small %}
+        <div class="{{ ui.col_size(6) }} align-self-center">
+            <ul class="pagination" id="nav0">
+                <div class="mt-1">{{ftext('Showing')}}</div> 
+                <div class="btn-group mx-2">
+                <button type="button" class="btn btn-sm btn-outline-primary dropdown-toggle" data-bs-toggle="dropdown" data-trigger="hover">{{pagination.per_page}}</button>
+                <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="special-views-dropdown">
+                    {% set per_pages = [10] if GlobalSetting('StressMode') else [10, 50, 100] %}
+                    {% for n in per_pages %}
+                    <li>
+                        {% if pagination.total_count > n %}
+                        <a class="dropdown-item d-flex align-items-center {% if pagination.per_page == n %}active{%endif%}" href="javascript:void(0)" onclick="changeQueryParameters({'per_page': '{{n}}', 'tab': '{{tab}}'})">
+                            {{n}} 
+                            {% if GlobalSetting('StressMode') %} {{ ui.icon('info', 'tiny', style="vertical-align:middle;", tooltip="We are currently experiencing a high load and the ability to view more items per page is temporarily disabled") }}{% endif %}
+                        </a>
+                        {% endif %}
+                    </li>
+                    {% endfor %}
+                    {% if pagination.total_count <= per_pages|last %}
+                    <a class="dropdown-item d-flex align-items-center" href="javascript:void(0)" onclick="changeQueryParameters({'per_page': '{{pagination.total_count}}', 'tab': '{{tab}}'})"
+                    {% if not pagination.has_pages() %}class="per-page-active"{%endif%}>{{ftext('All')}}</a>
+                    {% endif %}
+                </ul>
+                </div>
+                <div class="mt-1">{{ftext('items out of {}', pagination.total_count)}}</div>
+            </ul>
+        </div>
+    {% endif %}
+    
+    
+    
+    {% if pagination.has_pages() %}
+        {% if not is_custom_app %}
+            <div class="{{ ui.col_size(6) }} align-self-center">
+                <nav class="float-end">
+                    <ul class="pagination" id="nav0">
+                    {%- for page in pagination.iter_pages(right_current=2 if small else 5) %}
+                        {% if page %}
+                            <li class="page-item {{ pagination.active(page) }}" rel="{{ page }}"
+                            onclick="changeQueryParameters({'page': '{{page}}', 'tab': '{{tab}}'})">
+                                <a class="page-link" href="javascript:void(0)">{{ page }}</a>
+                            </li>
+                        {% else %}
+                            <li class="page-item disabled" rel="{{ page }}">
+                                <a class="page-link" href="javascript:void(0)">…</a>
+                            </li>
+                        {% endif %}
+                    {%- endfor %}
+                    </ul>
+                </nav>
+            </div>
+        {% else %}
+            <div class="{{ ui.col_size(12) }} align-self-center">
+                <nav class="d-flex justify-content-center">
+                    <ul class="pagination custom-app-pagination" id="nav0">
+                        <li class="page-item border border-secondary rounded p-0 mx-2 back" >
+                            <a class="page-link px-0 py-1 m-0" data-bs-toggle="tooltip" data-bs-original-title="Previous" href="javascript:void(0)" onclick="navigatePage('back', '{{ pagination.has_prev }}', '{{ pagination.has_next }}', '{{ pagination.total_count }}')">
+                                {{ ui.icon('arrow_back', color='lightblue') }}
+                            </a>
+                        </li>
+                        <li class="page-item border rounded p-0 m-0" >
+                            <a class="page-link bg-none m-0 current-page" href="javascript:void(0)" >
+                                
+                            </a>
+                        </li>
+                        <li class="page-item border border-secondary rounded p-0 mx-2 forward" onclick="navigatePage('forward', '{{ pagination.has_prev }}', '{{ pagination.has_next }}', '{{ pagination.total_count }}')">
+                            <a class="page-link px-0 py-1 m-0" data-bs-toggle="tooltip" data-bs-original-title="Next" href="javascript:void(0)">
+                                {{ ui.icon('arrow_forward', color='lightblue') }}
+                            </a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+        {% endif %}    
+    {% endif %}
+
+    <script>
+        const params = new URLSearchParams(window.location.search);
+        const page =  params.get("page") ? parseInt(params.get("page")) : 1;
+        const totalPages =  params.get("total-pages") ? parseInt(params.get("total-pages")) : 1;
+
+        
+
+        $(document).ready(() => {
+            $(".current-page").html(page);
+            $(".current-page").attr("data-bs-toggle", "tooltip");
+            $(".current-page").attr("data-bs-original-title", `${page} of {{pagination.total_count}}`);
+        })
+
+        function navigatePage(direction, hasPrev, hasNext, totalPages) {
+            const url = new URL(window.location.href);
+            
+            if(direction == 'back' & hasPrev == 'True') {
+                var nextPage = page - 1;
+            } else if(direction == 'forward' & hasNext == 'True') { 
+                var nextPage = page + 1;             
+            }
+            else {
+                return;
+            }
+
+            url.searchParams.set("page", nextPage);
+            
+            $(".current-page").html(nextPage);
+            $(".current-page").attr("data-bs-original-title", `${nextPage} of {{pagination.total_count}}`);
+
+            window.location.href = url.toString();
+        }
+    </script>
+{% endmacro %}
+
