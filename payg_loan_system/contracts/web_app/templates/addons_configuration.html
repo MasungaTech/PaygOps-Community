@@ -1,0 +1,256 @@
+{% extends "macros/list_base.html" %}
+{% import 'macros/form_macros.html' as forms with context %}
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'macros/pagination.html' as pagination_nav with context %}
+{% import 'addon_categories_macros.html' as addons_categories with context %}
+{% import 'macros/filter_macros.html' as filter with context %}
+
+{% block title %}{{ ftext('Add-Ons Editor')}}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('Settings', 'Add-On Offers') }}{% endblock %}
+
+
+{% block content %}
+<ul {{ ui.tabs_ul() }}>
+    {{ ui.tabs_item('Offers', 'offers', uicon='addon_offer', active=true)}}
+    {{ ui.tabs_item('Bundles', 'bundles', uicon='bundle')}}
+    {{ ui.tabs_item('Categories', 'categories', uicon='category')}}
+</ul>
+<div class="tab-content">
+    <div {{ ui.tabs_pane_div('offers', active=true) }}>
+        <div {{ ui.collapsible_card_start(title='Filters' , uicon='filter' , icon_color='' , active=any_filter([selected_category, offers_pagination.search, purchasing_addons_filter])) }}>
+            <form id="filter_form_v2" action="" method="get" class="row">
+                {{forms.input('search', "Search Offers (by name or Code)", offers_pagination.search, size=6)}}
+                {{ forms.select('active_filter', {'all': 'All Offers', 'active': 'Available Offers Only', 'inactive':
+                'Unavailable Offers Only'}, size="6", value=active_filter, labeltag="Filter by availability") }}
+                {{ addons_categories.addons_categories_navigation(selected_category, with_results=true, size=6, input=true) }}
+                {% if GlobalSetting('FeatureToggles').get('OffTaking', False) %}
+                    {{ forms.select('purchasing_addons_filter', {'all': 'All Offers', 'purchasing_addons': 'Purchasing Offers Only', 'regular':
+                    'Regular (non-purchasing) offers only'}, size="6", value=purchasing_addons_filter, labeltag="Filter Purchasing Add-Ons", placeholder='Choose purchasing add-on filter') }}
+                {% endif %}
+                {{ filter.filter_buttons() }}
+            </form>
+        </div {{ ui.collapsible_card_end() }}>
+        <div {{ ui.card_start(title='Offers' , uicon='offer' ,
+            actions=(ui.button(link=url_for('contract.add_addon_offer'), uicon='add', tooltip='Add Add-on offer'
+            ,permission='AddAddonOffers', type='action') 
+            + ui.button(link="/admin/api_caller?action=AllAddonOfferResource_post", uicon="cloud_upload", tooltip="Bulk Add-on Offers", permission="AddAddonOffers", type='header-action')), body_class='table-responsive') }}>
+            <table {{ ui.table_start(offers_pagination) }}>
+                <thead>
+                    <tr>
+                        {{ui.sortable_header('code', "Code", class='ps-4', pagination=offers_pagination)}}
+                        {{ui.sortable_header('name', "Name", pagination=offers_pagination)}}
+                        {{ui.sortable_header('available_for_sales', "Sales", tooltip='If sales is allowed (associating the offer with a lead)')}}
+                        {{ui.sortable_header('available_for_registration', "Registration", tooltip='If registration is allowed (turning a lead with that offer into a client)')}}
+                        {{ui.sortable_header('category', "Category", pagination=offers_pagination)}}
+                        {#ui.sortable_header('needs_approval', "Needs approval")#}
+                        {{ui.sortable_header('type', "Type", pagination=offers_pagination)}}
+                        {{ui.sortable_header('unit_price', ftext("Unit price ({})", Currency))}}
+                        {{ui.sortable_header('qty. sold', "Qty. Sold", class='pe-4')}}
+                        {#ui.sortable_header('actions', "Actions",class='pe-4')#}
+                    </tr>
+
+                </thead>
+                <tbody>
+                    {% for offer in offers_pagination.objects %}
+                    {% set offer_version = offer.version_for_bundle %}
+                    <tr>
+                        <td class="truncate-hoverable">
+                            {{ ui.addon_offer_link(offer) }}
+                        </td>
+                        <td class="truncate-hoverable">{{ offer.name }}</td>
+                        <td>
+                            {% if offer.version_for_sales %}
+                            {#v{{offer.version_for_sales.version_number}}<br>#}
+                            {% if offer.entities_allowed_for_leads.count() %}
+                            {{ftext('In some entities')}}
+                            {{ ui.icon('info', 'tiny',
+                            tooltip=offer.entities_allowed_for_leads.select()|map('entityChipList')|join, translate_tooltip=false)}}
+                            {% else %}
+                            {{ftext('In all entities')}}
+                            {% endif %}
+                            {% else %}
+                            {{ftext('No')}}
+                            {% endif %}
+                        </td>
+                        <td>
+                            {%- if offer.versions_for_registration %}
+                            {#v{{offer.versions_for_registration|map(attribute="version_number")|join(", v")}}<br>#}
+                            {% if offer.entities_allowed_for_contracts.count() %}
+                            {{ftext('In some entities')}}
+                            {{ ui.icon('info', 'tiny',
+                            tooltip=offer.entities_allowed_for_contracts.select()|map('entityChipList')|join, translate_tooltip=false)}}
+                            {% else %}
+                            {{ftext('In all entities')}}
+                            {% endif %}
+                            {% else %}
+                            {{ftext('No')}}
+                            {% endif -%}
+                        </td>
+                        <td>{{ ui.isnone(offer.category, offer.category.name) }}</td>
+                        <!-- td>{{ ui.yes_no(offer.need_approval) }}</td -->
+                        <td>{{ ftext(offer.type) }}{% if offer.type == AddOnType.loan%} ({{ ftext(offer.loan_mode or 'Duration and
+                            Reference Pricing') }}){%endif%}</td>
+                        <td>{{ ui.amount(offer_version.price) }}</td>
+                        <td class="truncate-hoverable pe-4">{{ui.icon('lead', 'tiny inline-icon')}}{{ human_number(offer.lead_addons_count) }} / {{ui.icon('contract', 'tiny inline-icon')}}{{ human_number(offer.addons_count) }}</td>
+
+                        {#<td style="white-space: nowrap;">
+                            <a href="{{url_for('contract.view_addon_offer', offer_id=offer.id)}}"
+                                class="btn-floating btn-small waves-effect waves-light red tooltipped"
+                                data-tooltip="View add-on offer">
+                                {{ui.icon('visibility')}}
+                            </a>
+                            {% set disabled = ' disabled' if offer.addons_count else '' %}
+                            <a href="{{url_for('contract.delete_addon_offer', offer_id=offer.id)}}"
+                                class="btn-floating btn-small waves-effect waves-light red tooltipped{{disabled}}"
+                                data-tooltip="Remove add-on offer">
+                                {{ui.icon('delete')}}
+                            </a>
+                            <a href="{{url_for('contract.add_addon_offer', based_on_id=offer.id)}}"
+                                class="btn-floating btn-small waves-effect waves-light red tooltipped"
+                                data-tooltip="Duplicate add-on offer">
+                                {{ui.icon('file_copy')}}
+                            </a>
+                        </td>#}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            <hr class="mt-0">
+            <div class="row mx-2 mt-2">
+                {{ pagination_nav.render_pagination(offers_pagination) }}
+            </div>
+        </div {{ ui.card_end() }}>
+
+    </div>
+
+    <div {{ ui.tabs_pane_div('bundles') }}>
+        <div {{ ui.collapsible_card_start(title='Filters' , uicon='filter' , icon_color='' , active=any_filter()) }}>
+            <form id="filter_form_v2" action="" method="get" class="row">
+                {{forms.input('search_bundles', "Search Bundles (by name)", search_bundles, size="col s12 m5")}}
+                {{ filter.filter_buttons() }}
+
+            </form>
+        </div {{ ui.collapsible_card_end() }}>
+        <div {{ ui.card_start(title='Bundles', uicon='offer', actions=ui.button(modal='add_bundle', uicon='add',
+            tooltip='Add Add-on Bundle', permission='AddAddonOffers', type='action'), body_class='table-responsive')}}>
+            <table {{ ui.table_start(bundles_pagination) }}>
+                <thead>
+                    <tr>
+                        {{ui.sortable_header('id', "ID", pagination=bundles_pagination)}}
+                        {{ui.sortable_header('name', "Name", pagination=bundles_pagination)}}
+                        <th>Summary</th>
+                        {{ui.sortable_header('available_for_sales', "Sales", tooltip='If sales is allowed (associating the offer with a lead)')}}
+                        {{ui.sortable_header('available_for_registration', "Registration", tooltip='If registration is allowed (turning a lead with that offer into a client)')}}
+                        {#<th>Actions</th>#}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for bundle in bundles_pagination.objects %}
+                    <tr>
+                        <td class="truncate-hoverable"><a href="{{ url_for('contract.view_addon_bundle', bundle_id=bundle.id) }}">{{ bundle.id
+                                }}</a></td>
+                        <td class="truncate-hoverable">{{ bundle.name }}</td>
+                        <td class="truncate-hoverable">
+                            {% for item in bundle.items %}
+                            {{ item.quantity_sold }} x {{item.offer.name}}<br>
+                            {% endfor %}
+                        </td>
+                        <td>
+                            {%- if bundle.cached_available_for_leads == 1 %}
+                            {{ftext('In some entities')}}
+                            {{ ui.icon('info', 'tiny',
+                            tooltip=bundle.cached_available_for_leads_entities|map('entityIDChipList')|join, translate_tooltip=false)}}
+                            {% elif bundle.cached_available_for_leads == 2 %}
+                            {{ftext('In all entities')}}
+                            {% else %}
+                            {{ftext('No')}}
+                            {% endif -%}
+                        </td>
+                        <td>
+                            {%- if bundle.cached_available_for_contracts == 1 %}
+                            {{ftext('In some entities')}}
+                            {{ ui.icon('info', 'tiny',
+                            tooltip=bundle.cached_available_for_contracts_entities|map('entityIDChipList')|join, translate_tooltip=false)}}
+                            {% elif bundle.cached_available_for_contracts == 2 %}
+                            {{ftext('In all entities')}}
+                            {% else %}
+                            {{ftext('No')}}
+                            {% endif -%}
+                        </td>
+                        {#<td >
+                            
+                            {{ ui.button(link=url_for('contract.view_addon_bundle', bundle_id=bundle.id), uicon='edit', tooltip='Edit add-on bundle',type='card-action') }}
+
+                            {{ ui.button(modal='remove_bundle_confirmation', uicon='delete', tooltip='Delete Interaction',type='card-action') }}                        
+                        </td>#}
+                    </tr>
+                    {% else %}
+                    <tr>
+                        {{ ui.no_results_row(6) }}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            <hr class="mt-0">
+            <div class="row mx-2 mt-2">
+                {{ pagination_nav.render_pagination(bundles_pagination) }}
+            </div>
+        </div {{ ui.card_end() }}>
+
+        {# add_bundle modal #}
+        <div {{ ui.modal_start('add_bundle', 'Add New Add-On Bundle' ) }}>
+            <form action="" method="post">
+                <div class="modal-body">
+                    {{ forms.input('name', 'Name', required=true) }}
+                </div>
+                <div class="modal-footer">
+                    {{ ui.modal_close_button() }}
+                    {{ ui.button(uicon='add', label='Add Add-On Bundle', type='action', action='async_post', async_url='/addon_bundles', redirect_url='/contracts/addons_bundles/', redirect_append='id') }}
+                </div>
+            </form>
+        </div {{ ui.modal_end() }}>
+    </div>
+    <div {{ ui.tabs_pane_div('categories') }}>
+        <div {{ ui.card_start() }}>
+            {{list_categories(categories|sort(attribute="name"))}}
+            {{ ui.button(modal='add_category', uicon='add_circle', size='4', fit=true, label='Add New Category', tooltip='Add Sub-Category', id='root_category', type='card-action', action='$("#cat_parent").val("")') }} 
+        </div {{ ui.card_end() }}>
+    </div>
+</div>
+
+<div {{ ui.modal_start('add_category', 'Add new category' ) }}>
+    <form>
+        <div class="modal-body">
+            <input type="hidden" name="parent" id="cat_parent">
+            {{ forms.input('name', 'Name', required=true) }}
+        </div>
+        <div class="modal-footer">
+            {{ ui.modal_close_button() }}
+            {{ ui.button(uicon='add', label='Add Add-On Category', type='action', action='async_post', async_url='/addon_categories') }}
+        </div>
+    </form>
+</div {{ ui.modal_end() }}>
+
+{% endblock %}
+
+{% macro list_categories(categories, level=0) %}
+{% for category in categories %}
+<div class="{{ ui.col_size(12) }} category-wrapper"
+    style="line-height: 55px; /*padding-left: {{45*level}}px; border-top: 1px #ddd solid;*/">
+    {{ui.icon('keyboard_arrow_right', "tiny fold-arrow")}}
+    <h6 style="display: inline;"><a href="{{url_for('contract.view_addon_category', category_id=category.id)}}">{{category.name}}</a></h6>
+    {{ ui.button(link=url_for('contract.view_addon_category', category_id=category.id), uicon='edit', tooltip='Edit category',type='card-action') }}
+    {% if not category.children and not category.addon_offers %}
+        {{ ui.button(uicon='delete', tooltip='Delete category',id=category.id,
+            action='async_delete', async_url='/addon_categories/'+category.id|string, type='card-action')}}
+    {% endif %}
+    {{ ui.button(modal='add_category', uicon='add_circle', tooltip='Add Sub-Category', id=category.id, type='card-action', action='$("#cat_parent").val("'+category.name|string+'")') }}                             
+</div>
+<div class="{{ ui.col_size(12) }} subcategories-wrapper">
+    <div class="row no-bottom" style="margin-left: 45px; border-left: 1px #ddd solid;">
+        {{list_categories(category.children|sort(attribute="name"), level+1)}}
+    </div>
+</div>
+{% endfor %}
+{% endmacro %}

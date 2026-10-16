@@ -1,0 +1,73 @@
+{% extends "macros/base.html" %}
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'macros/form_macros.html' as forms with context %}
+{% import 'macros/filter_macros.html' as filter with context %}
+
+
+{% block title %}{{ ftext('Automated Custom Messages') }}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('Automated Custom Messages', 'List') }}{% endblock %}
+
+{% block page_actions %}
+    {% set custom_lang = GlobalSetting('CustomLanguageName') %}
+    {{ ui.button(modal="edit-custom-lang", uicon='edit' if custom_lang else 'add', tooltip='Edit custom language name' if custom_lang else 'Add custom language', permission="ConfigureLanguageSettingsAdmin", type="header-action") }}
+    {{ filter.special_views_filter(views, language, 'language', translate=false) }}
+{% endblock %}
+
+{% block content %}
+    <ul {{ ui.tabs_ul() }}>
+        {% for cat, name in config.SMS_EDITOR_CATEGORY_NAMES | items %}
+            {{ ui.tabs_item(name, cat, active=cat=='common')}}
+        {% endfor %}
+    </ul>
+
+    <div class="tab-content">
+        {% for cat in config.SMS_EDITOR_CATEGORY_NAMES %}
+            <div {{ ui.tabs_pane_div(cat, active=cat=='common') }}>
+                {% for section_name, messages in config.CUSTOMISABLE_MSGS_SECTIONS[cat]|items %}
+                <div {{ ui.card_start(title=section_name, body_class='table-responsive') }}>
+                    <table {{ ui.table_start() }}>
+                        <thead>
+                            <tr>
+                                {{ ui.table_header('Name') }}
+                                {{ ui.table_header('When is it sent') }}
+                                {{ ui.table_header('Current value') }}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for msg in messages %}
+                            {% set example = get_example(msg, language) %}
+                            <tr {% if not example %}class="disabled"{% endif %}>
+                                <th>
+                                    <a href="{{ url_for('message.edit_custom_message', key=msg)}}">{{ ftext(config.CUSTOMISABLE_MSGS_INFO[msg]['name']) }}</a>
+                                    {% if not example %}<br />{{ui.badge(text="Disabled")}}{% endif %}
+                                </th>
+                                <td>{{ ftext(config.CUSTOMISABLE_MSGS_INFO[msg]['description']) }}</td>
+                                <td>{% if example %}{{ example }}{% else %}{{ get_example(msg, language, default=True) }}{% endif %}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div {{ ui.card_end() }}>
+                {% endfor %}
+            </div>
+        {% endfor %}
+    </div>
+    <div {{ ui.modal_start('edit-custom-lang', 'Custom language name') }}>
+        <form>
+            <div class="modal-body">
+                {{ui.info_card(type='info', text='The custom language allows to manualy translate the SMS to any language. Please type below the name of your custom language:') }}
+                {{forms.input(
+                    'value',
+                    label='Custom Language Name',
+                    value=GlobalSetting('CustomLanguageName'),
+                    required=true,
+                )}}
+            </div>
+            <div class="modal-footer">
+                {{ ui.modal_close_button() }}
+                {{ ui.button(uicon='save', label='Edit Custom Language Name', action="async_post", async_url='/settings/CustomLanguageName') }}
+            </div>
+        </form>
+    </div {{ ui.modal_end() }}>
+{% endblock %}

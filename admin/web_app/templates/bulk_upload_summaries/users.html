@@ -1,0 +1,21 @@
+{% extends 'bulk_upload_summaries/summary_base.html' %}
+{% set object_name = 'users' %}
+{% set total_var = 'total_users' %}
+{% set correct_var = 'correct_users' %}
+
+{% block table %}
+<thead>
+    <tr>
+        <th>Role</th>
+        <th>Number of items</th>
+    </tr>
+</thead>
+<tbody>
+    {% for role, count in analysis['role_counts'].items() %}
+    <tr>
+        <td>{{role}}</td>
+        <td>{{count}}</td>
+    </tr>
+    {% endfor %}
+</tbody>
+{% endblock %}

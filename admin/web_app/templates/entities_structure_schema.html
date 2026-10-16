@@ -1,0 +1,5 @@
+{% import 'entity_structure_macros.html' as entity_macros with context %}
+{{entity_macros.entity_styles()}}
+{% for entity in schema %}
+{{ entity_macros.draw_entity(entity, max_level)}}
+{% endfor %}

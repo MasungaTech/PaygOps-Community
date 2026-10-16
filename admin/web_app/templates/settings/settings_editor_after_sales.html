@@ -1,0 +1,183 @@
+{% extends "macros/base.html" %}
+{% import 'macros/form_macros.html' as forms with context %}
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'interaction_macros.html' as interaction_macros with context %}
+{% import 'macros/filter_macros.html' as filter with context %}
+
+{% block title %}{{ ftext('Interaction Types') }}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('Settings', 'After-Sales') }}{% endblock %}
+
+{% block page_actions %}{% endblock %}
+
+{% block content %}
+
+{# --- Modals --- #}
+<div {{ ui.modal_start('add-topic-modal','Add Interaction Topic') }}>
+    <form id="tag_new" action="" method="POST">
+        <div class="modal-body">
+            <div class="row">
+                {{ui.info_card(uicon='info', color='warning', in_card=true, text=ftext('After you assign a Form to an interaction topic you will not be able to delete the Form anymore (even if there are no answers yet).'))}}
+                {{ forms.select('topic_group:number', labeltag='Interaction Category', choices=Themes, value=selected_theme.id if selected_theme else none, size=12, required=true, placeholder='Choose Category', translate=false) }}
+                {{ forms.select('form:number', labeltag="Form", choices=surveys, size=12, required=true, placeholder='Choose Form', translate=false) }}
+                {{ forms.checkbox('is_issue:skip', labeltag='Is an issue', label='This interaction is an issue', size=12, onchange='checkBoxToggleForms(this, ".issue_selector", ".remove_issue")', value_false=none) }}
+                {{ forms.select('issue_type:number', 
+                    choices=issue_types, 
+                    labeltag='Issue Type',
+                    placeholder='Choose an issue type',
+                    size=12,
+                    selector_class='issue_selector pt-3',
+                    translate=false,
+                    required=true
+                )}}
+            </div>
+        </div>
+        <div class="modal-footer">
+            {{ forms.button(uicon='save', label='Save', color='danger', tooltip='Assign form', action='async_post', async_url='/interaction_topics') }}
+            {{ ui.modal_close_button() }}
+        </div>
+    </form>
+</div {{ ui.modal_end() }}>
+
+<div {{ ui.modal_start('add-topic-category','Add Interaction Category') }}>
+    <form id="category" class="row" action="" method="POST">
+        <div class="modal-body">
+            <div class="row">
+                {{ forms.input('name', id='name', label='Interaction Category Name', value='', size=12, icon='tags') }}
+            </div>
+        </div>
+        <div class="modal-footer">
+            {{ forms.button(uicon='save', label='Save', color='danger', tooltip='Assign form', action='async_post', async_url='/interaction_topic_groups') }}
+            {{ ui.modal_close_button() }}
+        </div>
+    </form>
+</div {{ ui.modal_end() }}>
+
+<div {{ ui.modal_start('add-issue-type','Add Issue Type') }}>
+    <form id="tag_new" action="" method="POST">
+        <div class="modal-body">
+            <div class="row">
+                {{ forms.input('name', id='name', label='Issue Type', value='', size=12, icon='tags') }}
+            </div>
+            <div class="row">
+                {{ forms.input( 'target_resolution_time:number', 
+                                id='target_resolution_time', 
+                                type='number',
+                                label='Target Resolution Time (Days)', 
+                                size=12) }}
+            </div>
+        </div>
+        <div class="modal-footer">
+            {{ forms.button(uicon='save', label='Save', color='danger', tooltip='Assign form', action='async_post', async_url='/issue_types') }}
+            {{ ui.modal_close_button() }}
+        </div>
+    </form>
+</div {{ ui.modal_end() }}>
+
+{# --- Cards --- #}
+<div {{ ui.collapsible_card_start(title="Interaction Categories", uicon="list", active=False, actions=ui.button(tooltip='Add Interaction Category', modal='add-topic-category', uicon='add',  type='card-action'))}}>
+    <div>
+        {{ui.info_card(type='info', text='This is used to group interaction types together by category.' )}}
+    </div>
+    {% for category in categories %}
+        <form id="category_{{category.id}}" class="col" action="" method="POST">
+            <div class="row">
+                {{ forms.input('name', id='name_'+category.id|string, label='Interaction Category Name', value=category.name, size=5, icon='tags') }}
+                {{ forms.button(uicon='save', size=1, inline=true, align_end=true, color='danger', tooltip='Save tag', action='async_post', async_url='/interaction_topic_groups/'+category.id|string) }}
+                {{ forms.button(uicon='delete', size=1, inline=true, align_end=true, tooltip='Delete tag', disabled=false, action='async_delete', async_url='/interaction_topic_groups/'+category.id|string) }}
+            </div>
+        </form>
+    {% endfor %}
+</div {{ ui.collapsible_card_end() }}>
+
+<div {{ ui.collapsible_card_start(title="Issue Type", uicon="list", active=False, actions=ui.button(tooltip='Add Issue Type', uicon='add', modal="add-issue-type", type='card-action'))}}>
+    {% for issue in issues %}
+        <form id="category_{{issue.id}}" class="col" action="" method="POST">
+            <div class="row m-0 p-0">
+                {{ forms.input( 'name', 
+                                id='name_'+issue.id|string, 
+                                label='Issue Type Name', 
+                                value=issue.name, 
+                                size=3, 
+                                icon='tags') }}
+                
+                {{ forms.input( 'target_resolution_time:number', 
+                                id='target_resolution_time_'+issue.id|string, 
+                                type='number',
+                                label='Target Resolution Time (Days)', 
+                                value=issue.getTargetResolutionTime(), 
+                                size=3) }}
+
+                {{ forms.button(uicon='save', 
+                                size=1, 
+                                inline=true, 
+                                align_end=true, 
+                                color='danger', 
+                                tooltip='Save tag', 
+                                action='async_post', 
+                                async_url='/issue_types/'+issue.id|string) }}
+
+                {{ forms.button(uicon='delete', 
+                                size=1, 
+                                inline=true, 
+                                align_end=true, 
+                                tooltip='Delete Issue Type', 
+                                disabled=false, 
+                                action='async_delete', 
+                                async_url='/issue_types/'+issue.id|string) }}
+            </div>
+        </form>
+    {% endfor %}
+</div {{ ui.collapsible_card_end() }}>
+
+<div {{ ui.collapsible_card_start(title="Interaction Topics", uicon="list", active=False, actions=ui.button(tooltip='Add Interaction Topic', uicon='add', type='card-action', modal='add-topic-modal'))}}>
+    <div {{ ui.collapsible_card_start(title='Filters', uicon='filter', icon_color='', active=any_filter([selected_theme])) }}>
+        <form id="filter_form_v2" method="get" class="row">
+            {{ forms.select('main_topic_id', labeltag='Interaction Category', choices=Themes, value=selected_theme.id if selected_theme else none, size=6, required=true, placeholder='Choose Category', translate=false) }}
+    
+            {{ filter.filter_buttons() }}
+        </form>
+    </div {{ ui.collapsible_card_end() }}>
+
+    <div {{ ui.card_start(body_class='table-responsive no-card-body pt-3 pb-3') }}>
+        <table {{ ui.table_start() }}>
+            <thead>
+            <tr>
+                <th class="ps-4">{{ ftext('ID') }}</th>
+                {{ui.sortable_header('form', "Form")}}
+                {{ui.sortable_header('issue_type', "Issue type")}}
+                <th>{{ ftext('Remove') }}</th>
+            </tr>
+            </thead>
+            <tbody>
+                {% for topic in topics %}
+                    <tr>
+                      <td class="ps-4">{{ topic.id }}</td>
+                      <td>{{ ui.icon(topic.form.icon, 'tiny') }} <a href="{{ url_for('forms_blueprint.view_form', form_id=topic.form.id) }}">{{ topic.form.name }}</a></td>
+                      {% if topic.issueType %}
+                        <td>{{topic.issueType.name}}</td>
+                      {% else %}
+                        <td>{{ftext('Not an issue')}}</td>
+                      {% endif %}
+                      <td>
+                        {{ ui.button(
+                                action="async_delete",
+                                type='card-action-grey',
+                                uicon='delete',
+                                tooltip='Remove',
+                                async_url='/interaction_topics/'+topic.id|string,
+                            ) }}
+                      </td>
+                  </tr>
+                {% else %}
+                  {{ui.no_results_row(6)}}
+                {% endfor %}
+            </tbody>
+        </table>
+    </div {{ ui.card_end() }}> 
+
+</div {{ ui.collapsible_card_end() }}>
+
+{% endblock %}
+
+

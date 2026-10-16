@@ -1,0 +1,217 @@
+{% extends "macros/base.html" %}
+{% import 'macros/form_macros.html' as forms with context %}
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'issue_macros.html' as issue with context %}
+{% import 'custom_forms_macros.html' as custom_forms with context %}
+
+{% set level_name = OPERATIONAL_ENTITIES_CONFIG[entity.level].name %}
+
+{% block title %}{{ ftext('View {}: {}', OPERATIONAL_ENTITIES_CONFIG[entity.level].name, entity.name, novar=true) }}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('operational_entities_l'+entity.level|string, 'View', object=entity, display_name=level_name) }}{% endblock %}
+
+{% block page_actions %}
+  {{ ui.button(link=url_for('entities.merge_entity', entity_id=entity.id), uicon="merge", tooltip=ftext('Merge {}', level_name), type="header-action") }}
+  {{ ui.button(link=url_for('entities.edit_entity', entity_id=entity.id), uicon="edit", tooltip=ftext('Edit {}', level_name), type="header-action") }}
+  {% if not entity.children and not entity.notifications and not entity.destined_stock and (entity.persons is not defined or not entity.persons) and not entity.reference_of_users %}
+    {{ ui.button(modal='delete-entity', uicon="delete", tooltip=ftext('Delete {}', level_name), type="header-action") }}
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+<div {{ ui.card_start(title=entity.name, uicon=OperationalEntitiesHelper.get_icon(entity.level), body_class='row') }}>
+    {{ ui.report_field('Name', entity.name, OperationalEntitiesHelper.get_icon(entity.level), size=6) }}
+    {{ ui.report_field('Type', level_name, OperationalEntitiesHelper.get_icon(entity.level), size=6) }}
+    {% if entity.level < 4 and OPERATIONAL_ENTITIES_CONFIG[entity.level+1].enabled %}
+        {{ ui.report_field(OPERATIONAL_ENTITIES_CONFIG[entity.level+1].name, ui.entity_link(entity.parent), OperationalEntitiesHelper.get_icon(entity.level+1), size=6) }}
+    {% endif %} 
+    {% if entity.level > 0 %}
+        {{ ui.report_field(OPERATIONAL_ENTITIES_CONFIG[entity.level-1].names, ftext('<a href="{}">{}</a>', url_for('entities.list_entities', level=entity.level-1)+'?parent='+entity.id|string, entity.children.count(), novar=true), OperationalEntitiesHelper.get_icon(entity.level-1), size=6) }}
+    {% endif %} 
+    {{ ui.report_field('User in charge', ui.user_link(entity.user_in_charge, link=false if is_custom_app else true), 'user', size=6) }}
+    {{ ui.report_field('Administrative Contact Name', entity.admin_contact_name, 'village_chief', size=6) }}
+    {{ ui.report_field('Administrative Contact Number', ui.phone_number(entity.admin_phone_number), 'village_chief', size=6) }}
+    {{ ui.report_field('Coordinates', ui.gps_coords(entity.latitude, entity.longitude), 'GPS', size=6) }}
+    {{ ui.report_field('Population', ui.isnotempty(entity.population), 'population', size=6) }}
+    {{ ui.report_field('Number of clients', entity.get_clients().count(), 'client', size=6) }}
+    {{ ui.report_field('Number of leads', entity.get_leads().count(), 'lead', size=6) }}
+    {{ ui.report_field('Notes', ui.isnotempty(entity.description), 'notes', size=12) }}
+</div {{ ui.card_end() }}>
+
+<div {{ ui.card_start(title='Quick Access', uicon="redo") }}>
+  <div class="align-items-center justify-content-between">
+    {% if not is_custom_app %}
+      {{ ui.quick_access('ViewUsers', ftext('{} Users', level_name, novar=true), 'user', link=url_for('user.list_users', entity_id=entity.id)) }}
+    {% endif %}
+      {{ ui.quick_access('ViewClients', ftext('{} Clients', level_name, novar=true), 'client', link=url_for('client.list_client', entity_id=entity.id)) }}
+      {{ ui.quick_access('ViewLeads', ftext('{} Leads', level_name, novar=true), 'lead',link=url_for('leads.list_lead', entity_id=entity.id)) }}
+      {% if not is_custom_app %}
+        {{ ui.quick_access('ViewClients', ftext('{} Contracts', level_name, novar=true), 'contract',link=url_for('contract.list_contracts', entity_id=entity.id)) }}
+      {% endif %}
+  </div>
+</div {{ ui.card_end() }}>
+
+{% if not is_custom_app %}
+<div {{ ui.card_start(title='Stock Count', uicon="user", body_class='table-responsive') }}>
+    <table {{ui.table_start(sortable=false)}}>
+        <thead>
+            <tr>
+                {{ui.table_header('Product Sub-type')}}
+                {{ui.table_header('In Stock')}}
+                {{ui.table_header('With User')}}
+                {{ui.table_header('Installed')}}
+                
+            </tr>
+        </thead>
+        <tbody>
+            {% for (pst, in_stock, with_user, installed) in stock_count %}
+            <tr>
+                <td>{{ pst.name if pst else '-' }}</td>
+                <td>{{ in_stock }}</td>
+                <td>{{ with_user }}</td>
+                <td>{{ installed }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="4" class="text-center">No stock items in this entity</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div {{ ui.card_end() }}>
+{% endif %}
+
+{% if not is_custom_app %}
+<div {{ ui.card_start(title='Users Associated', uicon="user", body_class='table-responsive') }}>
+  <table {{ui.table_start(sortable=false)}}>
+    <thead>
+        <tr>
+            {{ui.table_header('User')}}
+            {{ui.table_header('Role')}}
+            {{ui.table_header(uicon='sync',tooltip='Sync objects in entity on Mobile')}}
+            {{ui.table_header('')}}
+        </tr>
+    </thead>
+    <tbody>
+        {% for users_with_roles in entity.users_with_roles|sort(attribute="id") %}
+        <tr>
+            {% set form_id = 'operational_permissions_form_'+users_with_roles.id|string %}
+            <td>
+              {{ forms.select(
+                  'user_id:number',
+                  [(users_with_roles.user.id, users_with_roles.user.full_name)],
+                  id="user-id-"+users_with_roles.id|string,
+                  source="user",
+                  min_chars="0",
+                  ajax=config.AJAX_SELECT_CLASS,
+                  value=users_with_roles.user.id,
+                  form=form_id
+              ) }}
+            </td>
+            <td>
+              {{
+                  forms.select(
+                      "role_id:number",
+                      [(users_with_roles.role.id, users_with_roles.role.name)] if users_with_roles.role else [],
+                      id="role-id-"+users_with_roles.id|string,
+                      source="role",
+                      ajax=config.AJAX_SELECT_CLASS,
+                      min_chars="0",
+                      value=users_with_roles.role.id if users_with_roles.role else none,
+                      label=ftext('Default ({})', users_with_roles.user.AuthorizationLevel.name),
+                      form=form_id
+                  )
+              }}
+            </td>
+            <td>
+                {{ forms.checkbox_simple(name='sync_enabled:boolean', checked=users_with_roles.sync_entity, mt=0, form=form_id) }}
+            </td>
+            <td>
+                <form id="{{form_id}}">
+                    {{ ui.button(
+                        action="async_post",
+                        type='card-action',
+                        uicon='save',
+                        tooltip='Save',
+                        async_url='/operational_permissions/'+users_with_roles.id|string,
+                        form=form_id,
+                        success_action="message"
+                    ) }}
+                    {{ ui.button(
+                        action="async_delete",
+                        type='card-action-grey',
+                        uicon='delete',
+                        tooltip='Remove',
+                        async_url='/operational_permissions/'+users_with_roles.id|string,
+                    ) }}
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+        <tr>
+            <td colspan="4">{{ftext('Add new')}}</td>
+        </tr>
+        <tr>
+            <tr>
+                {% set form_id = 'operational_permissions_form_new' %}
+                <td>
+                  {{
+                      forms.select(
+                        name='user_id:number',
+                        choices=user,
+                        id="user-id-new",
+                        source="user",
+                        form=form_id,
+                        translate=false
+                    ) 
+                  }}
+                </td>
+                <td>
+                    {{
+                        forms.select(
+                            name="role_id:number",
+                            choices=role,
+                            id="role-id-new",
+                            source="role",
+                            placeholder='User\'s Default Role',
+                            form=form_id,
+                            translate=false
+                        )
+                    }}
+                </td>
+                <td>
+                    {{ forms.checkbox_simple(name='sync_enabled:boolean', mt=0, form=form_id) }}
+                </td>
+                <td>
+                    <form id="{{form_id}}">
+                        <input type="hidden" name="entity_id:number" value="{{entity.id}}">
+                        {{ ui.button(
+                            'Add',
+                            action="async_post",
+                            type='tiny-action',
+                            uicon='add',
+                            tooltip='Add operational permission',
+                            async_url='/operational_permissions',
+                            form=form_id,
+                        ) }}
+                    </form>
+                </td>
+            </tr>
+        </tr>
+    </tbody>
+</table>
+</div {{ ui.card_end() }}>
+{% endif %}
+
+{# delete operational entity modal #}
+<div {{ ui.modal_start('delete-entity', ftext('Confirm {} Deletion', level_name)) }}>
+    <form>
+        <div class="modal-body">
+            {{ ui.info_card(ftext('Are you sure you want to delete the {}? This is NOT reversible. ', level_name), uicon='warning') }}
+            {{ ui.info_card(ftext('You will also lose the history of which Client/Leads were previously in this village. ', level_name), type='info') }}
+        </div>
+        <div class="modal-footer">
+            {{ ui.modal_close_button() }}
+            {{ ui.button(type='action', uicon='delete', label=ftext('Delete {}', level_name), action='async_delete', async_url='/entities/'+entity.id|string, redirect_url='/entities/level_'+entity.level|string) }}
+        </div>
+    </form>
+</div {{ ui.modal_end() }}>
+{% endblock %}

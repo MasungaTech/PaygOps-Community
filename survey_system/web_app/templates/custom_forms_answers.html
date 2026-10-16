@@ -1,0 +1,83 @@
+{% import 'client_map_macro.html' as map with context %}
+
+{% macro answer(Q, form_answer=none, group=none, language=1, name=none) -%}
+{% set variableName = Q.getVariableName(language)|notranslate %}
+{% set text = Q.getText(language)|notranslate %}
+{% set icon = Q.getIcon() %}
+{% set unit = Q.getUnit()|notranslate %}
+{% set type = Q.getType() %}
+
+{% if group is none %}
+    {% set answers = Q.getAnswersInSurveyAnswer(form_answer)[:] %}
+{% else %}
+    {% set answers = Q.getAnswersInSubQuestion(form_answer, group)[:] %}
+{% endif %}
+{% set answers = answers|answers_value_view if type not in [QuestionType.group, QuestionType.picture, QuestionType.signature] else answers %}
+{% set answercount = answers|length %}
+
+{% for ans in answers %}
+    <div {% if type in [QuestionType.picture, QuestionType.signature, QuestionType.long_text, QuestionType.gps_surface] %}class="{{ ui.col_size(12) }}"{% elif type == QuestionType.group %}{% else %}class="{{ ui.col_size(6) }}"{% endif %}>
+    {% if answercount > 1 %}{% set variableName = (Q.getVariableName(language)+ ' ('+loop.index|string+')')|notranslate %}{% endif %}
+    {% if type  == QuestionType.gps %}
+        {{ ui.report_field(variableName, ui.gps_coords(ans.get('gps_latitude')|float, ans.get('gps_longitude')|float), icon, tooltip=text) }}
+    {% elif type  == QuestionType.url %}
+        {{ ui.report_field(variableName, ui.url(ans), icon, tooltip=text) }}
+    {% elif type  == QuestionType.date %}
+        {{ ui.report_field(variableName, ui.date(ans, tooltip=false), icon, tooltip=text) }}
+    {% elif type  == QuestionType.date_time %}
+        {{ ui.report_field(variableName, ui.datetime(ans), icon, tooltip=text) }}
+    {% elif type  == QuestionType.l0_entity %}
+        {{ ui.report_field(variableName, ui.entity_link_raw(ans|int), icon, tooltip=text) }}
+    {% elif type in [QuestionType.yes_no, QuestionType.checkbox] %}
+        {{ ui.report_field(variableName, ui.yes_no(ans), icon, tooltip=text) }}
+    {% elif type in [QuestionType.numeric, QuestionType.choice_numeric] %}
+        {{ ui.report_field(variableName, ans|string+' '+unit, icon, tooltip=text) }}
+    {% elif type in [QuestionType.long_text] %}
+        {{ ui.report_header(variableName, icon, tooltip=text) }}<p class="multiline-answer">{{ ans }}</p>
+    {% elif type in [QuestionType.picture, QuestionType.signature] %}
+        <div class="d-flex justify-content-between">
+        {{ ui.report_header(variableName, icon, tooltip=text) }}
+        {% if ans.getValue().available %}
+            <a href="{{ url_for('file_upload.download_picture', picture_uuid=ans.getValue().uuid) }}?{{ ans.getValue().modifiedDate.timestamp() }}" target="_blank">
+                <img class="picture-preview mb-2 mt-1" 
+                {% if type == QuestionType.signature %}
+                data-bs-toggle="tooltip" data-bs-html="true" 
+                title="{{ftext('Digitally signed by ')}}{{ans.surveyAnswer.person_answering.full_name}}{{ftext(' on the ')}}{{ ui.datetime(ans.time or ans.surveyAnswer.started) }}{% if ans.surveyAnswer.interviewer and ans.surveyAnswer.interviewer != ans.surveyAnswer.person_answering %}{{ftext(' in the presence of ')}}{{ ans.surveyAnswer.interviewer.full_name }}{% endif %}. {% if ans.getValue().uuid.endswith('_placeholder') %}<br>{{ftext('This is a placeholder as the signature image is not available.')}} {% endif %}"
+                {% endif %}
+                src="{{ url_for('file_upload.download_picture', picture_uuid=ans.getValue().uuid) }}?{{ ans.getValue().modifiedDate.timestamp() }}">
+            </a>
+        {% else %}
+            <img class="picture-preview mb-2 mt-1" src="/static/img/default_missing.jpg">
+        {% endif %}
+        </div>
+    {% elif type == QuestionType.group %}
+        {{ ui.divider(text=Q.getVariableName(language)|notranslate, uicon=Q.getIcon() or 'info', tooltip=Q.getText(language), small=true) }}
+        <div class="row">
+        {% for sQ in Q.getSubQuestions() %}
+          {{ answer(sQ, form_answer=form_answer, group=ans.grouping) }}
+        {% endfor %}
+        </div>
+    {% elif type == QuestionType.gps_surface %}
+        {{ map.crop_map_script(ans, text, id=Q.id|string+'_'+loop.index|string) }}
+        <div {{ ui.card_start(class="mt-2") }}>
+            <div id="map-container" style="height: 500px; width: 100%; margin: 0;">
+                <div id="map_{{Q.id}}_{{loop.index|string}}" style="height: 100%; width: 100%; margin:0; padding:0; position: relative;"></div>
+            </div>
+            <div class="d-flex justify-content-between mt-3"> 
+            <div style="flex-grow: 1;">
+                Surface Area Size: <input type="text" id="areaValue_{{Q.id}}_{{loop.index|string}}" style="border: none; background-color: transparent; width:100%" disabled/>
+            </div>
+            <div>
+                {{ ui.button(uicon='location_on', label='View Coordinates', color='danger', tooltip='View Coordinates', action='editForm(this)') }}
+            </div>
+        </div>
+        </div {{ ui.card_end() }}>
+    {% else %}
+        {{ ui.report_field(variableName, ans, icon, tooltip=text) }} 
+    {% endif %}
+    </div>
+{% endfor %}
+{% if answercount == 0 %}
+{{ ui.report_field(variableName, '-', icon, tooltip=text, size=6) }}
+{% endif %}
+{%- endmacro %}

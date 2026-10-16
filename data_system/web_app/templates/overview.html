@@ -1,0 +1,41 @@
+{% extends "macros/base.html" %}
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'stats_macros/client_stats_card.html' as stats with context %}
+{% import 'macros/filter_macros.html' as filter with context %}
+
+{% block title %}{{ ftext('Overview') }}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('Dashboards', 'Monthly Overview' if monthly else 'Weekly Overview') }} {% endblock %}
+
+{% block page_actions %}
+    {{ ui.custom_dashboard_link('overview') }}
+    {% if not monthly %}
+        {{ ui.button(uicon='date', tooltip='Switch to monthly', link='?monthly=1', type='header-action') }}
+    {% else %}
+        {{ ui.button(uicon='date', tooltip='Switch to weekly', link='?monthly=0', type='header-action') }}
+    {% endif %}
+    {{ ui.button(uicon='cached', tooltip='Refresh Stats Now (automatically refreshed every 6h)', link=url_for('overview.display_overview_default', clear_cache=true, **request.args), type='header-action') }}
+    {{ filter.special_views_filter(views, view) }}
+{% endblock %}
+
+{% block content %}
+{% if GlobalSetting('StressMode') %}
+    {{ ui.info_card('We are experiencing a high load on the server. Dashboards have been temporarily disabled.')}}
+{% else %}
+
+{{ filter.entities_navigation_filter(entity) }}
+
+<div class="row">
+    {{ stats.basic_location_stats(thisStatEntity, monthly=monthly) }}
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if not GlobalSetting('StressMode') %}
+<script src="/static/js/chart.min.js"></script>
+<script>
+    createCharts()
+</script>
+{% endif %}
+{% endblock %}

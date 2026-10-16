@@ -1,0 +1,21 @@
+{% extends 'bulk_upload_summaries/summary_base.html' %}
+{% set object_name = 'payments' %}
+{% set total_var = 'total_payments' %}
+{% set correct_var = 'correct_payments' %}
+
+{% block table %}
+<thead>
+    <tr>
+        <th>Destination type</th>
+        <th>Number of items</th>
+    </tr>
+</thead>
+<tbody>
+    {% for dest, count in analysis['destinations_counts'].items() %}
+    <tr>
+        <td>{{dest}}</td>
+        <td>{{count}}</td>
+    </tr>
+    {% endfor %}
+</tbody>
+{% endblock %}

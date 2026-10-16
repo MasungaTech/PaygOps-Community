@@ -1,0 +1,22 @@
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'macros/form_macros.html' as forms with context %}
+{% import 'transaction_macros.html' as transaction with context %}
+
+<div class="modal-header">
+    <h5 class="modal-title" id="exampleModalLabel">{% block title %}{% endblock %}</h5>
+    <button type="button" class="btn-close dismiss-btn" data-bs-dismiss="modal" aria-label="Close">
+    </button>
+</div>
+<form id="MainForm" action="" method="post">
+    <div class="modal-body" id="core_content">
+        {% block form %}{% endblock %}
+    </div>
+    <div class="modal-footer">
+        <button type="button" class="btn btn-secondary dismiss-btn" data-bs-dismiss="modal">Close</button>
+        {% block button %}{% endblock %}
+        {{ ui.button('Send Token to Client', color='danger', action="sendAnswerToClient($(this).data('uuid'));", class='send_to_client hide') }}
+    </div>
+</form>
+
+{% block transaction_script %}{% endblock %}
+{{ transaction.transaction_script_macro() }}

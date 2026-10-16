@@ -1,0 +1,23 @@
+{% extends 'bulk_upload_summaries/summary_base.html' %}
+{% set object_name = 'leads' %}
+{% set total_var = 'total_leads' %}
+{% set correct_var = 'correct_leads' %}
+
+{% block table %}
+<thead>
+    <tr>
+        <th>Entity ID</th>
+        <th>Entity Name</th>
+        <th>Number of leads</th>
+    </tr>
+</thead>
+<tbody>
+    {% for entity_id, count in analysis['leads_counts'].items() %}
+    <tr>
+        <td>{{entity_id}}</td>
+        <td>{{ui.entity_link_ancestors(entity_id|entityFromEntityID)}}</td>
+        <td>{{count}}</td>
+    </tr>
+    {% endfor %}
+</tbody>
+{% endblock %}

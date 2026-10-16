@@ -1,0 +1,108 @@
+{% macro contract_summary_card(contract) -%}
+{% import 'macros/general_macros.html' as ui with context %}
+{% set cancelled = contract.status == 'Cancelled'%}
+<div {{ ui.card_start() }}>
+    <div class="{{ ui.card_header_class() }}">
+        {{ ui.card_title(uicon='contract', title=ftext('{}', contract.reference), link=url_for('contract.view_contract', contract_reference=contract.reference))}}
+
+        {% if GlobalSetting("AllowMultipleContracts") or (cancelled and Client.eligible_for_new_contract) %}
+        {{ ui.button(tooltip='Create new Lead', uicon='lead', color='danger', class='float-end', size='2', size_class='', link=url_for('leads.add_lead', contract=[contract.reference]))}}
+        {% endif %}
+    </div>
+    
+    <div class="row off-by-1 pt-2">
+            {% if contract.status == ContractStatus.paused %}
+                {{ui.info_card(uicon='warning',text='As the contract is paused, the next payment due date will be updated once the contract is resumed')}}
+            {% endif %}
+            {% if contract.status == ContractStatus.overpaid %}
+                {{ui.info_card(uicon='warning',text=ftext('This contract has a balance of {}. The overpaid amount must be returned to the customer to complete the contract.' , ui.amount(contract.get_outstanding_balance(), include_currency=true)))}}
+            {% endif %}
+            {{ ui.report_field('Reference', ui.contract_link(contract), size=6) }}
+            {{ ui.report_field('Lead', ui.lead_link(contract.lead), size=6) }}
+            {{ ui.report_field('Start Date', ui.date(contract.start_time) +' ('+ui.time_since(contract.start_time)+' ago)', size=6) }}
+            {{ ui.report_field('Offer', ui.offer_link_full(contract.offer, link=false if is_custom_app else true), size=6) }}
+            {%if contract.offer.type in [OfferType.loan, OfferType.time_based] %}
+                {{ ui.report_field('Timeliness ratio', (contract.get_timeliness_ratio()*100)|round(2, 'common'), size=6) }}
+                {%if contract.offer.type == OfferType.loan %}
+                    {{ ui.report_field('Remaining due', ui.amount(contract.get_outstanding_balance(), include_currency=true), size=6) }}
+                {% endif %}
+            {% endif %}
+            {%if contract.offer.type == OfferType.usage_based %}
+                {{ ui.report_field('Total amount bought', contract.get_credits_bought()|string+' '+contract.offer.credit_unit|string, size=6) }}
+            {% endif %}
+            {%if contract.portfolio %}
+                {{ ui.report_field('Associated Portfolio', ui.portfolio_link(contract.portfolio, link=false if is_custom_app else true), size=6) }}
+            {% else %}
+                {{ ui.report_field('Associated Portfolio', '-', size=6) }}
+            {% endif %}
+            {{ ui.report_field('Lump-sum add-ons', lump_sum_addon_paid_summary(contract), size=6) }}
+
+            {{ ui.report_field('Status', ui.contract_status_tag(contract.status), size=6) }}
+            {{ ui.report_field('Lead Generator', ui.lead_generator_link(contract.lead.generator, link=false if is_custom_app else true), size=6) }}
+            {% if contract.end_time %}
+                {{ ui.report_field('End date', ui.date(contract.end_time), size=6) }}
+        
+            {% elif contract.status != ContractStatus.paused %}
+                {{ ui.report_field('Next payment due date', ui.date(contract.next_repayment_due_time), size=6) }}
+            {% endif %}
+            {{ ui.report_field('Total value (excluding purchasing addons)', ui.amount(contract.get_total_value(), include_currency=true), size=6) }}
+            {{ ui.report_field('Purchasing add-ons amount', ui.amount(-contract.purchasing_addons_amount, include_currency=true), size=6) }}
+            {% if contract.linked_device %}
+            {{ ui.report_field('Linked Device', ui.device_link(contract.linked_device), size=6) }}
+            {% endif %}
+            {%if contract.offer.type in [OfferType.loan, OfferType.time_based] %}
+                {{ ui.report_field('Cumulative days late', contract.get_cumulative_days_in_arrears()|round|int, size=6) }}
+                {%if contract.offer.type == OfferType.loan %}
+                    {{ ui.report_field('Remaining due if paid now (discounted)', ui.amount(contract.get_outstanding_balance_discounted(), include_currency=true), size=6) }}
+                {%endif%}
+            {%endif%}
+            {%if contract.offer.type == OfferType.usage_based %}
+                {{ ui.report_field('Total paid (incl. deposit)', ui.amount(contract.get_cumulative_amount_repaid(), include_currency=true), size=6) }}
+            {% endif %}
+            {%if contract.offer.type == OfferType.lump_sum %}
+                {{ ui.report_field('Total value (excl. lump-sum add-ons)', ui.amount(contract.get_total_value(), include_currency=true), size=6) }}
+            {% endif %}
+    </div>
+    {%if contract.offer.type in [OfferType.loan, OfferType.time_based] %}
+        {{contract_progression_bar(contract)}}
+    {%endif%}
+</div {{ ui.card_end() }}>
+{%- endmacro %}
+
+
+{% macro lump_sum_addon_paid_summary(contract) -%}
+Paid {{ ui.amount(contract.get_total_value_of_lumpsum_addons(), include_currency=False) }} out of {{ ui.amount(contract.get_total_value_of_lumpsum_addons(include_pending=True), include_currency=true) }}
+{%- endmacro %}
+
+
+{% macro contract_progression_bar(contract) -%}
+<div class="col mt-2">
+    {% set percent_expected_paid = contract.get_expected_percentage_repaid(cached=true) %}
+    {% set percent_paid = contract.get_percentage_repaid() %}
+    {% if contract.offer.type == OfferType.loan %}
+        {% if contract.status == ContractStatus.overpaid %}
+            <div class="progress mb-3 position-relative">
+                <div class="progress-bar shadow-none position-absolute" role="progressbar" style="width: 100%; height: 100%" aria-valuenow="{{(100)|round(2, 'common')}}" aria-valuemin="0" aria-valuemax="100"></div>
+            </div>
+        {% else %}
+        <div class="progress mb-3 position-relative">
+            <div class="progress-bar shadow-none position-absolute" role="progressbar" style="width: {{(percent_paid*100)|round(2, 'common')}}%; height: 100%" aria-valuenow="{{(percent_paid*100)|round(2, 'common')}}" aria-valuemin="0" aria-valuemax="100"></div>
+            <div class="progress-bar red-badge shadow-none position-absolute rounded-0" role="progressbar" style="width: {{ ((percent_expected_paid*100))|round(2, 'common') }}%; height: 100%;  opacity: 0.5" aria-valuenow="{{ ((percent_expected_paid*100))|round(2, 'common') }}" aria-valuemin="0" aria-valuemax="100"></div>
+        </div>
+        {% endif %}
+        <p>
+            {{ ftext('Paid {} out of {} ({}).', ui.amount(contract.get_cumulative_amount_repaid(), include_currency=true), ui.amount(contract.get_total_value(), include_currency=true), ui.percentage(percent_paid) if contract.status != ContractStatus.overpaid else '>100%') }}
+            <br>{{ ftext('It was expected to be paid {} ({}) if always on time.', ui.amount(contract.get_expected_amount_repaid(cached=true), include_currency=true), ui.percentage(percent_expected_paid)) }}
+            {% if contract.status == ContractStatus.overpaid %}
+                <br><strong>{{ ftext('This contract is overpaid by {}.', ui.amount(-contract.get_outstanding_balance(), include_currency=true)) }}</strong>
+            {% endif %}
+        </p>
+        
+    {% elif contract.offer.type == OfferType.time_based %}
+    <p>
+        {{ ftext('Total amount paid {}.', ui.amount(contract.get_cumulative_amount_repaid(), include_currency=true))}}
+        <br>{{ ftext('It was expected to be {} if always on time.', ui.amount(contract.get_expected_amount_repaid(cached=true), include_currency=true)) }}
+    </p>
+    {%endif%}
+</div>
+{%- endmacro %}

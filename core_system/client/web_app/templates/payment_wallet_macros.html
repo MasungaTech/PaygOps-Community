@@ -1,0 +1,25 @@
+
+{% macro payment_wallet_list(wallets, active=false) %}
+<div {{ ui.collapsible_card_start(uicon='wallet', title='Payment Wallets', active=active, body_class='table-responsive') }}>
+    <table {{ ui.table_start() }}>
+      <thead>
+        <tr>
+            {{ ui.table_header('ID') }}
+            {{ ui.table_header('Wallet Name') }}
+            {{ ui.table_header('Type') }}
+            {{ ui.table_header('Balance') }}
+        </tr>
+      </thead>
+      <tbody>
+        {% for A in wallets %}
+        <tr>
+            <th><a href="{{ url_for('payment.account', account_id=A.id) }}">{{ A.id }}</a></th>
+            <td class="truncate-hoverable">{{ A.FullName }}</td>
+            <td>{{ A.type_name }}</td>
+            <td>{{ ui.amount(A.get_balance(), include_currency=true) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+</div {{ ui.collapsible_card_end() }}>
+{% endmacro %}

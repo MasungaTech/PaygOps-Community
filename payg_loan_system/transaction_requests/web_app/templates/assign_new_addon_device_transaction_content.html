@@ -1,0 +1,12 @@
+{% extends 'transaction_base.html' %}
+
+{% block title %}{{ ftext('Assign New Addon Device') }}{% endblock %}
+
+{% block form %}
+    <input type="hidden" name='contract_addon_reference' value="{{contract_reference}}" id='contract-addon-reference'>
+    {{ transaction.device_selector_macro(request_code=true, new_device=true, prefix='new_', prefix_label='New') }}
+{% endblock %}
+
+{% block button %}
+    {{ ui.button('Assign New Addon Device', color='danger', class='transaction_action', action="validateAndSubmit('/api/v1/transaction_requests/assign_device/');") }}
+{% endblock %} 

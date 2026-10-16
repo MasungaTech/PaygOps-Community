@@ -1,0 +1,74 @@
+{% extends "macros/base.html" %}
+
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'macros/form_macros.html' as forms with context %}
+
+{% block title %}{{ ftext('Tags Editor') }}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('Settings', 'Tags Editor') }} {% endblock %}
+
+{% block page_actions %}
+<ul {{ ui.tabs_ul() }}>
+    {{ ui.tabs_item('Clients', 'clients', uicon='client', active=true)}}
+    {{ ui.tabs_item('Devices', 'devices', uicon='device')}}
+</ul>
+{% endblock %}
+
+
+{% block content %}
+<div class="tab-content">
+<div {{ ui.tabs_pane_div('clients', active=true) }}>
+<div class="row">
+{% for tag in tags %}
+    <div {{ ui.card_start() }}>
+        <form id="tag_{{ tag.id }}" action="" method="POST">
+        <div class="row">
+            {{ forms.input('name', id='name_'+tag.id|string, label='Tag Name', value=tag.name, size=5, icon='tags') }}
+            {{ forms.color_select('color', id='color_'+tag.id|string, label='Tag Color', value=tag.style, size=5, icon='palette') }}
+            {{ forms.button(uicon='save', size=1, inline=true, align_end=true, color='danger', tooltip='Save tag', action='async_post', async_url='/tags/'+tag.id|string) }}
+            {{ forms.button(uicon='delete', size=1, inline=true, align_end=true, tooltip='Delete tag', disabled=tag.clients.count() != 0, action='async_delete', async_url='/tags/'+tag.id|string) }}
+        </div>
+        </form>
+    </div {{ ui.card_end() }}>
+{% endfor %}
+<div {{ ui.card_start() }}>
+    <form id="tag_new" action="" method="POST">
+    <div class="row">
+        {{ forms.input('name', id='name_new', label='New Tag Name', size=5, icon='tags') }}
+        {{ forms.color_select('color', id='color_new', label='New Tag Color', size=5, icon='palette') }}
+        {{ forms.button(uicon='add', size=1, inline=true, align_end=true, color='danger', tooltip='Add new tag', action='async_post', async_url='/tags') }}
+    </div>
+    </form>
+</div {{ ui.card_end() }}>
+</div>
+</div>
+</div>
+
+<div class="tab-content">
+    <div {{ ui.tabs_pane_div('devices') }}>
+        <div class="row">
+            {% for tag in device_tags %}
+                <div {{ ui.card_start() }}>
+                    <form id="tag_{{ tag.id }}" action="" method="POST">
+                    <div class="row">
+                        {{ forms.input('name', id='name_'+tag.id|string, label='Tag Name', value=tag.name, size=5, icon='tags') }}
+                        {{ forms.color_select('color', id='color_'+tag.id|string, label='Tag Color', value=tag.style, size=5, icon='palette') }}
+                        {{ forms.button(uicon='save', size=1, inline=true, color='danger', tooltip='Save tag', action='async_post', async_url='/device_tags/'+tag.id|string) }}
+                        {{ forms.button(uicon='delete', size=1, inline=true, tooltip='Delete tag', disabled=tag.devices.count() != 0, action='async_delete', async_url='/device_tags/'+tag.id|string) }}
+                    </div>
+                    </form>
+                </div {{ ui.card_end() }}>
+            {% endfor %}
+            <div {{ ui.card_start() }}>
+                <form id="tag_new" action="" method="POST">
+                <div class="row">
+                    {{ forms.input('name', id='name_new', label='New Tag Name', size=5, icon='tags') }}
+                    {{ forms.color_select('color', id='color_new_devices', label='New Tag Color', size=5, icon='palette') }}
+                    {{ forms.button(uicon='add', size=1, inline=true, color='danger', tooltip='Add new tag', action='async_post', async_url='/device_tags') }}
+                </div>
+                </form>
+            </div {{ ui.card_end() }}>
+            </div>  
+    </div>
+</div>
+{% endblock %}

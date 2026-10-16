@@ -1,0 +1,52 @@
+{% extends 'transaction_base.html' %}
+
+{% block title %}{{ ftext('Give Delay') }}{% endblock %}
+
+{% block form %}
+    {{ transaction.device_selector_macro(only_time_based=true) }}
+    {{ forms.select('delay-type:skip',
+                        {'days':'Number of Delayed Days', 'date': 'Date to delay contract to'},
+                        value='',
+                        required=true,
+                        onchange="selectToggleFormsMap(this, 'value', {'days': '#div-days', 'date': '#div-date'})",
+                        labeltag="Delay Type") }}
+    <div id="div-days" class="hiddenform">
+        {{ forms.input('delayed_days:number', 'Number of Delayed days', valid='req float', id="delayed_days") }}
+    </div>  
+    <div id="div-date" class="hiddenform">
+        {{ forms.input('delayed_date', 'Date To Delay', type='datepicker', id='delayed_date', icon='insert_invitation')}}
+    </div>
+    {{ forms.input('note', 'Note') }}
+{% endblock %}
+
+{% block button %}
+    {{ ui.button('Give Delay', color='danger', class='transaction_action', action="validateAndSubmit('/api/v1/transaction_requests/give_delay/');") }}
+{% endblock %}
+
+{% block transaction_script %}
+<script>
+    $().ready(function() {
+        toggleDisabled();
+        $('#device').on('change', function(e) {
+            toggleDisabled();
+        })
+    });
+    function toggleDisabled(){
+    
+        $('#device.select_2').find(':selected').each(function (e) {
+            var dayOfMonth = this.dataset.dayofmonth;
+            
+            console.log("Has day of month: "+dayOfMonth)
+            if (dayOfMonth != null && dayOfMonth != "" && dayOfMonth != "None") {
+                $('#delayed_days').prop('disabled', 'disabled');
+                $('#note').prop('disabled', 'disabled');
+                $('#giveDelayBtn').prop('disabled', 'disabled')
+            } else {
+                $('#delayed_days').prop('disabled', false);
+                $('#note').prop('disabled', false);
+                $('#giveDelayBtn').prop('disabled', false)
+            }
+        });
+    }
+</script>
+{% endblock %}

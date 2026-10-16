@@ -1,0 +1,61 @@
+{% macro form_scripts() %}
+<script>
+// We get the data from the given form
+// We serialize and we send to the lead enpoint
+// We load back from a specified view URL OR We reload the whole page, maybe better.
+
+function refundLeadDeposit(leadID) {
+    var URL = PAYGAPIURL+"/api/v1/leads/"+leadID;
+     $.ajax({
+        url: URL,
+        type: "POST",
+        data: JSON.stringify({'payment_reference': 'REFUND_DEPOSIT'}),
+        contentType: "application/json",
+        beforeSend: function(xhr) { xhr.setRequestHeader("Authorization", "Bearer "+JWTKey); },
+        success: function (result) {
+            toast(PaygOps_LNG["REFUND_SUCCESS"]);
+        },
+        error: function (result, ajaxOptions, thrownError) {
+            if (result.status == 400) {
+                toast($.parseJSON(result.responseText).error_message);
+            } else {
+                toast(PaygOps_LNG["SAVING_ERROR"]+result.responseText);
+            }
+        }
+     });
+}
+
+function partialEditLead(dataForm, validateForm, request_url) {
+     var json_data = JSON.stringify(dataForm.serializeJSON({useIntKeysAsArrayIndex: true}));
+     if(validateForm.valid()) {
+         var URL = PAYGAPIURL+request_url;
+         $.ajax({
+            url: URL,
+            type: "POST",
+            data: json_data,
+            contentType: "application/json",
+            beforeSend: function(xhr) { xhr.setRequestHeader("Authorization", "Bearer "+JWTKey); },
+            success: function (result) {
+                reloadPage(true);
+            },
+            error: function (result, ajaxOptions, thrownError) {
+                if (result.status == 400) {
+                    error_toast($.parseJSON(result.responseText).error_message);
+                } else {
+                    error_toast(PaygOps_LNG["SAVING_ERROR"]+result.responseText);
+                }
+                dataForm.find('button.disabled.inProgress').removeClass('inProgress').removeClass('disabled').find('.material-icons').text('save');
+            }
+         });
+     }
+}
+
+ $(document).ready(function() {
+    M.updateTextFields();
+    refreshDatepickers();
+    refreshSelects();
+ });
+
+
+</script>
+{% endmacro %}

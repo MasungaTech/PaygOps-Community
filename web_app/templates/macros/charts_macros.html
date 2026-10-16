@@ -1,0 +1,217 @@
+{% macro chartJS(type, canvasId, data, datasetLabels, backgroundColors=['basecolorbis'], borderColors=['basecolor'], displayLegend=false, noXGrid=false, noYGrid=false, noBezierCurve=false, stacked=false, yMax=none, formatedAmount=true, translate_x=false) -%}
+    {% filter replace("\n","")|replace("  ", "") %}
+    var data{{ canvasId }} = {
+        labels: [
+                {% for C in data %}
+                    "{{ ftext(C[0]) if translate_x else C[0] }}",
+                {% endfor %}
+                ],
+        datasets: [
+            {% for label in datasetLabels %}
+            {
+                label: "{{ ftext(label) }}",
+                backgroundColor: {{ backgroundColors[loop.index0] }},
+                borderColor: {{ borderColors[loop.index0] }},
+                borderWidth: 2,
+                pointBackgroundColor: {{ borderColors[loop.index0] }},
+                data: [ {% set outerloop = loop %}
+                    {% for C in data %}
+                        {{ C[1+outerloop.index0] }},
+                    {% endfor %}
+                ]
+            },
+            {% endfor %}
+        ]
+    };
+
+    var ctx{{ canvasId }} = document.getElementById("{{ canvasId }}").getContext("2d");
+    var {{ canvasId }}Chart = new Chart(ctx{{ canvasId }}, {
+        type: '{{ type }}',
+        data: data{{ canvasId }},
+        options: {
+            responsive: true,
+            legend: {
+                display: {% if displayLegend %}true{% else %}false{% endif %},
+                position: 'bottom',
+            },
+            {% if formatedAmount %}
+            tooltips: {
+                enabled: true,
+                mode: 'single',
+                callbacks: {
+                    label: function(tooltipItems, data) {
+                        return tooltipItems.yLabel.toLocaleString();
+                    }
+                }
+            },
+            {% endif %}
+            scales: {
+                {% if noXGrid %}
+                xAxes:[{
+                    gridLines:{
+                        display: false
+                    }
+                }], {% endif %}
+                yAxes:[{
+                    type: 'linear',
+                    stacked: {% if stacked %}true{% else %}false{% endif %},
+                    ticks: {
+                        {% if formatedAmount %}
+                            callback: function(value, index, values) { return value.toLocaleString(); },{% endif %}
+                    {% if type == 'bar' %}
+                        beginAtZero: true,
+                    {% endif %}
+                    {% if yMax != None %}
+                        max: {{ yMax }},
+                    {% endif %}
+                    },
+                {% if noYGrid %}
+                    gridLines:{
+                        display: false
+                    }
+                {% endif %}
+                }],
+            },
+            {% if noBezierCurve %}
+            elements: {
+                line: {
+                    tension: 0,
+                }
+            }
+            {% endif %}
+        }
+    });
+    {% endfilter %}
+{%- endmacro %}
+
+{% macro pieJS(type, canvasId, data, cutout=80, backgroundColors=None, hoverBackgroundColors=None, displayLegend=false) -%}
+    {% filter replace("\n","")|replace("  ", "") %}
+    var data{{ canvasId }} = {
+        labels: [
+                {% for C in data %}
+                    "{{ ftext(C[0]) }}",
+                {% endfor %}
+                ],
+        datasets: [
+            {
+                data: [
+                    {% for C in data %}
+                        {{ C[1] }},
+                    {% endfor %}
+                ],
+                backgroundColor: [
+                    {% if backgroundColors %}
+                    {% for C in backgroundColors %}
+                        {{ C }},
+                    {% endfor %}
+                    {% else %}
+                    {% for C in data %}
+                        'rgba(96, 125, 139, {{ 1-(loop.index/(loop.length+1)) }})',
+                    {% endfor %}
+                    {% endif %}
+                ],
+                hoverBackgroundColor: [
+                    {% if backgroundColors %}
+                    {% for C in hoverBackgroundColors %}
+                        {{ C }},
+                    {% endfor %}
+                    {% else %}
+                    {% for C in data%}
+                        'rgba(96, 125, 139, {{ 0.9-(loop.index/(loop.length+1)) }})',
+                    {% endfor %}
+                    {% endif %}
+                ],
+                borderWidth: 0,
+                pointStyle: 'rectRounded'
+            },
+        ]
+    };
+
+    var ctx{{ canvasId }} = document.getElementById("{{ canvasId }}").getContext("2d");
+    var {{ canvasId }}Chart = new Chart(ctx{{ canvasId }}, {
+        type: '{{ type }}',
+        data: data{{ canvasId }},
+        options: {
+            {% if type != 'pie' %}cutoutPercentage: {{ cutout }},{% endif %}
+            responsive: true,
+            legend: {
+                display: {% if displayLegend %}true{% else %}false{% endif %},
+                position: 'bottom',
+            },
+        },
+    });
+    {% endfilter %}
+{%- endmacro %}
+
+
+{% macro timescaleJS_specific(type, canvasId, data, datasetLabels, backgroundColors=['basecolorbis'], borderColors=['basecolor'], displayLegend=false, noXGrid=false, noYGrid=false, noBezierCurve=false, stacked=false, yMax=None) -%}
+    {% filter replace("\n","")|replace("  ", "") %}
+    var data{{ canvasId }} = {
+        labels: [
+                {% for C in data['legend'] %}
+                    "{{ C }}",
+                {% endfor %}
+                ],
+        datasets: [
+            {% for label in datasetLabels %}
+            {
+                label: "{{ ftext(label) }}",
+                backgroundColor: {{ backgroundColors[loop.index0] }},
+                borderColor: {{ borderColors[loop.index0] }},
+                borderWidth: 2,
+                pointBackgroundColor: {{ borderColors[loop.index0] }},
+                data: [ {% set outerloop = loop %}
+                    {% for C in data['data'][loop.index0] %}
+                        {x: "{{ C['x'] }}", y:{{ C['y']|round(2) }}},
+                    {% endfor %}
+                ]
+            },
+            {% endfor %}
+        ]
+    };
+
+    var ctx{{ canvasId }} = document.getElementById("{{ canvasId }}").getContext("2d");
+    var {{ canvasId }}Chart = new Chart(ctx{{ canvasId }}, {
+        type: '{{ type }}',
+        data: data{{ canvasId }},
+        options: {
+            responsive: true,
+            legend: {
+                display: {% if displayLegend %}true{% else %}false{% endif %},
+                position: 'bottom',
+            },
+            scales: {
+                xAxes:[{
+                    type: 'time',
+                {% if noXGrid %}
+                    gridLines:{
+                        display: false
+                    }{% endif %}
+                }],
+                yAxes:[{
+                    type: 'linear',
+                    stacked: {% if stacked %}true{% else %}false{% endif %},
+                    ticks: {
+                        beginAtZero: true,
+                    {% if yMax != None %}
+                        max: {{ yMax }},
+                    {% endif %}
+                    },
+                {% if noYGrid %}
+                    gridLines:{
+                        display: false
+                    }
+                {% endif %}
+                }],
+            },
+            {% if noBezierCurve %}
+            elements: {
+                line: {
+                    tension: 0,
+                }
+            }
+            {% endif %}
+        }
+    });
+    {% endfilter %}
+{%- endmacro %}

@@ -1,0 +1,4 @@
+Role,Reference Entity,First Name,Surname,Username,Email,Login Expiration Date,Cash collection limit,Phone Numbers,Web & Messages Language,Organization,Mobile App PIN,Create Lead Generator,Lead Generator Type,Preferred Password Communication
+1,1,first name 1,surname 1,username123,email123@email.com,15/05/2030,123,+999453000001,English,Organization 1, ,TRUE,1,Email
+1,2,first name 2,surname 2,username.com,username@usernamme.com,12/04/2025,123,+999453000002,English,Organization 2,4536,TRUE,2,Phone
+2,3,first name 3,surname 3,username2,email2@email.com,21/02/2024,123,+999453000000,French,Organization 3,,TRUE,2,Phone

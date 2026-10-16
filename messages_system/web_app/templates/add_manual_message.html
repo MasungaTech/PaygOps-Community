@@ -1,0 +1,30 @@
+{% extends 'macros/base.html' %}
+
+{% import 'macros/form_macros.html' as forms %}
+
+{% block title %}{{ ftext('Manually Add Message') }}{% endblock %}
+{% block page_title %}{{ ui.page_title('Messages', 'Manual Add') }}{% endblock %}
+
+{% block content %}
+<div>
+    {{ ui.info_card(uicon='info', color='secondary', text='This page is to be used to manually enter a Message (SMS), in case the integration does not exist or failed. ') }}
+    {{ ui.info_card(uicon='warning', text='Any message added here will be <a href="manual_list">logged</a> with your name, IP address and time. ')}}
+
+    <div {{ ui.card_start(size=12) }}>
+        <form id="MainForm" action="" method="post" class="row">
+            {{ forms.input('from_number', 'Phone Number Sending Message', valid="phoneTZ", required=True, size=6) }}
+            {{ forms.input('body', 'Message Body', required=true, size=6) }}
+
+            {{ forms.button(label='Add Manual Message', uicon='save', type='action', fit=true, size=6, center=true) }}
+        </form>
+    </div {{ ui.card_end() }}>
+
+    {% if answers is defined %}
+        <div {{ ui.card_start(title='Unread Message Answers', uicon='message') }}>
+            {% for answer in answers  %}
+                <br>{{ ui.info_card(text=answer, color='primary') }}
+            {% endfor %}
+        </div {{ ui.card_end() }}>
+    {% endif %}
+</div>
+{% endblock %}

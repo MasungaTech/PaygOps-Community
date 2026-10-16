@@ -1,0 +1,53 @@
+{% extends "macros/base.html" %}
+{% import 'macros/form_macros.html' as forms with context %}
+{% import 'macros/general_macros.html' as ui with context %}
+
+{% block title %}{{ ftext('Bulk Upload '+task.display_name) }}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('Admin', ftext('Bulk Edit {}', task.display_name) if task.entity == 'client_groups' else ftext('Bulk Upload {}', task.display_name)) }}{% endblock %}
+
+{% block content %}
+    {% if task.status %}
+        <div id="task_status_wrapper" class="mt-2">
+            <div {{ ui.card_start() }}>
+            {{ ui.indeterminate_progress() }}
+            </div {{ ui.card_end() }}>      
+        </div>
+    {% else %}
+        <div {{ ui.card_start(title='Bulk Upload', uicon='cloud_upload') }}>
+            <form id="csv_file_form" class="row" action="{{ url_for('admin.bulk_upload_task_view', uuid=task.uuid, entity=task.entity) }}" method="POST" enctype="multipart/form-data">
+                {% include 'bulk_upload_descriptions/' + task.entity + '.html' %}
+                {{ forms.input('csv_file', 'CSV File', required=true, type='file', size=6)}}
+                {{ forms.checkbox(
+                    'headers',
+                    checked=true,
+                    value='true',
+                    id="headersCheckbox",
+                    size=6,
+                    labeltag='File has headers',
+                    label='The file has a first line of headers that should be ignored'
+                ) }}
+                {{ forms.checkbox(
+                    'unordered',
+                    checked=true,
+                    value='true',
+                    id="unorderedCheckbox",
+                    size=6,
+                    labeltag='Order is not important (faster)',
+                    label='Process rows in parallel (faster); order is not guaranteed'
+                ) }}
+                {{ forms.button('Preview', size=6, center=true, fit=true, inline=true, type='action')}}
+            </form>
+        </div {{ ui.card_end() }}> 
+    {% endif %}
+{% endblock %}
+
+{% block scripts %}
+    {% if task.status %}
+        <script>
+            $(document).ready(function() {
+                $('#task_status_wrapper').load('{{url_for('admin.add_bulk_status', uuid=task.uuid)}}');
+            });
+        </script>
+    {%endif%}
+{% endblock %}

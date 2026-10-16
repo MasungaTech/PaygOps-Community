@@ -1,0 +1,8 @@
+from constants import DELAY_DAYS_AMOUNT_PATTERN
+from payg_loan_system.transaction_requests.services.give_delay_service import GiveDelayTransactionService
+from payg_loan_system.transaction_requests.api_views.transaction_resource import TransactionResource
+
+
+class GiveDelayTransactionResource(TransactionResource):
+
+    service = GiveDelayTransactionService

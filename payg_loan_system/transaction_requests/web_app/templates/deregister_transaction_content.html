@@ -1,0 +1,20 @@
+{% extends 'transaction_base.html' %}
+
+{% block title %}{{ ftext('Repossess Device') }}{% endblock %}
+
+{% block form %}
+    {% if not contracts.first().has_delivered_addon_device %}
+        {{ transaction.device_selector_macro(request_code=true) }}
+        {{ forms.input('note', 'Note', type="textarea", size=6 if lead is defined else 12, max=40) }}
+    {% else %}
+        {{ui.info_card(text='The contract has an addon linked to a stock item. Please remove the addon before deregistering the contract.', color='secondary', uicon='info')}}
+    {% endif %}
+{% endblock %}
+
+{% block button %}
+    {% if not contracts.first().has_delivered_addon_device %}
+        {{ ui.button('Repossess Device', color='danger', class='transaction_action', action="validateAndSubmit('/api/v1/transaction_requests/deregister/');") }}
+    {% else %}
+    {{ui.button('Go to back to contract page', color='danger', class='btn-danger', link=url_for('contract.view_contract', contract_reference=contracts.first().reference))}}
+    {% endif %}
+{% endblock %}

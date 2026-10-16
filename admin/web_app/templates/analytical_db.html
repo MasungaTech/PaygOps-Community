@@ -1,0 +1,45 @@
+{% extends "macros/base.html" %}
+{% import 'macros/form_macros.html' as forms with context %}
+{% import 'macros/general_macros.html' as ui with context %}
+
+{% block title %}{{ ftext('Analytical DB') }}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('Admin', 'Analytical DB',) }}{% endblock %}
+
+
+{% block content %}
+{{ ui.info_card(uicon='info', class='mt-1', text='Tip: You can copy any of the data export links and they are valid for 1 year even as the data changes, you can hence use the link to automate downloading into another tool.') }}
+<div {{ ui.card_start(size='12', title='Postgres Analytical DB - SQL File Dump', uicon='analytical_db') }}>
+    <p>
+        {{ ftext('You can choose to download all the data in the Analytical DB in SQL format. You can then import it in your own Postgres database to use the data as you wish with the power of your own machine or server and all the freedom that it entails. <br><br>
+        <strong>Instructions:</strong> This works like any PostgreSQL logical backup. See <a href="https://tableplus.com/blog/2018/08/postgresql-how-to-backup-and-restore-database.html" target="_blank">this tutorial</a> ("Restore" section) for basic example on how to load the SQL dump using command-line or a free GUI tool. You first need to have a PostgreSQL instance; you can use an online service such as AWS RDS or install it on your own computer by downloading it <a href="https://www.postgresql.org/download/" target="_blank">here</a>. <br><br>
+        <strong>Note:</strong> You should use Postgres 14 or newer to import the dump to ensure full compatibility. <br><br>
+        <strong>Update Frequency:</strong> Every 24h (at night)'|safe, force=true) }}
+    </p>
+    {{ forms.button(label='Download Postgres Analytical DB Dump', uicon='analytical_db', center=true, fit=true, size=6, link=url_for('files.analytical_db_pg_dump_download')+'?key='+api_key, type='action') }}
+</div {{ ui.card_end() }}>
+
+<div {{ ui.card_start(size='12', title='Postgres Analytical DB - Remote Connection (Paid)', uicon='settings_remote') }}>
+    <p>
+        {{ ftext('Instead, if you have contracted the "Hosted Analytical DB" service, you may remotely access the Analytical DB to run your queries (read-only). This allows you to have the most up to date data to do your analytics. The connection is encrypted to ensure the security of the data. <br><br>
+        <strong>Instructions:</strong> To connect you will need to get the address and port of the Analytical DB from Customer Success. You can then use the username and password provided below to connect. Depending on your client software, you might need to download the attached certificate or root certificate to allow the connection. You should set the SSL mode to "required". <br>'|safe, force=true) }}
+    </p>
+    <div class="row">
+        {{ forms.input('username', 'Postgres Read-Only User Username', GlobalSetting('AnalyticalDBUsers').get('external_pg_username', ftext('NOT SETUP')), uicon='user', disabled=true, size=6) }}
+        {{ forms.input('password', 'Postgres Read-Only User Password', GlobalSetting('AnalyticalDBUsers').get('external_pg_password', ''), type='password', uicon='lock', disabled=true, size=6) }}
+        {{ forms.button(label='Show Password (10 sec)', uicon='password', action="$('#password').attr('type','text');setTimeout(function(){$('#password').attr('type','password')},10000);", size=6, fit=true, type='action') }}
+        {{ forms.button(label='Download Server SSL Certificate (PEM)', uicon='card_membership', link=url_for('files.analytical_db_ssl_cert_download')+'?key='+api_key, size=6, fit=true, type='action')}} 
+        {{ forms.button(label='Download Root SSL Certificate (PEM)', uicon='card_membership', link=url_for('files.analytical_db_ssl_cert_root_ca_download')+'?key='+api_key, size=6, fit=true, type='action') }} 
+    </div>
+    <p>
+        <br><br>
+        {{ ftext('<strong>Important:</strong> Please bear in mind that this hosted Postgres instance is not meant to run very intensive and frequent queries but rather provide an interface for you to run simple query or load your data to your data warehouse. 
+        If you want to perform more intensive querying, you can load that data to your data warehouse or just create an always up-to-date copy with a tool such as <a href="https://github.com/ankane/pgsync" target="_blank">pgsync</a>. <br><br>
+        <strong>Note:</strong> If you use PaygOps\'s builtin Dashboard Editor, it already uses that frequently updated data. <br><br>
+        <strong>Update Frequency:</strong> Every 3h (except for changes to Operational Entities that can take 24h to reflect onto all tables)'|safe, force=true) }}
+    </p>
+</div {{ ui.card_end() }}>
+
+{% endblock %}
+
+

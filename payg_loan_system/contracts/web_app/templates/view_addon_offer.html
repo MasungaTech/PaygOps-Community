@@ -1,0 +1,133 @@
+{% extends "macros/base.html" %}
+{% import 'macros/form_macros.html' as forms %}
+{% import 'macros/general_macros.html' as ui with context %}
+
+
+{% block title %}View Add-on Offer {{ offer.code }}{% endblock %}
+
+
+{% block page_title %}{{ ui.page_title('Add-On Offers', 'View', object=offer) }}{% endblock %}
+
+{% block page_actions %}
+{% set delete_disabled = offer.addons_count %}
+{{ ui.button(modal='delete-offer-modal' if not delete_disabled else '', uicon='delete', type='header-action', disabled=delete_disabled, tooltip='This offer has been used and cannot be deleted anymore' if delete_disabled else 'Delete') }}
+{{ui.button(link=url_for('contract.add_addon_offer', based_on_id=offer.id), uicon='file_copy',
+tooltip='Duplicate',type='header-action')}}
+{% endblock %}
+
+{% block content %}
+{% set action = ui.button(link=url_for('contract.edit_addon_offer',offer_id=offer.id), uicon='edit'
+    ,tooltip='Edit general information' , type='card-action') if not offer.is_system() else '' %}
+<div {{ ui.card_start(title='General information' , uicon='offer' , body_class='row' ,
+    actions=action) }}>
+    {{ ui.report_field('Code',offer.code, size=6) }}
+    {{ ui.report_field('Name',offer.name, size=6) }}
+    {{ ui.report_field('Category',offer.category.name if offer.category else '-', size=6) }}
+    {{ ui.report_field('Type', ftext(offer.type), size=6) }}
+    {{ ui.report_field('Add-ons sold',offer.addons_count, size=6) }}
+    {{ ui.report_field('Bundles that use this offer',offer.bundle_items.count(), size=6) }}
+    {{ ui.report_field('Needs Approval', ui.yes_no(offer.need_approval), size=6) }}
+    {{ ui.report_field('Decimal quantities allowed',ui.yes_no(offer.allow_decimal_quantities), size=6) }}
+    {{ ui.report_field('Linked to product',ui.yes_no(offer.linked_to_product), size=6) }}
+    {{ ui.report_field('Product type',offer.product_type, size=6) }}
+    {{ ui.report_field('Product sub-type',offer.product_sub_type.name if offer.product_sub_type else '-', size=6) }}
+    {{ ui.report_field('Purchasing add-on',ui.yes_no(offer.purchasing_addon), size=6) }}
+</div {{ ui.card_end() }}>
+
+<div {{ ui.card_start(title='Offer Availability', uicon='offer', body_class='row') }}>
+    <div class="{{ ui.col_size(6) }}">
+        {{ ui.report_field('Available for Sales', ftext('In all entities') if offer.entities_allowed_for_leads.count() == 0 else ftext('In some entities')) }}
+        {% if offer.entities_allowed_for_leads.count() %}
+            {{ftext('Only in')}}&nbsp;{%- for entity in offer.entities_allowed_for_leads -%}{{ ui.entity_badge(entity) }}{%- endfor -%}
+        {% endif %}
+    </div>
+    <div class="{{ ui.col_size(6) }}">
+        {{ ui.report_field('Available for Registration', ftext('In all entities') if offer.entities_allowed_for_contracts.count() == 0 else ftext('In some entities')) }}
+        {% if offer.entities_allowed_for_contracts.count() %}
+            {{ftext('Only in')}}&nbsp;{%- for entity in offer.entities_allowed_for_contracts -%}{{ ui.entity_badge(entity) }}{%- endfor -%}
+        {% endif %}
+    </div>
+</div {{ ui.card_end() }}>
+
+{% set version_action = ui.button(link=url_for('contract.add_addon_offer_version', offer_id=offer.id), uicon='add' ,
+    tooltip='Create new version' ,permission='AddAddonOffers' , type='card-action') if not offer.is_system() else '' %}
+<div {{ ui.card_start(title='Pricing information' , uicon='payment' , body_class='table-responsive' ,
+    actions=version_action) }}>
+    <table {{ui.table_start()}}>
+        <thead>
+            <tr>
+                {{ui.table_header('Version',)}}
+                {% if offer.type != AddOnType.lump_sum%}{{ui.table_header('Downpayment')}}{% endif %}
+                {{ui.table_header('Unit Price')}}
+                {% if offer.type != AddOnType.lump_sum%}{{ui.table_header('Counts in extension limit')}}{% endif %}
+                {{ui.table_header('Sales')}}
+                {{ui.table_header('Registration')}}
+            </tr>
+        </thead>
+        <tbody>
+            {% for version in offer.versions|sort(attribute="version_number", reverse=true) %}
+            <tr>
+                <td><span class="tooltipped" data-tooltip="#{{version.id}}">{{version.version_number}}</span></td>
+                {% if offer.type != AddOnType.lump_sum%}<td>{{version.downpayment or '-'}}</td>{% endif %}
+                <td>{% if offer.purchasing_addon %}{{version.price|abs}}{%else%}{{version.price}}{%endif%}</td>
+                {% if offer.type != AddOnType.lump_sum%}
+                <td sorttable_customkey="{{ version.enforce_extension_limit }}">
+                    {{ui.yes_no(version.enforce_extension_limit)}}</td>
+                {% endif %}
+                <td sorttable_customkey="{{ version.available_for_sales }}" class="center">
+                    {{ forms.switch_simple('available_for_sales', checked=version.available_for_sales,
+                        onchange='markVersionAvailable(this, '+version.id|string+', "available_for_sales")') }}
+                </td>
+                <td sorttable_customkey="{{ version.available_for_registration }}" class="center">
+                    {{ forms.switch_simple('available_for_registration', checked=version.available_for_registration,
+                    onchange='markVersionAvailable(this, '+version.id|string+', "available_for_registration")')}}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div {{ ui.card_end() }}>
+
+{% if offer.based_on %}
+<div {{ ui.card_start(title='Base Add-on Offer', uicon='history') }}>
+    <div class="col s12">This add-on offer is based on {{ui.addon_offer_link(offer.based_on)}} with the following
+        changes:</div>
+    <div class="col s12"><br></div>
+    {% set changes = offer.changes %}
+    {% for diff in changes -%}
+    {%- set name = diff -%}
+    {%- set new = changes[diff][0] -%}
+    {%- set old = changes[diff][1] -%}
+    <div class="col s12 m6"><b>{{name}}:</b> {{new}} <span style="color: #999">(before: {{old}})</span></div>
+    {%- else -%}
+    <div class="col s12 center">No changes (except name and/or code)</div>
+    {%- endfor %}
+</div {{ ui.card_end() }}>
+{% endif %}
+
+
+{# delete add-on offer modal #}
+<div {{ ui.modal_start('delete-offer-modal', 'Delete Add-On Offer') }}>
+    <form>
+        <div class="modal-body">
+            {{ ui.info_card(uicon='info', color='secondary', text='Do you want to remove the current offer? This action cannot be undone.') }}
+        </div>
+        <div class="modal-footer">
+            {{ ui.modal_close_button() }}
+            {{ ui.button(uicon='delete', label='Delete Add-On Offer', type='action', action='async_delete', async_url='/add_on_offers/'+offer.id|string, redirect_url='/contracts/addons_configuration') }}
+        </div>
+    </form>
+</div {{ ui.modal_end() }}>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function markVersionAvailable(input, version_id, field) {
+        sendDataToAPI({[field]: $(input).is(":checked")}, "/offer_versions/"+version_id, {
+            "success_action": "reload",
+            "success_message": "The version availability was saved!",
+        })
+    }
+</script>
+{% endblock %}

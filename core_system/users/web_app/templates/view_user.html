@@ -1,0 +1,404 @@
+{% extends 'macros/base.html' %}
+{% import 'client_view_macros.html' as client_macros with context %}
+{% import 'macros/general_macros.html' as ui with context %}
+
+{% block title %}{{ ftext('Agent: {}', user.full_name, novar=true) }}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('Users', 'View', object=user) }}{% endblock %}
+
+{% block page_actions %}
+  {{ ui.button(link=url_for('.edit_user', user_id=user.id), uicon="create", tooltip="Edit", permission="EditUsers", person=user.person, type="header-action") }}
+  {% if current_user.is_super_admin() %}
+    {{ ui.button(action='copyToClipboard("'+config.PAYG_API_URL+url_for('login.login_auto', login_as=user.id, parent_key=jwt_token)+'", "Login Link")', uicon="key", tooltip="Copy link to login as user", permission="EditUsers", person=user.person, type="header-action") }}
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="{{ui.col_size('2s')}}">
+        <nav {{ ui.side_nav() }}>
+            <ul {{ ui.side_ul() }}>
+                {{ ui.side_link(text='Basic Info', subtext='Personal details', uicon='user', target_id='basic_info') }}
+                {{ ui.side_link(text='Quick Access', subtext='Links and actions', uicon='redo', target_id='quick') }}
+                {% if current_user.can_access('EditUsers', entity=user.shop) %}{{ ui.side_link(text='Permissions', subtext='In entities', uicon='permission', target_id='permissions') }}{%endif%}
+                {{ ui.side_link(text='Financial Info', subtext='Cash / Expenses', uicon='payment', target_id='financial') }}
+                {{ ui.side_link(text='Entities', subtext='User is in charge', uicon='cluster', target_id='entities') }}
+                {{ ui.side_link(text='Cash inflow', subtext='Collections', uicon='cash', target_id='cash') }}
+                {{ ui.side_link(text='User payments', subtext='To the company', uicon='payment', target_id='payments') }}
+                {{ ui.side_link(text='Wallets', subtext='Owned by the user', uicon='wallet', target_id='wallets', last=true) }}
+            </ul>
+        </nav>
+    </div>
+    <div class="{{ ui.col_size('10s') }}">
+        <div id="basic_info">
+            <div {{ ui.card_start(title='Basic Information', uicon='user', body_class='row') }}>
+
+                {{ ui.report_field('First Name', user.person.name, 'account_circle', size=6) }}
+                {{ ui.report_field('Surname', user.person.surname, 'account_circle', size=6) }}
+                {{ ui.report_field('Gender', ftext(user.person.get_gender_name()), 'wc', size=6) }}
+                {{ ui.report_field('Age', user.person.getAge(), 'birthdate', size=6) }}
+
+                {{ ui.report_field('Reference entity', ui.entity_link_ancestors(user.shop), 'shop', size=6) }}
+                {{ ui.report_field('Lead Generator Profile', ui.lead_generator_link(user.person.leadGenerator, link=false if is_custom_app else true), 'generator', size=6) }}
+
+                {{ ui.report_field('Last Web Access', ui.days_remaining(NOW, user.last_web_connection_time) + ' ago' if user.last_web_connection_time else 'Never', 'desktop', size=6) }}
+                {% set warning = ' ' + ui.icon('warning', 'tiny', color='orange', translate_tooltip=false, tooltip='Too many objects: '+', \n'.join(user.get_sync_report())) if user.last_mobile_app_sync_report and user.last_mobile_app_sync_report['warning'] else '' %}
+                {{ ui.report_field('Last Mobile App Sync', (ui.days_remaining(NOW, user.last_mobile_connection_time) + ' ago' if user.last_mobile_connection_time else 'Never') + warning, 'sync', size=6) }}
+
+                {{ ui.report_field('Main Role', ui.role_link(user.AuthorizationLevel), 'permission', size=6) }}
+                {{ ui.report_field('Last Mobile App Version', user.last_mobile_app_version or 'Never used', 'phone_android', size=6) }}
+
+                {{ ui.report_field('E-Mail', user.email or '-', 'email', size=6) }}
+                {{ ui.report_field('Username', user.username, 'account_circle', size=6) }}
+
+                {{ ui.report_field('Web and Messages Language', ui.isnone(user.person.get_sms_language_name()), 'language', size=6) }}
+                {{ ui.report_field('Phones', ui.person_phone_numbers(user.person), 'phone', size=6) }}
+
+            </div {{ ui.card_end() }}>
+        </div>
+        <div id="quick">
+            <div {{ ui.card_start(title='Quick Access', uicon="redo") }}>
+                <div class="align-items-center justify-content-between">
+                    {{ client_macros.quick_action('ViewPayments', 'Payments Collected', 'payment',  url=url_for("payment.list_payment", user_collecting_id=user.id), person=user.person) }}
+                    {{ client_macros.quick_action('ViewExpenses', 'Expenses', 'expense',  url=url_for("expense.list_expense_by_user", user_id=user.id), person=user.person) }}
+                    {{ client_macros.quick_action('ViewActions', 'User Requests', 'user',  url=url_for('mentor_request.list_request', path='all', user_id=user.id), person=user.person) }}
+                </div>
+            </div {{ ui.card_end() }}>
+        </div>
+        {% if current_user.can_access('EditUsers', entity=user.shop) %}
+        {% if false and current_user.can_access_in_all('EditUsers') %}
+            {% set entity_select_label = 'All' %}
+            {% set required_entity = false %}
+        {% else %}
+            {% set entity_select_label = 'Choose entity type...' %}
+            {% set required_entity = true %}
+        {% endif %}
+        <div id="permissions">
+            {% set copy_perm_action = ui.button('Copy permissions', type='card-action', modal='copy-permissions-modal') %}
+            <div {{ ui.card_start(title='Operational Permissions', uicon="permission", actions=copy_perm_action, body_class='table-responsive visible-overflow') }}>
+                <table {{ui.table_start(sortable=false)}}>
+                    <thead>
+                        <tr>
+                            {{ui.table_header('Entity type')}}
+                            {{ui.table_header('Entity')}}
+                            {{ui.table_header('Role')}}
+                            {{ui.table_header(uicon='sync',tooltip='Sync objects in entity on Mobile')}}
+                            {{ui.table_header('')}}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for role_in_entities in user.roles_in_entities|sort(attribute="id") %}
+                        {% set frozen_row = role_in_entities.entity == none %}
+                        <tr>
+                            <td class="fixed-width-100">
+                                {% set form_id = 'operational_permissions_form_'+role_in_entities.id|string %}
+                                {{forms.select(
+                                    name='entity_type',
+                                    choices=entity_types,
+                                    placeholder='All' if frozen_row else entity_select_label,
+                                    id="entity-type-"+role_in_entities.id|string,
+                                    value=role_in_entities.entity.level if role_in_entities.entity else none,
+                                    disabled=frozen_row,
+                                    skip_serial=true,
+                                    onchange="handleLevelChange(this)",
+                                    required=required_entity,
+                                    class="entityTypeSelector nochangeonload",
+                                    form=form_id, 
+                                    translate=false
+                                )}}
+                            </td>
+                            <td class="fixed-width-100">
+                                <input type="hidden" name="entity_id" value="" form="{{form_id}}">
+                                {{
+                                    forms.select(
+                                        name="entity_id",
+                                        choices=[(role_in_entities.entity.id, role_in_entities.entity.name)] if role_in_entities.entity else [],
+                                        id="entity-id-"+role_in_entities.id|string,
+                                        source="entities",
+                                        ajax=true,
+                                        value=role_in_entities.entity.id if role_in_entities.entity else none,
+                                        disabled=not role_in_entities.entity or frozen_row,
+                                        required=required_entity,
+                                        class="entitySelector",
+                                        form=form_id,
+                                        translate=false
+                                    )
+                                }}
+                            </td>
+                            <td class="fixed-width-100">
+                                {{
+                                    forms.select(
+                                        name="role_id",
+                                        choices=[(role_in_entities.role.id, role_in_entities.role.name)] if role_in_entities.role else [],
+                                        id="role-id-"+role_in_entities.id|string,
+                                        source="roles",
+                                        ajax=true,
+                                        value=role_in_entities.role.id if role_in_entities.role else none,
+                                        placeholder=ftext('Default ({})', user.AuthorizationLevel.name),
+                                        disabled=frozen_row,
+                                        form=form_id,
+                                        class="col-1 bg-success truncate-hoverable"
+                                    )
+                                }}
+                            </td>
+                            <td class="fixed-width-100">
+                                {{ forms.checkbox_simple(name='sync_enabled:boolean', checked=role_in_entities.sync_entity, disabled=frozen_row, mt=0, form=form_id) }}
+                            </td>
+                            <td class="fixed-width-100">
+                                <form id="{{form_id}}">
+                                    {{ ui.button(
+                                        action="async_post",
+                                        type='card-action',
+                                        uicon='save',
+                                        tooltip='Save',
+                                        async_url='/operational_permissions/'+role_in_entities.id|string,
+                                        form=form_id,
+                                        success_action="message"
+                                    ) }}
+                                    {{ ui.button(
+                                        action="async_delete",
+                                        type='card-action-grey',
+                                        uicon='delete',
+                                        tooltip='Remove',
+                                        async_url='/operational_permissions/'+role_in_entities.id|string,
+                                    ) }}
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                        <tr>
+                            <td colspan="5">{{ftext('Add new')}}</td>
+                        </tr>
+                        <tr>
+                            <tr>
+                                <td class="fixed-width-100">
+                                    {% set form_id = 'operational_permissions_form_new' %}
+                                    {{forms.select(
+                                        name='entity_type',
+                                        choices=entity_types_all,
+                                        id="entity-type-new",
+                                        skip_serial=true,
+                                        onchange="handleLevelChange(this)",
+                                        required=required_entity,
+                                        class="entityTypeSelector nochangeonload",
+                                        form=form_id, 
+                                        translate=false
+                                    )}}
+                                </td>
+                                <td class="fixed-width-100">
+                                    <input type="hidden" name="entity_id" value="" form="{{form_id}}">
+                                    {{
+                                        forms.select(
+                                            name="entity_id",
+                                            choices=entities,
+                                            id="entity-id-new",
+                                            source="entities",
+                                            ajax=true,
+                                            disabled=true,
+                                            required=required_entity,
+                                            class="entitySelector",
+                                            form=form_id,
+                                            translate=false
+                                        )
+                                    }}
+                                </td>
+                                <td class="fixed-width-100">
+                                    {{
+                                        forms.select(
+                                            name="role_id",
+                                            choices=roles,
+                                            id="role-id-new",
+                                            source="roles",
+                                            placeholder=ftext('Default ({})', user.AuthorizationLevel.name),
+                                            form=form_id,
+                                            translate=false
+                                        )
+                                    }}
+                                </td>
+                                <td class="fixed-width-100">
+                                    {{ forms.checkbox_simple(name='sync_enabled:boolean', mt=0, form=form_id, class='syncCheckbox') }}
+                                </td>
+                                <td class="fixed-width-100">
+                                    <form id="{{form_id}}">
+                                        <input type="hidden" name="user_id:number" value="{{user.id}}">
+                                        {{ ui.button(
+                                            'Add',
+                                            action="async_post",
+                                            type='tiny-action',
+                                            uicon='add',
+                                            tooltip='Add operational permission',
+                                            async_url='/operational_permissions',
+                                            form=form_id,
+                                        ) }}
+                                    </form>
+                                </td>
+                            </tr>
+                        </tr>
+                    </tbody>
+                </table>
+            </div {{ ui.card_end() }}>
+        </div>
+        <div {{ ui.modal_start('copy-permissions-modal', 'Copy Operational Permissions')}}>
+            <form id="copy-permissions-form">
+                <div class="modal-body">
+                    {{forms.searchable_select('destination_user_id:number', id="destination_user_id", label="Select user to give operational permissions to", choices=users, source="users")}}
+                </div>
+                <div class="modal-footer">
+                    {{ ui.modal_close_button() }}
+                    {{ ui.button(uicon='save', label='Copy permissions', type='action', action='async_post', async_url='/users/'+user.id|string+'/copy_operational_permissions') }}
+                </div>
+            </form>
+        </div {{ ui.modal_end() }}>
+        {% endif %}
+        <div id="financial">
+            <div {{ ui.card_start(title='Financial Information', uicon="payment", body_class='row') }}>
+                {% set accounting_user = user.accounting_user() %}
+
+                {{ ui.report_field('Total Expenses', ui.amount(accounting_user.get_expense_amount(), include_currency=true), 'receipt', size=6) }}
+                {{ ui.report_field('Net transferred', ui.amount(accounting_user.get_net_transferred(), include_currency=true), 'redo', size=6, tooltip='Total trasferred to the user - Total transferred from the user to the company') }}
+
+                {% if GlobalSetting('CashCollectionLimitEnabled') %}
+                    {% set cash_limit = ui.amount(user.cash_collection_limit or GlobalSetting('CashCollectionLimit'), include_currency=true) + ('(platform default)' if not user.cash_collection_limit else '')%}
+                {%else%}
+                    {% set cash_limit = 'Disabled in platform settings' %}
+                {% endif %}
+                {{ ui.report_field('Cash Collection limit', cash_limit, 'cash', size=6) }}
+                {{ ui.report_field('Total cash collected', ui.amount(user.total_cash_collected, include_currency=true), 'cash', size=6) }}
+
+                {{ ui.report_field('Remaining cash allowance', ui.amount(user.cash_allowance, include_currency=true) if user.cash_allowance else 'Unlimited', 'cash', size=6) }}
+                {{ ui.report_field('Total Cash repaid', ui.amount(user.total_reconciled, include_currency=true), 'cash', size=6) }}
+
+                {{ ui.report_field('Expenses balance', ui.amount(accounting_user.get_expense_amount()-accounting_user.get_net_transferred(), include_currency=true), 'receipt', size=6, tooltip='Total expenses - Net transferred') }}
+                {{ ui.report_field('Cash collected balance', ui.amount(user.total_cash_collected-user.total_reconciled, include_currency=true), 'cash', size=6, tooltip='Total cash collected - Total Cash repaid') }}
+
+                {{ ui.report_field('Total balance', ui.amount(user.total_cash_collected - user.total_reconciled - accounting_user.get_expense_amount()+accounting_user.get_net_transferred(), include_currency=true), 'payments', size=6, tooltip='Cash collected balance - Expense balance') }}
+
+            </div {{ ui.card_end() }}>
+        </div>
+        <div id="entities">
+            <div {{ ui.card_start(title='Entities Managed', uicon="cluster", body_class='table-responsive') }}>
+                <table {{ui.table_start()}}>
+                    <thead>
+                        <tr>
+                            {{ui.table_header('ID')}}
+                            {{ui.table_header('Entity')}}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for entity in user.managed_operational_entities %}
+                        <tr>
+                            <td>{{entity.id}}</td>
+                            <td>{{ ui.entity_link_ancestors(entity) }}</td>
+                        </tr>
+                        {% else %}{{ui.no_results_row(2)}}
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div {{ ui.card_end() }}>
+        </div>
+        <div id="cash">
+            <div {{ ui.card_start(title='Cash inflow', uicon="cash", body_class='table-responsive') }}>
+                <table {{ui.table_start()}}>
+                    <thead>
+                        <tr>
+                            {{ui.table_header('Transaction ID')}}
+                            {{ui.table_header('Amount')}}
+                            {{ui.table_header('Time')}}
+                            {{ui.table_header('Wallet')}}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for p in all_cash_payments %}
+                        <tr>
+                            <td>{{p.back_payment.Reference}}</td>
+                            <td>{{ ui.amount(p.Amount, include_currency=true) }}</td>
+                            <td sorttable_customkey="{{ ui.sortabledate(p.PaymentReceptionTime) }}">{{ ui.datetime(p.PaymentReceptionTime) }}</td>
+                            <td>{{ ui.wallet_link(p.back_payment.PaymentWallet, icon=true) }}</td>
+                        </tr>
+                        {%else%}{{ui.no_results_row(4, 'No payments')}}
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div {{ ui.card_end() }}>
+        </div>
+        <div id="payments">
+            <div {{ ui.card_start(title='User payments', uicon="payment", body_class='table-responsive') }}>
+                <table {{ui.table_start()}}>
+                    <thead>
+                        <tr>
+                            {{ui.table_header('Source')}}
+                            {{ui.table_header('Amount')}}
+                            {{ui.table_header('Time')}}
+                            {{ui.table_header('Wallet')}}
+                            {{ui.table_header(uicon='notes', tooltip="Notes")}}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for r in user.reconciled_payments|sort(attribute="time") %}
+                        <tr>
+                            <td>
+                                {% if r.type == 'Repayment reversal' %}
+                                    {% set p = r.converse.linked_payment %}
+                                  {% elif r.type == 'Payment reversal' %}
+                                    {% set p = r.reversed_payment.payment %}
+                                  {% else %}
+                                    {% set p = r.linked_payment %}
+                                  {% endif %}
+                                  {% if p %}{{ ui.payment_source_tooltip(p) }} {{ p.Reference }}
+                                  {% else %}{{ ftext('Balance') }}{% endif %}
+                                </td>
+                                <td>{{ ui.amount(-r.amount) }}</td>
+                                <td sorttable_customkey="{{ ui.sortabledate(r.time) }}">{{ ui.datetime(r.time) }}</td>
+                                <td>{{ui.wallet_link(r.payment_account, icon=true)}}</td>
+                                <td>{% if r.note %}{{ ui.icon('notes', 'tiny', tooltip=r.note) }}{% else %}{{ ui.icon('notes', 'tiny', color="lightgray") }}{% endif %}</td>
+                        </tr>
+                        {%else%}{{ui.no_results_row(5, 'No payments')}}
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div {{ ui.card_end() }}>
+        </div>
+        <div id="wallets">
+            <div {{ ui.collapsible_card_start(title='Wallets', uicon="wallet", active=false, body_class='table-responsive') }}>
+                <table {{ui.table_start()}}>
+                    <thead>
+                        <tr>
+                            {{ui.table_header('ID')}}
+                            {{ui.table_header('Wallet Name')}}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for A in all_wallets %}
+                        <tr>
+                            <td>{{ui.wallet_link(A, short=true)}}</td>
+                            <td>{{ A.FullName }}</td>
+                        </tr>
+                        {%else%}{{ui.no_results_row(2, 'No wallets owned')}}
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div {{ ui.collapsible_card_end() }}>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function handleLevelChange(select) {
+        let entitySelect = $(select).parents('tr').find('.entitySelector');
+        let syncCheckbox = $(select).parents('tr').find('.syncCheckbox');
+        console.log($(select).val(), entitySelect)
+        if ($(select).val() && $(select).val() != 'all') {
+            entitySelect.attr('disabled', false);
+            syncCheckbox.attr('disabled', false);
+            entitySelect.attr('data-level', $(select).val());
+            entitySelect.val(null).find('option:not(:disabled)').remove();
+            refreshSelects(entitySelect);
+        } else {
+            entitySelect.val(null).attr('disabled', true).trigger('change');
+            syncCheckbox.val(null).attr('disabled', true).trigger('change');
+        }
+    }
+</script>
+{% endblock %}

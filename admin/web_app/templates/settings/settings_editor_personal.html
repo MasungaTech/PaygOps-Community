@@ -1,0 +1,113 @@
+{% extends "macros/base.html" %}
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'settings/settings_editor_macros.html' as settings_forms with context %}
+{% import 'macros/form_macros.html' as forms with context %}
+{% import 'settings/lead_client_form_macros.html' as forms_settings with context %}
+{% import 'edit_custom_messages_macros.html' as custom_msg with context %}
+
+
+{% block title %}{{ ftext('Personal Info Settings') }}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('Settings', 'Personal Information') }}{% endblock %}
+
+
+{% block content %}
+
+{% if current_user.can_access('ConfigurePersonalInfoAdmin') %}
+<div {{ ui.collapsible_card_start(title='Basic Variables Configuration' , uicon='badge', active=false) }}>
+    {{ ui.info_card(uicon='info', class='mt-2', in_card=true, color='secondary', text='The default values provided are used just in the web/mobile app. In the API, values not provided will be considered empty.') }}
+    <form method="POST" class="row">
+        <ul class="collection">
+            {% set config_object = GlobalSetting('LeadInfoSettings') %}
+            {% for key in config.PERSONAL_INFO_CONFIG %}
+                {{ settings_forms.LeadField(key, config_object, lead_statuses) }}
+                <hr>
+            {% endfor %}
+        </ul>
+        {{ settings_forms.save_button() }}
+    </form>
+</div {{ ui.collapsible_card_end() }}>
+{% endif %}
+
+{% if current_user.can_access('ConfigureGeneralSettingsAdmin') %}
+<div {{ ui.collapsible_card_start(title='Custom ID Configuration' , uicon='fact_check', active=false) }}>
+    <form method="POST" class="row">
+        {{ forms.checkbox('CustomIdEnabled',
+            checked=GlobalSetting('CustomIdEnabled'),
+            size='6',
+            id="CustomIdEnabledCheckbox",
+            labeltag="Enable Custom Identifier",
+            label='Custom ID Enabled',
+            onchange='checkBoxToggleForms(this, ".custom_id_input")') }}
+
+        {{ forms.checkbox('CustomIdMandatory',
+            checked=GlobalSetting('CustomIdMandatory'),
+            size='6',
+            id="CustomIdMandatoryCheckbox",
+            labeltag="Make Custom Identifier Mandatory",
+            label='Custom ID Mandatory',
+            selector_class='custom_id_input') }}
+
+        {{ forms.input('CustomId',
+            size=6,
+            label="Custom Identifier Name (maximum 20 characters)",
+            value=GlobalSetting('CustomId'), 
+            max=20,
+            selector_class='custom_id_input')}}
+
+        {{ forms.input('CustomIdFormat',
+            size=6,
+            label="Format (RegExp expression)",
+            tooltip='Ask support to assist you if you are not familiar with using RegExp. ',
+            value=GlobalSetting('CustomIdFormat'),
+            selector_class='custom_id_input') }}
+
+        {{ settings_forms.save_button() }}
+    </form>
+</div {{ ui.collapsible_card_end() }}>
+{% endif %}
+
+{% if current_user.can_access('ConfigureGeneralSettingsAdmin') %}
+<div {{ ui.collapsible_card_start(title='Phone Number Configuration' , uicon='phone', active=false) }}>
+    <form method="POST" class="row">
+        {{ ui.info_card(uicon='warning', in_card=true, class='phone_number_warning', text='Allowing multiple persons (different clients, leads, users and/or lead generators) to have the same phone number may cause payments to end up orphaned if the phone number is the only parameter used to route payments.')}}
+
+        {{ forms.checkbox('AllowMultiplePersonsWithSamePhoneNumber',
+                        checked=GlobalSetting('AllowMultiplePersonsWithSamePhoneNumber'),
+                        size='6',
+                        labeltag="Allow multiple persons to have the same phone number",
+                        tooltip='Allow multiple persons (clients, leads, users and lead generators) to have the same phone number',
+                        label='Allow multiple persons to have the same number',
+                        onchange='checkBoxToggleForms(this, ".phone_number_warning")') }}
+
+        {{ settings_forms.save_button(center=false) }}
+    </form>
+</div {{ ui.collapsible_card_end() }}>
+{% endif %}
+
+
+{% if current_user.can_access('ConfigurePersonalInfoAdmin') %}
+<div {{ ui.collapsible_card_start(title='Additional Info Configuration' , uicon='info', active=false) }}>
+    {{ ui.info_card(uicon='warning', title='Important', text='After you assign a Form to be used for Leads or Clients you will not be able to delete the Form anymore (even if there are no answers yet). ')}}
+
+    <form action="POST" class="row">
+        <div class="forms_container">
+            {% for rule in rules %}
+                {{ forms_settings.rule_card(rule, offer_types) }}
+            {% endfor %}
+        </div>
+    
+        {{ ui.button('Add form', 'add', modal='add-form-modal', size='6', fit=true, size_class='pt-2')}}
+        {{ ui.button('Save', uicon='save', size='6', type='action', size_class='pt-2', class='submit-btn forms_save_button', fit=true, 
+            action='async_put', async_url='/forms_configuration', success_message='Forms configuration saved!', success_action='message') }}
+    </form>
+</div {{ ui.collapsible_card_end() }}>
+{{ forms_settings.rule_card_template(offer_types) }}
+{{ forms_settings.add_rule_modal(forms_select) }}
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+{{ forms_settings.form_config_scripts(available_forms) }}
+{% endblock %}

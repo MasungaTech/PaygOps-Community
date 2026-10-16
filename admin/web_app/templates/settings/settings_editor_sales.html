@@ -1,0 +1,220 @@
+{% extends "macros/base.html" %}
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'macros/form_macros.html' as forms with context %}
+{% import 'settings/settings_editor_macros.html' as settings_forms with context %}
+{% import 'settings/lead_status_macros.html' as status_macros with context %}
+{% import 'edit_custom_messages_macros.html' as custom_msg with context %}
+
+
+{% block title %}{{ ftext('Sales Settings') }}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('Settings', 'Sales') }}{% endblock %}
+
+
+{% block content %}
+
+<div {{ ui.collapsible_card_start(title='Sales Rules' , uicon='settings', active=false) }}>
+    <form method="POST" class="row">
+        {{ ui.info_card(uicon='info', class='mt-1 multiple_contract_banner', in_card=true, title='Warning', text='Allowing clients to have multiple active contracts requires the payment router to be configured using contract-specific payment routing rules (e.g. serial number, contract reference). Using client routing rules (e.g. phone number or Custom ID) will cause payments to clients with multiple active contract to be orphaned. ') }}
+
+        {{ forms.checkbox('AllowMultipleContracts:boolean', size=6,
+                checked=GlobalSetting('AllowMultipleContracts'),
+                tooltip='Enabling this setting allows clients to have multiple active contracts at the same time',
+                labeltag="Allow clients to have multiple contracts that are active at the same time",
+                label='Multiple Active Contracts Enabled',
+                onchange='checkBoxToggleForms(this, ".multiple_contract_banner")') }}
+
+        {{ forms.checkbox('AutoRegisterLeadWithDownpaymentAndDevice:boolean', size=6,
+                checked=GlobalSetting('AutoRegisterLeadWithDownpaymentAndDevice'),
+                labeltag="Automatically register leads with device linked and downpayment paid",
+                label='Enable Lead Auto-Registration') }}
+
+        {{ forms.checkbox('MarkAddOnsNotDeliveredDefault:boolean',
+                checked=GlobalSetting('MarkAddOnsNotDeliveredDefault'),
+                size=6,
+                labeltag="Default Add-On Delivery Status",
+                tooltip='This setting will allow users to manually mark add ons as delivered. It is recommended for partial deliveries. ',
+                label='Mark Add-Ons as Not Delivered by Default') }}
+
+
+        {{ forms.checkbox('EnableLimitOnPlannedDeliveryDate:boolean',
+            checked=GlobalSetting('EnableLimitOnPlannedDeliveryDate'),
+            size=6,
+            labeltag="Enable limit on planned delivery date",
+            label='Limit Planned Delivery Date',
+            onchange='checkBoxToggleForms(this, ".planned_date_input")') }}
+
+        
+        {{ forms.input('BeforeLimitOnPlannedDeliveryDate',
+        uicon="free_cancellation",
+        label="The earliest planned delivery date allowed is",
+        value=GlobalSetting('BeforeLimitOnPlannedDeliveryDate'),
+        required=true,
+        is_int=true,
+        size=6,
+        suffix='days after planning date',
+        selector_class='planned_date_input') }}
+
+        {{ forms.input('AfterLimitOnPlannedDeliveryDate',
+        uicon="free_cancellation",
+        label="The lastest planned delivery date allowed is (0 for no limit)",
+        value=GlobalSetting('AfterLimitOnPlannedDeliveryDate'),
+        required=true,
+        is_int=true,
+        size=6,
+        suffix='days after planning date',
+        selector_class='planned_date_input') }}
+
+        {{ settings_forms.save_button() }}
+    </form>
+</div {{ ui.collapsible_card_end() }}>
+{% if current_user.can_access('ConfigureSalesManagementAdmin') %}
+<div {{ ui.collapsible_card_start(title='Lead Statuses' , uicon='status', active=false) }}>
+    {{ ui.info_card(uicon='info', color='secondary', text='Use this to customise the available
+    statuses for leads. Drag the statuses to change the order or click on
+    them to edit their name and color.')}}
+    <form id="lead-statuses-form" method="POST" class="row">
+        {% for cat, statuses in lead_statuses.items() %}
+            {{ ui.divider(cat, small=true) }}
+            <div class="col d-flex gap-2 pt-2 flex-wrap cat-wrapper" id="cat-{{cat_codes[cat]}}">
+            {% for s in statuses %}
+                {{ status_macros.lead_status_badge(s, cat) }}
+            {% endfor %}
+            {{ status_macros.add_badge() }}
+            </div>
+        {% endfor %}
+        {{ forms.button(label='Save Changes', uicon='save', action="save_lead_statuses()", type='action', size=6, disabled=true, fit=true, center=true) }}
+    </form>
+    {{ status_macros.status_badge_template() }}
+    {{ status_macros.edit_status_modal() }}
+    {{ status_macros.edit_status_modal(new=true) }}
+</div {{ ui.collapsible_card_end() }}>
+
+
+<div {{ ui.collapsible_card_start(title='Lead Status Movement Restrictions' , uicon='multiple_stop', active=false) }}>
+        {% for cat, statuses in lead_statuses_inc_new.items() %}
+            <div {{ ui.collapsible_card_start(title=cat, active=false) }}>
+            <div class="row">
+                <div class="{{ ui.col_size(3) }} column-title-text"><b>{{ftext('Status')}}</b></div>
+                <div class="{{ ui.col_size(5) }} column-title-text"><b>{{ftext('Allowed end status')}}</b></div>
+                <div class="{{ ui.col_size(4) }} column-title-text"><b>{{ftext('Restricted status')}}</b></div>
+            </div>
+            {{ ui.divider() }}
+            {% for s in statuses %}
+            <div class="row mb-3 status-restrictions-row">
+                <div class="{{ ui.col_size(3) }}">{{ ui.badge(s.name|notranslate, color=s.color)}}</div>
+                <div class="{{ ui.col_size(5) }} allowed_statuses">
+                    {% for dest_status in get_statuses_for_category(s.category) %}
+                        {% if (s.id|string not in GlobalSetting("statusTransitionRestrictions") or dest_status.id not in GlobalSetting("statusTransitionRestrictions")[s.id | string]) and dest_status.id != s.id %}
+                            {{ status_macros.status_restriction_badge(s, dest_status) }}
+                        {% endif %}
+                    {% endfor %}
+                </div>
+                <div class="{{ ui.col_size(4) }} restricted_statuses">
+                    {% for dest_status in get_statuses_for_category(s.category) %}
+                        {% if s.id|string in GlobalSetting("statusTransitionRestrictions") and dest_status.id in GlobalSetting("statusTransitionRestrictions")[s.id | string] %}
+                            {{ status_macros.status_restriction_badge(s, dest_status, form='status-transition-restrictions') }}
+                        {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+            {% if not loop.last%}
+            {{ ui.divider(class='mb-3') }}
+            {% endif %}
+            {% endfor %}
+            </div {{ ui.collapsible_card_end() }}>
+        {% endfor %}
+    <form method="POST" class="row" id="status-transition-restrictions">
+        {{ ui.button('Save Settings', 'save', size='6', disabled=true, fit=true, inline=true, center=true, type='action', class='submit-btn status_transition_submit', size_class='pt-2', action='saveStatusRestriction(this)')}}
+    </form>
+</div {{ ui.collapsible_card_end() }}>
+
+<div {{ ui.collapsible_card_start(title='Personal Details Editing Restrictions' , uicon='edit_off', active=false) }}>
+     <form method="POST" class="row">
+        {{ ui.info_card(type='info', in_card=true, text='Select a lead status from which editing personal details will be restricted.')}}
+        {{ forms.select('PersonalDetailsEditingRestrictions',
+        status_categoty_filter_values,
+        option_classes=option_classes,
+        label="Lead Status",
+        value=GlobalSetting('PersonalDetailsEditingRestrictions'),
+        size=6,
+        translate=false
+        ) }}
+
+        {{ settings_forms.save_button() }}
+    </form>
+</div {{ ui.collapsible_card_end() }}>
+
+<div {{ ui.collapsible_card_start(title='Lead Generator Types' , uicon='generator', active=false) }}>
+       {{ ui.info_card(type='info', in_card=true, text='Use this section to customise Lead Generator Types. Note that you can only delete Lead Generator Types that are not in use. ')}}
+       
+       <table {{ ui.table_start() }}>
+            <thead>
+                <tr>
+                    {{ ui.table_header('Name') }}
+                    {{ ui.table_header(uicon='edit') }}
+                    {{ ui.table_header(uicon='delete') }}
+                </tr>
+            </thead>
+            <tbody>
+                {% for lgt in lg_types %}
+                <tr>   
+                    {% set disabled = lgt.generators.count() > 0 %}
+                    <td>{{ lgt.name }}</td>
+                    <td>{{ ui.button('Edit', modal='edit-lg-'+lgt.id|string, uicon='edit', type='card-action') }}</td>
+                    <td>{{ ui.button('Delete', modal='delete-lg-'+lgt.id|string if not disabled else '', uicon='delete', type='card-action-grey', disabled=disabled, tooltip='This Lead Generator Type cannot be deleted because it is in use' if disabled else '') }}</td>
+                </tr>
+                {{ edit_delete_lead_generator_type_modal(lgt) }}
+                {% endfor %}
+            </tbody>
+        </table>
+
+        {{ ui.button(uicon='add', label='Add Lead Generator Type', modal='add-lgt', type='action', fit=true, size=6, center=true) }}
+
+        <div {{ ui.modal_start('add-lgt', 'Add Lead Generator Type') }}>
+            <form>
+                <div class="modal-body">
+                    {{ forms.input('name', 'Name') }}
+                </div>
+                <div class="modal-footer">
+                    {{ ui.modal_close_button() }}
+                    {{ ui.button(uicon='save', type='action', label='Add Lead Generator Type', action='async_post', async_url='/lead_generators/types', disabled=false) }}
+                </div>
+            </form>
+        </div {{ ui.modal_end() }}>
+        
+</div {{ ui.collapsible_card_end() }}>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+{{ status_macros.lead_status_scripts(last_id) }}
+{{ status_macros.lead_status_restriction_scripts() }}
+{% endblock %}
+
+{% macro edit_delete_lead_generator_type_modal(lgt) %}
+<div {{ ui.modal_start('edit-lg-'+lgt.id|string, 'Edit Lead Generator Type') }}>
+    <form>
+        <div class="modal-body">
+            {{ forms.input('name', 'Name', value=lgt.name) }}
+        </div>
+        <div class="modal-footer">
+            {{ ui.modal_close_button() }}
+            {{ ui.button(uicon='save', type='action', label='Edit Lead Generator Type', action='async_post', async_url='/lead_generators/types/'+lgt.id|string, disabled=false) }}
+        </div>
+    </form>
+</div {{ ui.modal_end() }}>
+
+<div {{ ui.modal_start('delete-lg-'+lgt.id|string, 'Delete Lead Generator Type') }}>
+    <form>
+        <div class="modal-body">
+            {{ ui.info_card(type='warning', in_card=true, text='This will permanently delete the Lead Generator Type, are you sure?') }}
+        </div>
+        <div class="modal-footer">
+            {{ ui.modal_close_button() }}
+            {{ ui.button(uicon='save', type='action', label='Delete Lead Generator Type', action='async_delete', async_url='/lead_generators/types/'+lgt.id|string, disabled=false) }}
+        </div>
+    </form>
+</div {{ ui.modal_end() }}>
+{% endmacro %}

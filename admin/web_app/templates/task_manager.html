@@ -1,0 +1,64 @@
+{% extends "macros/base.html" %}
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'macros/form_macros.html' as forms with context %}
+
+{% block title %}{{ ftext('Task Manager') }}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('Admin', 'Task Manager') }}{% endblock %}
+
+{% block content %}
+
+<div {{ ui.card_start(title='Manage Tasks') }}>
+    <form id="MainForm" action="" method="post" enctype="multipart/form-data", class="row">
+        {{forms.select('task', registered_tasks, labeltag='Choose Task to Launch', size="6", translate=false)}}
+        {{forms.input('params', 'Keyword arguments as json (optional)', type="textarea", size="6")}}
+        {{forms.button('Launch Task', fit=true, size=6, center=true, type="action")}}
+    </form>
+    {{ ui.info_card(uicon='info', color='secondary', class='mt-3', text=ftext('You might need to <a href="{}">reload</a> after a few seconds if the task did not appear below after launching.', "tasks_queue", novar=true)) }}
+    {{ ui.divider() }}
+    <div class="row">
+        {{forms.button('Purge Live Tasks', fit=true, size=3, type="action", link=url_for('admin.tasks_queue_kill', task_id='purge_live'))}}
+        {{forms.button('Purge Queued Tasks', fit=true, size=3, type="action", link=url_for('admin.tasks_queue_kill', task_id='purge_queued'))}}
+        {{forms.button('Purge Unacked Tasks', fit=true, size=3, type="action", link=url_for('admin.tasks_queue_kill', task_id='purge_unacked'))}}
+        {{forms.button('Remove Duplicates', fit=true, size=3, type="action", link=url_for('admin.tasks_queue_kill', task_id='groom'))}}
+    </div>
+</div {{ ui.card_end() }}>
+
+<div {{ ui.card_start(body_class='table-responsive') }}>
+    {{ ftext('<strong>Total tasks:</strong> {}', task_number) }}
+    <table {{ ui.table_start() }}>
+        <thead>
+            <tr>
+                {{ ui.table_header('ID') }}
+                {{ ui.table_header('Name') }}
+                {{ ui.table_header('Runtime') }}
+                {{ ui.table_header('Queue') }}
+                {{ ui.table_header('Priority') }}
+                {{ ui.table_header('Worker ID') }}
+                {{ ui.table_header('Status') }}
+            </tr>
+        </thead>
+        <tbody>
+            {% for task in tasks %}
+            <tr>
+                <td>{{ ui.icon('info', 'tiny', tooltip=task['id']|notranslate) }}</td>
+                <td>{{ task['name'].split('.')[-1] }}</td>
+                <td>
+                    {% if "time_start" in task and ts and task['time_start'] %}
+                    {{ ((ts - task['time_start'])/60)|round(1) }} min
+                    {% elif 'score' in task %}
+                    {{ ftext('since') }} {{ui.datetime(task['score']|timetodate)}} 
+                    {% endif %}
+                </td>
+                <td>{{ task['delivery_info']['routing_key'] }} {% if task.get('unacked') %}U{% endif %}</td>
+                <td>{{ task['delivery_info']['priority'] }}</td>
+                <td>{% if "worker_pid" in task %}{{ task['worker_pid'] }}{% endif %}</td>
+                <td>{{ task['status'] }}</td>
+                <td>{% if task['status'] != 'queued' %}{{ ui.button(link=url_for('admin.tasks_queue_kill', task_id=task['id'], live='live'), type='tiny-action', uicon='delete', tooltip='Kill Task') }}{% else %}{{ ui.button(link=url_for('admin.tasks_queue_kill', task_id=task['id'], live='queued'), type='tiny-action', uicon='delete', tooltip='Kill Task') }}{% endif %}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div {{ ui.card_end() }}>
+{% endblock %}
+

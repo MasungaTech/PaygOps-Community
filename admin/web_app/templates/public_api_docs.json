@@ -1,0 +1,166 @@
+{
+    "openapi":"3.0.2",
+    "info": {
+        "title":"PaygOps API Documentation",
+        "description": {
+            "$ref": "/static/api_docs_description.md?version={{config.COMMIT_SHA}}"
+        },
+        "contact": {
+            "name": "Home",
+            "url": "/",
+            "email": "itmanager@solarisoffgrid.com"
+        },
+        "version":"{{ config.VERSION.split("-")|last }}",
+        "x-logo": {
+            "url": "/static/img/paygops_bottom_logo-light.png",
+            "altText": "PaygOps Logo"
+        }
+    },
+    "servers": [
+        {
+            "url":"{{server}}",
+            "description": "Real Platform Server"
+        },
+        {
+            "url":"https://sandbox.paygops.com/api/v1",
+            "description": "Sandbox Server"
+        }
+    ],
+    "tags": [
+        {
+            "name": "Leads",
+            "description": "Lead management."
+        },
+        {
+            "name": "Lead Generators",
+            "description": "Lead Generators management."
+        },
+        {
+            "name": "Offers",
+            "description": "Offers management. The different operations available for Offers vary their request/response schemas depending on the type of offer. The property `type` serves as a discriminator and defines the rest of the properties sent/expected. In each endpoint those properties are detailed for each offer type."
+        },
+        {
+            "name": "Clients",
+            "description": "Client management"
+        },
+        {
+            "name": "Contracts",
+            "description": "Contract management"
+        },
+        {
+            "name": "Payments",
+            "description": "Payment management"
+        },
+        {
+            "name": "Users",
+            "description": "User management."
+        },
+        {
+            "name": "Transactions",
+            "description": "Contract Transactions."
+        },
+        {
+            "name": "Inventory",
+            "description": "Stock management."
+        },
+        {
+            "name": "Locations",
+            "description": "Locations management."
+        },
+        {
+            "name": "Custom Forms",
+            "description": "Custom Forms management"
+        },
+        {
+            "name": "Devices",
+            "description": "Device management"
+        },
+        {
+            "name": "After-Sales",
+            "description": "Interactions, interactions topics and issues management"
+        },
+        {
+            "name": "Webhooks",
+            "description": "Webhooks are a notification system that allow PaygOps notify thrid-party apps when some events happen within PaygOps \n# Data sent for each webhook {% for hook in config.ALLOWED_HOOKS %}\n\r ## Hook {{hook}} \n {{get_hook_data(hook, true)}}\n <SchemaDefinition schemaRef=\"#/components/schemas/{{hook}}_data\" /> {% endfor%}"
+        },
+        {
+            "name": "Miscellaneous",
+            "description": "Other useful endpoints"
+        }
+    ],
+    "components": {
+        "securitySchemes": {
+            "Bearer Token": {
+                "description": "Used in general to authenticate requests. In this documentation, the permissions required for each operation that will need to be associated with the token are listed in the AUTHORIZATIONS section of each operation.",
+                "type": "http",
+                "scheme": "bearer",
+                "bearerFormat": "JWT"
+            }
+        },
+        "schemas": {
+            {% for hook in config.ALLOWED_HOOKS %}
+            "{{hook}}_data": {{get_hook_data(hook)|tojson}}{% if not loop.last %},{% endif%}
+            {% endfor %}
+        }
+    },
+    "paths": {
+        {% for path, methods in paths.items() %}
+        "{{path}}": {
+            {% for method, properties in methods.items() %}
+            {% if not current_user or not properties['permissions'] or current_user.can_access_in_any(properties['permissions'], for_api_docs=true) %}
+            "{{method}}": {
+                {% if properties.get('deprecated') %}"deprecated": true,{%endif%}
+                "summary": "{{properties['summary']}}",
+                "description": "{% set included_features = get_available_features(properties['permissions']) %}{{properties['description']}}<br><br>{% if included_features %}<b>Available in the following services:</b> {% for feature in included_features %}<code> {{ feature.replace('Features', '') }}</code>{% if not loop.last %},{% endif %}{% endfor %}{% endif %}",
+                "tags": ["{{properties['tags']|join('", "')}}"]
+                {% if properties['consumes'] %},
+                "consumes": ["{{properties['consumes']|join('", "')}}"]
+                {% endif %}
+                {% if properties['permissions'] %},
+                "security": [
+                    {"Bearer Token": ["{{properties['permissions']|join('", "')}}"]}
+                ]
+                {% endif %}
+                {% if properties['parameters'] %},
+                "parameters": [
+                    {% for param in properties['parameters'] %}
+                    {
+                        "name": "{{param["name"]}}",
+                        "description": "{{param["description"]}}",
+                        "required": {{"true" if param.get("required") else "false" }},
+                        {% if "example" in param %}"example": "{{param["example"]}}",{%endif%}
+                        {% if "examples" in param %}"examples": {{param["examples"]|tojson}},{%endif%}
+                        "in": "{{param.get("in") or "path"}}"{% if "schema" in param %},
+                        "schema": {{param["schema"]|tojson}}
+                        {%endif%}
+                    }{% if not loop.last %},{% endif%}
+                    {% endfor %}
+                ]{% endif %}
+                {% if properties['requestBody'] %},
+                "requestBody": {
+                    {% if 'description' in properties['requestBody'] %}
+                        "description": "{{properties['requestBody']['description']}}.<br>",
+                    {% endif %}
+                    "content": {
+                        "{{'mime' in properties['requestBody'] and properties['requestBody']['mime'] or "application/json"}}": {
+                            "schema": {% if properties['requestBody']['schema']%}{{properties['requestBody']['schema']|tojson}}{%else%} {} {% endif %}
+                        }
+                    }
+                }
+                {% endif %}
+                {% if properties['responses'] %},
+                "responses": {
+                    {% for code, resp in properties['responses'].items() %}
+                    "{{code}}": {
+                        "description": "{{resp["description"]}}"
+                        {% if 'content' in resp %},"content": {{resp["content"]|tojson}}{% endif %}
+                    }{% if not loop.last %},{% endif%}
+                    {% endfor %}
+                }
+                {% endif %}
+            }{% if not loop.last %},{% endif %}{% endif %}
+            {% endfor %}
+        }{% if not loop.last %},{% endif %}
+        {% endfor %}
+    }
+}

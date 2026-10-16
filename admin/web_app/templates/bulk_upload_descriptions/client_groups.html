@@ -1,0 +1,16 @@
+{{ ftext('<p>This section is used to edit a list of client groups to change their user in charge with a CSV file. 
+    Once the list is uploaded all client groups will be updated with their new user in charge indicated in the file.</p>
+
+    <p>Before uploading the CSV file, client groups and users included must already exist on the Platform.</p>
+
+    <p>The file should be a CSV using "," as a delimiter. It should include a first line of headers with the data in the following order:   </p>
+
+    <p> Client Group ID, User in Charge ID </p>
+
+    <p> A template can be downloaded <a href="{}?version={}">here.</a></p>
+
+    <p>
+        <strong>Please note:</strong>
+        <br> - When editing the user in charge, the previous user in charge will be replaced.
+    </p>',
+    url_for('entities.static', filename='bulk_edit_client_groups_example.csv'), COMMIT_SHA, novar=true) }}

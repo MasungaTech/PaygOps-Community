@@ -1,0 +1,32 @@
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'macros/pagination.html' as pagination_nav with context %}
+
+{% macro expenses_table(pagination) -%}
+    <table {{ ui.table_start(pagination) }}>
+        <thead>
+            <tr>
+                {{ui.sortable_header('id', "ID", pagination=pagination, class="ps-4")}}
+                {{ui.sortable_header('amount', ftext("Amount ({})", Currency), pagination=pagination)}}
+                {{ui.sortable_header('date', "Date", pagination=pagination)}}
+                {{ui.sortable_header('type', "Type", pagination=pagination)}}
+                {{ui.sortable_header('description', "Description", pagination=pagination)}}
+                {{ ui.table_header('Account') }}
+                {{ ui.table_header(uicon='expense', tooltip='Receipt') }}
+            </tr>
+        </thead>
+        <tbody>
+        {% for E in pagination.objects %}
+            <tr>
+                <td class="ps-4"><a href="{{ url_for('expense.view_expense', expense_id=E.id) }}">{{ E.id }}</a></td>
+                <td>{{ ui.amount(E.amount) }}</td>
+                <td>{{ ui.date(E.date) }}</td>
+                <td>{{ E.category }}</td>
+                <td class="truncate-hoverable">{{ E.description }}</td>
+                <td class="truncate-hoverable">{{ E.account.getLink() }}</td>
+                <td class="pe-4">{{ ui.table_icon('expense', color='grey' if E.receiptPicture == '' else 'red') }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+{%- endmacro %}
+

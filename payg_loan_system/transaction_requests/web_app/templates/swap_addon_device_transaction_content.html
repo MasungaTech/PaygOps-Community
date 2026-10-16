@@ -1,0 +1,16 @@
+{% extends 'transaction_base.html' %}
+
+{% block title %}{{ ftext('Swap Addon Device') }}{% endblock %}
+
+{% block form %}
+    <input type="hidden" name='contract_addon_reference' value="{{contract_reference}}" id='contract-addon-reference'>
+    <div class="form-group">
+        <label for="current_device">Current Device</label>
+        <input type="text" class="form-control" id="current_device" name="current_device" value="{{current_device}}" disabled>
+    </div>
+    {{ transaction.device_selector_macro(request_code=true, new_device=true, prefix='new_', prefix_label='New') }}
+{% endblock %}
+
+{% block button %}
+    {{ ui.button('Swap Addon Device', color='danger', class='transaction_action', action="validateAndSubmit('/api/v1/transaction_requests/swap_device/');") }}
+{% endblock %}

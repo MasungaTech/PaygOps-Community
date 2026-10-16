@@ -1,0 +1,18 @@
+{{ ftext('<p>This section is used to edit a list of leads to change their L0 operational entity with a CSV file. Once the list is uploaded all leads will be moved to the L0 entity indicated in the file. </p>
+
+<p>Before uploading the CSV file, leads and L0 operational entities included must already exist on the Platform.</p>
+
+<p>The file should be a CSV using "," as a delimiter. It should include a first line of headers with the data in the following order:</p>
+
+<p>Lead ID, L0 Entity ID.</p>
+
+<p> A template can be downloaded <a href="{}?version={}">here.</a></p>
+
+<p>
+    <strong>Please note:</strong>
+    <br> - The L0 Entity ID should be the name of the operational entity where the lead is going to be moved to.
+</p>
+
+<div class="row info-card">
+    <p>This feature is only available for editing the L0 entity of the leads. In the future it could be extended to other properties of the leads.</p>
+</div>', url_for('leads.static', filename='EditLeadsBulkUploadTemplate.csv'), COMMIT_SHA, novar=true) }}

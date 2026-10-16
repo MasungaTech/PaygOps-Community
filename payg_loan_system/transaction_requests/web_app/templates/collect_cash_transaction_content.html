@@ -1,0 +1,15 @@
+{% set card_uicon='payment' %}
+{% if not lead is defined %}{% extends 'transaction_base.html' %}{% else %}{% extends 'transaction_base_card.html' %}{% endif %}
+
+{% block title %}{{ ftext('Collect Cash Payment') }}{% endblock %}
+
+{% block form %}
+    {% if lead is defined %}<input type="hidden" name="lead_id:number" value="{{lead.id}}">{% else %}
+    {{ transaction.device_selector_macro() }}{% endif %}
+    {{ forms.input('amount:number', 'Amount Collected', type='number', required=true, id="amount", size=6 if lead is defined else 12) }}
+    {{ forms.input('note', 'Notes', type="textarea", size=6 if lead is defined else 12, max=40) }}
+{% endblock %}
+
+{% block button %}
+    {{ ui.button('Collect Cash', color='danger', class='transaction_action', action="validateAndSubmit('/api/v1/transaction_requests/collect_cash/');", size=6 if lead is defined else '', inline=lead is defined, fit=lead is defined) }}
+{% endblock %}

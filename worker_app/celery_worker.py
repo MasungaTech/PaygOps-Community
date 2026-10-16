@@ -1,0 +1,60 @@
+import config
+from worker_app.worker_app import worker_app
+from shared.database_mapper import DatabaseMapper
+from worker_app.periodic_tasks_service import PeriodicTasksService
+import shared.helpers.database_hook
+# We need to import the Tasks
+from worker_app.tasks.delayed_hook import delayed_hook
+from worker_app.tasks.check_redis_status_reports import check_redis_status_reports
+from worker_app.tasks.compute_csv_exports import compute_csv_data_now
+from worker_app.tasks.sync_owned_devices import sync_owned_devices
+from worker_app.tasks.healthcheck import beat_healthcheck
+from worker_app.tasks.send_communication_campaign import send_communication_campaign
+from worker_app.tasks.update_analytical_db import update_analytical_db
+from worker_app.tasks.generate_offline_tokens import refresh_offline_tokens_for_device, refresh_offline_tokens_for_applicable_devices
+from worker_app.tasks.update_usage_metrics import update_usage_metrics_for_device, update_usage_metrics_for_all_applicable_devices
+from worker_app.tasks.migrate_mobile_uuids import migrate_mobile_uuids
+from worker_app.tasks.background_migrations_task import background_migration_task
+from worker_app.tasks.update_billing_task import update_billing_task
+from worker_app.tasks.migrate_cash_wallets import migrate_cash_wallets
+from worker_app.tasks.migrate_payments_wrongly_marked_as_not_orphaned import migrate_payments_wrongly_marked_as_not_orphaned
+from worker_app.tasks.migrate_repayments_wrong_times import migrate_repayments_wrong_time
+from worker_app.tasks.check_repayments_coherence import check_repayments_coherence
+from worker_app.tasks.analyse_bulk_stock_movements import analyse_bulk_stock_movements
+from worker_app.tasks.analyse_bulk_devices import analyse_bulk_devices
+from worker_app.tasks.analyse_api_caller import analyse_api_caller
+from worker_app.tasks.analyse_bulk_payments import analyse_bulk_payments
+from worker_app.tasks.process_bulk_entity_upload import process_bulk_entity_upload
+from worker_app.tasks.analyse_bulk_operational_entities import analyse_bulk_operational_entities
+from worker_app.tasks.analyse_bulk_users import analyse_bulk_users
+from worker_app.tasks.analyse_bulk_lead_generators import analyse_bulk_lead_generators
+from worker_app.tasks.analyse_bulk_edit_client_groups import analyse_bulk_edit_client_groups
+from worker_app.tasks.analyse_bulk_edit_leads import analyse_bulk_edit_leads
+from worker_app.tasks.analyse_bulk_edit_clients import analyse_bulk_edit_clients
+from worker_app.tasks.reconcile_orphaned_payments import reconcile_orphaned_payments
+from worker_app.tasks.check_cache_coherence import check_cached_data_now
+from worker_app.tasks.check_db_health import check_db_health, kill_long_running_queries
+from worker_app.tasks.autoreconciliation import autoreconciliate, autoreconciliate_week
+from worker_app.tasks.try_reconcile_pending_payments import try_reconcile_pending_payments
+from worker_app.tasks.update_lead_statuses import update_lead_statuses
+from worker_app.tasks.populate_credit_value import populate_credit_value
+from worker_app.tasks.fix_first_last_answers import fix_first_answer_old, fix_last_answer_old, fix_answer_person_first_last
+from worker_app.tasks.populate_survey_answers_client_lead_answering import populate_survey_answers_client_lead_answering
+from worker_app.tasks.celery_queue_groomer import celery_queue_groomer, celery_queue_alerter
+from worker_app.tasks.update_billing_config import update_billing_config_task
+from worker_app.tasks.db_reindex import reindex
+from worker_app.tasks.db_vacuum import db_vacuum
+from worker_app.tasks.force_sync_devices import force_sync_devices, force_sync_device_parameters
+from worker_app.tasks.compute_gogla_kpis import compute_gogla_now
+from worker_app.tasks.run_automation import run_automation_from_uuid
+from worker_app.tasks.update_contract_status import update_contract_status
+from worker_app.tasks.periodic_file_backup_to_azure import backup_files_not_previously_uploaded
+from worker_app.tasks.backup_file_to_azure import backup_file_now
+
+
+DatabaseMapper.generate_map(include_analytical=True)
+
+@worker_app.on_after_configure.connect
+def setup_periodic_tasks(sender, **kwargs):
+    print('Worker App started...')
+    PeriodicTasksService.set_periodic_tasks(sender)

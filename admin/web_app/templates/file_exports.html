@@ -1,0 +1,25 @@
+{% extends "macros/base.html" %}
+{% import 'macros/form_macros.html' as forms with context %}
+{% import 'macros/general_macros.html' as ui with context %}
+
+{% block title %}{{ ftext('Data Exports') }}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('Admin', 'Data Exports') }}{% endblock %}
+
+{% block page_actions %}{% endblock %}
+
+{% block content %}
+{{ ui.info_card(uicon='info', text='While we always try to keep the data as consistent and easy to use as possible, with new versions of PaygOps some additional columns may be added to the CSV exports and the order of the columns might be changed as a result. We recommend to use the Analytical DB for automated processing of data. If you really need to do automated processing of data based on the CSVs, you can rely on the names of the columns to identify columns but not on their order.', color='secondary') }}
+{{ ui.info_card(uicon='info', text='Tip: You can copy any of the data export links and they are valid for 1 year even as the data changes, you can hence use the link to have data always up to date in your spreadsheets. The data might be updated only every 24h.', color='secondary') }}
+<section class="section">
+    <div class="row">
+        {% for key, data in exports.items() if key != 'custom_forms_data' %}
+            {{ ui.big_button('data_export', data[0],
+            url_for('files.csv_export_static_url', export_name=key)+'?key='+api_key, subtext=data[1], beta=true if data[2] else false) }}
+        {% endfor %}
+        {{ ui.big_button('data_export', 'Custom Forms Data',
+        url_for('files.custom_forms_data_download_filter'), subtext=custom_form_desc) }}
+    </div>
+</section>
+
+{% endblock %}

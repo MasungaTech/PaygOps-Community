@@ -1,0 +1,125 @@
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'macros/form_macros.html' as forms with context %}
+{% import 'custom_forms_questions.html' as questions with context %}
+{% import 'custom_forms_answers.html' as answers with context %}
+
+
+{% macro custom_form_card_header(form, answer=none, is_required=false, edit=false, lead=none, is_admin=false, restrict_editing=false, hide_post_add=false, discussed_topic=none) %}
+<div class="card-header">
+  <div class="card-action-title">
+    <a href="javascript:void(0);" class="card-collapsible">
+      <h3 class="card-collapsible-title">
+          {% if form.icon %}{{ ui.icon(form.icon, 'card-collapsible-icon main-badge icon-badge') }}{% endif %} {{ form.name }} {% if is_required and (not answer or lead) %}*{% endif %}
+      </h3>
+    </a>
+  </div>
+  <div class="card-action-element">
+    <ul class="list-inline mb-0">
+      <li class="list-inline-item">
+          <span class="form-buttons {% if not answer %}hide{% endif %}" data-discussed-topic-id="{{ discussed_topic.id if discussed_topic else '' }}">
+            {% if (lead or is_admin) and not restrict_editing %}
+              {{ ui.button(uicon='edit', tooltip='Edit (modifies stored data)', action='editForm(this)' if not lead else 'editForm(this, false, '+lead.id|string+')', type='collapsible-action') }}
+            {% endif %}
+            {% if not lead and not hide_post_add %}
+              {{ ui.button(uicon='post_add', tooltip='Update (creates a new version)', action='editForm(this, true)' if not lead else 'editForm(this, true, '+lead.id|string+')', type='collapsible-action') }}
+            {% endif %}
+            {% if answer %}{{ ui.icon('schedule', tooltip=ftext('Answered on the ')+ui.datetime(answer.started) if answer else '', attributes='icon-badge-sm gray-badge mx-1') }}{% endif %}
+            {% if answer %}{{ ui.button(uicon='history', tooltip=ftext('View previous answers '), class='black-badge icon-badge-sm mx-1', type='collapsible-action', link=url_for('custom_forms.view_answer_history', form_answer_id=answer.id)) }}{% endif %}
+          </span>
+          {{ ui.icon('expand', 'toggle-icon card-collapsible') }}
+      </li>
+    </ul>
+  </div>
+</div>
+{%- endmacro %}
+
+
+{% macro custom_form_view_card(surveys, edit=false, lead=none, is_admin=false, is_required=false, active=false, restrict_editing=false, hide_post_add=false, discussed_topic=none) -%}
+<div class="col-md">
+    <div class="card card-action mb-4 form-card custom-form-card">
+      {{ custom_form_card_header(surveys.surveyAnswered.form, answer=surveys, edit=edit, lead=lead, is_admin=is_admin, is_required=is_required, restrict_editing=restrict_editing, hide_post_add=hide_post_add, discussed_topic=discussed_topic) }}
+      <div class="card-body collapse {% if active %}show{% endif %} form-content-holder">
+        {{ custom_form_view_content(surveys) }}
+      </div>
+    </div>
+</div>
+{%- endmacro %}
+
+
+{% macro custom_form_view_content(form_answer) -%}
+{% set form = form_answer.surveyAnswered %}
+<div class="form-content" data-form-answer-id="{{ form_answer.id }}">
+  <div class="row off-by-1">
+  {% for Q in form.getQuestions() %}
+    {{ answers.answer(Q, form_answer=form_answer) }}
+  {% endfor %}
+  </div>
+</div>
+{%- endmacro %}
+
+
+
+
+
+{% macro custom_form_edit_card(form=none, form_answer=none, is_required=false, client=none, lead=none, discussed_topic=none, update=false, is_admin=false, active=none, preview=false, restrict_editing=false, no_header=false) -%}
+{% if not form %}{% set form = form_answer.surveyAnswered %}{% endif %}
+{% if active == none and not form_answer and is_required %}{% set active=true %}{% endif %}
+{% set form_wrapper = form.form %}
+<div class="col-md">
+    <div class="card card-action mb-4 form-card">
+      {% if not no_header %}{{ custom_form_card_header(form_wrapper, none, is_required=is_required, is_admin=is_admin, lead=lead, restrict_editing=restrict_editing) }}{% endif %}
+      <div class="card-body collapse {% if active %}show{% endif %} form-content-holder">
+        {{ custom_form_edit_content(form, form_answer, client, lead, update=update, discussed_topic=discussed_topic, preview=preview, disabled=restrict_editing) }}
+      </div>
+    </div>
+</div>
+{%- endmacro %}
+
+
+{% macro custom_form_edit_content(form=none, form_answer=none, client=none, lead=none, discussed_topic=none, update=false, preview=false, disabled=false, custom_buttons=none) -%}
+{% if form_answer and not form %}{% set form = form_answer.surveyAnswered %}{% endif %}
+{% if form_answer and not (client or lead) %}
+  {% if form_answer.client_answering %}
+    {% set client = form_answer.client_answering %}
+  {% endif %}
+  {% if form_answer.lead_answering %}
+    {% set lead = form_answer.lead_answering %}
+  {% endif %}
+{% endif %}
+{% if update and form_answer %}
+  {% set form = form_answer.surveyAnswered.form.last_version %}
+{% endif %}
+{% if update or not form_answer %}
+  {% set submit_url='/forms/answers?use_ids=true' %}
+{% else %}
+  {% set submit_url='/forms/answers/'+form_answer.id|string+'?use_ids=true' %}
+{% endif %}
+{% set form_wrapper = form.form %}
+<div class="form-content" {% if form_answer %}data-form-answer-id="{{ form_answer.id }}"{% endif %}>
+    <form class="row">
+      {%if disabled %}<fieldset disabled>{%endif%}
+      <input name="form_id:number" type="hidden" value="{{form.id}}">
+      <input name="use_ids" type="hidden" value="true">
+      {% if client %}<input name="subject_client_id:number" type="hidden" value="{{client.id}}">{% endif %}
+      {% if lead %}<input name="subject_lead_id:number" type="hidden" value="{{lead.id}}">{% endif %}
+      {% if discussed_topic %}
+        <input name="subject_client_id:number" type="hidden" value="{{discussed_topic.interaction.client.id}}">
+        <input name="discussed_topic_id:number" type="hidden" value="{{discussed_topic.id}}">
+      {% endif %}
+      {% for Q in form.getQuestions() %}
+          {{ questions.question(Q, form_answer=form_answer) }}
+      {% endfor %}
+      {% if custom_buttons %}
+        <div class="row">
+        {% for but in custom_buttons %}
+          {{ ui.button(label=but['name']|notranslate, uicon=but['icon'], color='danger', center=true if (custom_buttons|length == 1), fit=true, size=6, action='async_post', async_url=submit_url, success_action='formSubmitUJCallback', callback_options='{"submit_button": this, "next_step_name": "'+but['step']+'"}', disabled=false) }}
+        {% endfor %}
+        </div>
+      {% elif custom_buttons != false %}
+        {{ ui.button(label='Save Form', uicon='save', color='danger', center=true, fit=true, size=6, action='async_post', async_url=submit_url, success_action='customFormSubmitCallback', visible=not preview) }}
+      {% endif %}
+      {%if disabled %}</fieldset>{%endif%}
+    </form>
+</div>
+{%- endmacro %}
+

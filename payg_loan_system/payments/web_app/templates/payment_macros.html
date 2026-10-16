@@ -1,0 +1,160 @@
+{% import 'macros/general_macros.html' as ui with context %}
+
+{% macro reconciled_payment_destination(r, show_lead=True) -%}
+{%- if r.repayment -%}{{ ui.contract_link(r.repayment.contract) }}
+{%- elif r.contract_pending_repayment %}{{ ui.contract_link(r.contract_pending_repayment) -}}
+{%- elif r.add_on and r.add_on.contract %}{{ ui.addon_link(r.add_on) }}
+{%- elif r.lead %}<a href="{{ url_for('leads.view_lead', lead_id=r.lead.id) }}">{{ r.lead.future_contract_reference }}{% if show_lead %} {{ ftext('(Lead)') }}{% endif %}</a>
+{%- elif r.add_on %}{{ ui.addon_link(r.add_on) }}
+{%- elif r.user %}{{ ui.user_link(r.user) }}
+{%- elif r.person %}{{ ui.client_link(r.person.client) }} {{ ftext('(Pending)') }}
+{%- endif -%}
+{%- endmacro %}
+{% macro payment_destination(P, show_lead=True) -%}
+{% set destinations = {} %}
+{% for r in P.not_reversed_reconciliations -%}
+    {%- if destinations.update({reconciled_payment_destination(r, show_lead=show_lead): destinations.get(reconciled_payment_destination(r, show_lead=show_lead), 0)+1}) -%}{%- endif -%}
+{%- else %}
+    {{ftext('Balance')}}
+{% endfor %}
+{% for d,n in destinations.items() %}
+{% if not loop.first %}, {% endif %}{{d}}{% if n > 1%} ({{n}}){% endif %}
+{% endfor %}
+{%- endmacro %}
+
+{% macro reversed_status(rp) -%}
+{%- if rp.reconciled_payment -%}
+{{ ui.badge('Reversed', 'green', uicon='check_circle', tooltip='The payment was reversed in the system') }}
+{%- elif rp.handled -%}
+{{ ui.badge('Externally handled', 'blue', uicon='check_circle', tooltip='The reversal was externally handled') }}
+{%- else -%}
+{{ ui.badge('Unhandled', 'amber', uicon='warning', tooltip='The reversal was not yet handled and require manual action') }}
+{%- endif -%}
+{%- endmacro %}
+
+{% macro reconciled_payment_owner(r) -%}
+{%- if r.repayment %}{{ ui.client_link(r.repayment.contract.client) }}
+{%- elif r.contract_pending_repayment %}{{ ui.client_link(r.contract_pending_repayment.client) }}
+{%- elif r.lead %}{{ ui.lead_link(r.lead) }} (Lead)
+{%- elif r.add_on %}{{ ui.client_link(r.add_on.contract.client) }}
+{%- elif r.user %}{{ ui.user_link(r.user) }}
+{%- elif r.person %}{{ ui.client_link(r.person.client) }} (Client)
+{%- endif -%}
+{%- endmacro %}
+{% macro payment_destination_owner(P) -%}
+{% set destinations = {'last': none} %}
+{% for r in P.not_reversed_reconciliations %}
+    {%- if destinations.update({'current': reconciled_payment_owner(r)}) -%}{%- endif -%}
+    {%- if destinations['current'] != destinations['last'] -%}{% if not loop.first %}, {% endif %}{{ destinations['current'] }}{% endif -%}
+    {% if destinations.update({'last': destinations['current']}) %}{% endif %}
+{% else %}
+    {% if P.PaymentWallet.client is not none %}
+        {{ ui.client_link(P.PaymentWallet.client) }}
+    {% elif P.PaymentWallet.lead is not none %}
+        {{ ui.lead_link(P.PaymentWallet.lead) }} (Lead)
+    {% elif P.PaymentWallet.user is not none %}
+        {{ ui.user_link(P.PaymentWallet.user) }} (Agent)
+    {% else %}
+        {{ftext('No owner ({})', P.PaymentWallet.FullName)}}
+    {% endif %}
+{% endfor %}
+{%- endmacro %}
+
+
+{% macro payment_tabs(tabs, paginations, active_tab) %}
+<div {{ ui.card_start() }}>
+    <div>
+        <ul class="nav nav-pills mb-3 nav-fill gap-2" id="payment-tab" role="tablist">
+          {% for tab, label in tabs.items() %}
+          <li class="nav-item" role="presentation">
+            <a class="nav-link {% if tab == active_tab %}active{% endif %}" 
+               id="tab-{{ tab }}-tab"
+               data-bs-toggle="tab"
+               href="#tab-{{ tab }}"
+               role="tab"
+               aria-controls="tab-{{ tab }}"
+               aria-selected="{{ 'true' if tab == active_tab else 'false' }}">
+               {{ ftext(label + ' ({})', human_number(paginations[tab].total_count)) }}
+            </a>
+          </li>
+          {% endfor %}
+        </ul>
+      
+        <div class="tab-content">
+          {% for tab in tabs %}
+          {% set pagination = paginations[tab] %}
+          <div class="tab-pane fade {% if tab == active_tab %}show active{% endif %} table-responsive"
+               id="tab-{{ tab }}"
+               role="tabpanel"
+               aria-labelledby="tab-{{ tab }}-tab">
+            <table {{ ui.table_start(pagination) }}>
+              <thead>
+              <tr>
+                {{ui.sortable_header('reference', "Transaction ID", class="ps-4", pagination=pagination, tab=tab)}}
+                {{ui.sortable_header('amount', ftext("Amount ({})", Currency), pagination=pagination, tab=tab)}}
+                {{ui.sortable_header('received_on', "Received" if tab == 'incoming' else 'Time Sent', pagination=pagination, tab=tab)}}
+                {{ui.table_header('Memo')}}
+                {% if tab == 'incoming' %}{{ui.table_header('Destination')}}{% endif %}
+                {{ui.table_header('Owner' if tab == 'incoming' else 'Receiver')}}
+                {{ui.sortable_header('source', "Source" if tab == 'incoming' else 'Payment Type', pagination=pagination, tab=tab)}}
+                {{ui.table_header(uicon='wallet', tooltip="Payment wallet") }}
+              </tr>
+              </thead>
+              <tbody class="table-border-bottom-0">
+              {% for P in pagination.objects %}
+              <tr {% if P.reversed %}class="disabled"{%endif%}>
+                {% if tab == 'outgoing' %}
+                <td class="ps-4 truncate-hoverable">{{ P.Reference if P.transaction_id != P.payment_uuid else ui.badge('Pending Telco', 'grey', tooltip='The Transaction ID will be shown here after it is provided by the telco') }}</td>
+                {% else %}
+                <td class="ps-4 truncate-hoverable">{{ P.back_payment.Reference if P.PaymentWallet.Type == 'MentorCash' else P.Reference }}</td>
+                {% endif %}
+                <td>
+                  {{ ui.amount(P.Amount) }}
+                  {% if P.total_reconciled and P.remaining %}
+                  (only {{ ui.amount(P.total_reconciled) }} reconciled)
+                  {% endif %}
+                </td>
+                <td>{{ ui.datetime(P.PaymentReceptionTime) }}</td>
+                <td>{{ P.memo if P.memo else '-' }}</td>
+                {% if tab == 'incoming' %}
+                  <td class="truncate-hoverable">{{ payment_destination(P, show_lead=False) }}</td>
+                {% endif %}
+                <td class="truncate-hoverable">{{ payment_destination_owner(P) }}</td>
+                {% if tab == 'outgoing' %}
+                  <td class="truncate-hoverable">{{ payment_status_badge(P.status) }}</td>
+                {% endif %}
+                <td>
+                  {% if P.PaymentWallet.Type == PaymentWalletType.mobile_money %}
+                    {{ ui.payment_source_tooltip(P) }}
+                  {% else %}
+                    {% set user_collecting = P.back_payment.PaymentWallet.user %}
+                    <a href="{{ url_for('user.view_user', user_id=user_collecting.id) }}">
+                      {{ ui.table_icon('cash', color='red', tooltip=ftext('Collected by {} (ID: {})', user_collecting.full_name, user_collecting.id|string)) }}
+                    </a>
+                  {% endif %}
+                </td>
+                <td class="pe-3">
+                  <a href="{{ url_for('.account', account_id=P.PaymentWallet.id) }}">
+                    {{ ui.table_icon('wallet', color='red', tooltip='Payment wallet') }}
+                  </a>
+                </td>
+              </tr>
+              {% else %}
+              {{ ui.no_results_row(8) }}
+              {% endfor %}
+              </tbody>
+            </table>
+            <div class="row mx-2 mt-2">
+              {{ pagination_nav.render_pagination(pagination, tab=tab) }}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+</div {{ ui.card_end() }}>
+{% endmacro %}
+
+{% macro payment_status_badge(status) -%}
+  {% set status_data = config.B2C_PAYMENT_STATUS_MAP.get(status, {'text': 'Other Error', 'color': 'red', 'tooltip': status}) %}
+  {{ ui.badge(status_data['text'], status_data['color'], tooltip=status_data.get('tooltip', '')) }}
+{%- endmacro %}

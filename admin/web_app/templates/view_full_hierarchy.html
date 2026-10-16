@@ -1,0 +1,17 @@
+{% extends "macros/base.html" %}
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'entity_structure_macros.html' as entity_macros with context %}
+
+{% block title %}{{ ftext('Hierarchy View') }}{% endblock %}
+{% block page_title %}{{ ui.page_title('Hierarchy', 'View') }}{% endblock %}
+
+{% block styles %}
+{{entity_macros.entity_styles()}}
+{% endblock %}
+
+{% block content %}
+{% for entity in schema %}
+{{ entity_macros.draw_entity(entity, max_level)}}
+{% endfor %}
+{% endblock %}
+

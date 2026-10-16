@@ -1,0 +1,86 @@
+{% extends "macros/list_base.html" %}
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'macros/form_macros.html' as forms with context %}
+{% import 'macros/filter_macros.html' as filter with context %}
+{% import 'macros/pagination.html' as pagination_nav with context %}
+{% import 'payment_macros.html' as payment_macros with context %}
+
+{% block title %}{{ ftext('Payment Reversals List')}}{% endblock %}
+{% block page_title %}{{ ui.page_title('Payment Reversals', 'List') }}{% endblock %}
+
+
+{% block page_actions %}
+    {{ ui.button(link=url_for('admin.api_caller', action='PaymentReversalResource_post'), uicon='cloud_upload', tooltip='Bulk Upload Payment Reversals', permission='AddReversedPayments', type='header-action') }}
+    {{ filter.special_views_filter(views, view) }}
+{% endblock %}
+
+{% block header %}
+    {{ filter.entities_navigation_filter(entity) }}
+
+    <div {{ ui.collapsible_card_start(title='Filters', uicon='filter', icon_color='', active=any_filter([status, approver, to_payment_date, from_payment_date, to_reversal_date, from_reversal_date, memo, search_transaction_id, search_reversal_id])) }}>
+        <form id="filter_form_v2" action="" method="get" class="row">
+
+            {{ forms.input('search_reversal_id', 'Search by Reversal ID', tooltip='You can search by Reversal ID', value=search_reversal_id, size=4) }}
+            {{ forms.input('search_transaction_id', 'Search by Transaction ID', tooltip='You can search by Transaction ID', value=search_transaction_id, size=4) }}
+            {{ forms.input('memo', 'Search by memo', tooltip='You can search by the memo of the payment', value=memo, size=4) }}
+            
+            {{ forms.input('from_reversal_date', 'From Reversal Date', type='datepicker', uicon='date', size=3, value=from_reversal_date) }}
+            {{ forms.input('to_reversal_date', 'To Reversal Date', type='datepicker', uicon='date', size=3, value=to_reversal_date) }}
+            {{ forms.input('from_payment_date', 'From Payment Date', type='datepicker', uicon='date', size=3, value=from_payment_date) }}
+            {{ forms.input('to_payment_date', 'To Payment Date', type='datepicker', uicon='date', size=3, value=to_payment_date) }}
+            
+            {{ forms.select('approver_id', approvers, value=approver.id if approver else none, labeltag='Filter by Approver', source='approvers', size=6)}}
+            {{forms.select('status', {'all': 'All reversals', 'handled': 'Handled', 'unhandled': 'Unhandled'}, value=status, labeltag="Reversal status", size=6)}}
+
+            {{ filter.filter_buttons() }}
+        </form>
+    </div {{ ui.collapsible_card_end() }}>
+{% endblock %}
+
+{% block table %}
+<table {{ ui.table_start(pagination) }}>
+    <thead>
+    <tr>
+            {{ui.sortable_header('id', "ID", class="ps-4", pagination=pagination)}}
+            {{ui.sortable_header('amount', "Amount ("+GlobalSetting('CurrencySymbol')+")", pagination=pagination)}}
+            {{ui.sortable_header('payment_date', "Payment Date", pagination=pagination)}}
+            {#ui.sortable_header('wallet_operator', uicon='wallet', tooltip="Wallet operator", pagination=pagination)#}
+            {{ui.sortable_header('reversed_on', "Reversed On", pagination=pagination)}}
+            {{ui.sortable_header('memo', "Memo", pagination=pagination)}}
+            {{ui.table_header('Transaction ID')}}
+            {{ui.table_header('Destination')}}
+            {{ui.table_header('Status')}}
+            {{ui.table_header('Approver', class='pe-3')}}
+        </tr>
+    </thead>
+    <tbody class="table-border-bottom-0">
+        {% for rp in pagination.objects %}
+            {% if rp.payment %}
+            <tr>
+                <td class="truncate-hoverable ps-4"><a href="{{url_for('reversed_payment.view_reversal', reversal_id=rp.id)}}">{{ rp.reference_code }}</a></td>
+                <td class="truncate-hoverable">{{ ui.amount(rp.payment.Amount) }}</td>
+                <td class="truncate-hoverable">{{ ui.date(rp.payment.PaymentTime) }}</td>
+                {#<td>{{ (rp.payment.wallet_operator) }}</td>#}
+                <td class="truncate-hoverable">{{ ui.date(rp.reversed_on) }}</td>
+                <td class="truncate-hoverable">{{ rp.payment.memo }}</td>
+                <td class="truncate-hoverable"><a href="{{ url_for('payment.account', account_id=rp.payment.PaymentWallet.id) }}">{{ rp.payment_code }}</a></td>
+                <td class="truncate-hoverable">{{ payment_macros.payment_destination(rp.payment, show_lead=False) }}</td>
+                <td>{{ payment_macros.reversed_status(rp) }}</td>
+                <td class="truncate-hoverable pe-3">{{ ui.user_link(rp.user, empty_text=ftext('Automatic')) }}</td>
+            </tr>
+            {% else %}
+            <tr>
+                <td class="truncate-hoverable"><a href="{{url_for('reversed_payment.view_reversal', reversal_id=rp.id)}}">{{ rp.id }}</a></td>
+                {#<td>-</td>#}
+                <td class="truncate-hoverable">{{ ui.datetime(rp.reversed_on) }}</td>
+                <td class="truncate-hoverable">{{ rp.payment_code }}</td>
+                <td class="truncate-hoverable">-</td>
+                <td>{{ payment_macros.reversed_status(rp) }}</td>
+                <td class="truncate-hoverable pe-3">{{ ui.user_link(rp.user, empty_text='Automatic') }}</td>
+            </tr>
+            {% endif %}
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}
+

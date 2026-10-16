@@ -1,0 +1,45 @@
+{% extends "macros/base.html" %}
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'macros/form_macros.html' as forms with context %}
+{% import 'person_macros.html' as person_macros with context %}
+
+{% block title %}{{ ftext('Merge another Client with {}', original_client.full_name, novar=true) }}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('Clients', 'Merge', object=original_client) }} {% endblock %}
+
+{% block content %}
+<div {{ ui.card_start() }}>
+    {{ ui.info_card(uicon='warning', text=ftext('Contracts of the two clients will be merged. All basic information of {} will be kept. If the selected client has a different phone number it will be added as a second phone number. <br>
+    Forms with the latest version to be updated will be kept. If the selected client has different forms they will be merged as well. <br>
+    The selected Client will be <strong>DELETED FOREVER.</strong>', original_client.full_name)) }}
+    <form class="row card-row">
+
+        {{ forms.searchable_select(name='target_client_id:number', id="target_client_id", choices=target_client_id, labeltag='Client to be merged with', uicon='client', size=6, source='target_client_id') }}
+
+        {{ ui.button(uicon='merge', label='Merge Client', type='action', fit=true, size=6, inline=true,
+            action='async_post', async_url='/clients/'+original_client.id|string+'/merge', success_message='Client merged!', 
+            redirect_url='/clients/', redirect_append='id') }}
+    </form>
+</div {{ ui.card_end() }}>
+
+<div id="client_preview_wrapper">
+    <div id="loader">
+        <div class="indeterminate"></div>
+    </div>          
+</div>
+{% endblock %}
+
+
+{% block scripts %}
+<script>
+    // This displays the preview of the client merge
+    $("#target_client_id").change(function() {
+        $("#loader").addClass('progress')
+        selected_client_id = $("#target_client_id").select2("data")[0].id
+        if (selected_client_id) {
+            var url = "{{url_for("client.merge_preview", original_client_id=original_client.id, selected_client_id=0)}}"+selected_client_id;
+            $("#client_preview_wrapper").load(url);
+        }
+    });   
+</script>
+{% endblock %}

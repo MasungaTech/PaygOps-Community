@@ -1,0 +1,91 @@
+{% extends "macros/list_base.html" %}
+{% import 'macros/form_macros.html' as forms %}
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'macros/filter_macros.html' as filter with context %}
+
+
+{% block title %}{{ ftext('Activity Log') }}{% endblock %}
+
+{% block page_title %}{{ ui.page_title('Activity Log', 'List') }}{% endblock %}
+
+{% block page_actions %}
+{{ ui.deprecated_tag('The Activity Log will be removed soon and has been replaced by the Audit Log (long lived) to view any changes made on the platform and the access log (short lived) to monitor access for development purpose.') }}
+{% endblock %}
+
+{% block header %}
+    <div {{ ui.collapsible_card_start(title='Filters', uicon='filter', icon_color='', active=any_filter([from_date, to_date, pagination.search])) }}>
+    <form id="filter_form_v2" action="" method="get" class="row">
+        {{ forms.input('from_date', 'From Date', type='datetimepicker',
+                uicon='date', size=4, value=from_date) }}
+        {{ forms.input('to_date', 'To Date', type='datetimepicker',
+        uicon='date', size=4, value=to_date) }}
+        {{ forms.select('actionfilter', {
+            'ALL': 'All',
+            'VIEW': 'View',
+            'EDIT': 'Edit'
+        }, value=actionfilter, labeltag="Action Filter", size=4) }}
+
+        {{ forms.input('search', 'Search', type='text', size=5, value=pagination.search) }}
+        
+        {% set extra_choices = {'NONE': 'No User', user_id: get_user(user_id).full_name} if user_id|int else {'NONE': 'No User'} %}
+        {{ forms.select(name='userfilter', labeltag='Filter user...', uicon='user',
+        choices=userfilter, value=user_id, size=5, source='userfilter',
+        extra_choices=extra_choices) }}
+        {{ filter.filter_buttons() }}
+    </form>
+    </div {{ ui.collapsible_card_end() }}>
+
+    {% if too_many_results %}
+        {{ ui.info_card('The search is too wide. Please narrow it down reducing the time frame to less than 6h, searching with more than 3 characters, selecting a user or the action filter') }}
+    {%endif%}
+{% endblock %}
+
+{% block table %}
+<table {{ ui.table_start(pagination) }}>
+    <thead>
+    <tr>
+        {{ui.sortable_header('time', "Time", pagination=pagination, class='ps-4')}}
+        {{ui.sortable_header('user', "User", uicon="info", tooltip='Filtering will only show items with a user. To see items without users select \'No User\' in the user filter.', pagination=pagination)}}
+        {{ui.sortable_header('page', "Page", pagination=pagination)}}
+        {{ui.sortable_header('method', "Action Info", pagination=pagination)}}
+        {{ui.table_header('Details')}}
+    </tr>
+    </thead>
+    <tbody>
+        {% for entry in pagination.objects %}
+            <tr>
+                <td class="ps-4">{{ui.datetime(entry.time)}}</td>
+                {% set user = get_user(entry.user) %}
+                <td class="truncate-hoverable">{{ ui.user_link(user) if user else 'PaygOps Services' }}</td>
+                <td class="truncate-hoverable">{{ entry.path }}</td>
+                <td>{% if entry.method == 'GET' %}{{ftext('View')}}{% else %}{{ftext('Edit')}}{% endif %} ({{entry.method}})</td>
+                <td class="pe-4">
+                    {{ ui.button(type='tiny-action', uicon='info', modal='extra-info-'+entry.id|string) }}
+                </td>
+            </tr>
+            <div {{ ui.modal_start('extra-info-'+entry.id|string, 'Additional Info') }}>
+                <form>
+                    {% set ua = entry.user_agent|extract_user_agent %}
+                    <div class="modal-body">
+                         {% set params = ui.processActivityLogData(entry.args) %}
+                         {% set data = ui.processActivityLogData(entry.data) %}
+                         {{ ui.report_field('User Agent', entry.user_agent, 'important_devices' ) }}
+                         {{ ui.report_field('Browser', ua.get('browser'), 'web') }}
+                         {{ ui.report_field('Platform', ua.get('platform'), 'monitor') }}
+                         {{ ui.report_field('Platform version', ua.get('version'), '1x_mobiledata_badge') }}
+                         {{ ui.report_field('IP Address', entry.ip, 'dns') }}
+                         {{ ui.report_field('App', entry.app, 'apps') }}
+                         {{ ui.report_field('Params', params, 'settings') }}
+                         {{ ui.report_field('Data', data, 'data_object') }}
+                    </div>
+                    <div class="modal-footer">
+                        {{ ui.modal_close_button() }}
+                    </div>
+                </form>
+            </div {{ ui.modal_end() }}>
+        {% else %}
+            {{ui.no_results_row(8, 'No activity log entries found.')}}
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

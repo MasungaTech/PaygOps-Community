@@ -1,0 +1,76 @@
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'macros/form_macros.html' as forms with context %}
+{% import 'macros/pagination.html' as pagination_nav with context %}
+
+{% macro converted_lead_table(pagination, show_conversion_time=false, show_activation_ratio=false,
+                    show_status=true, show_generator=true, lead_generator=none) -%}
+
+<form id="lead-commission-form" method="post">
+<table {{ ui.table_start(pagination=pagination) }}>
+    <thead>
+        <tr>
+            {{ ui.table_header('Commission') }}
+            {{ ui.table_header('ID') }}
+            {{ ui.table_header('Full Name') }}
+            {{ ui.table_header(GlobalSetting('OperationalEntities')[0].name) }}
+            {{ ui.table_header('Generator', visible=show_generator) }}
+            {{ ui.table_header('Status', visible=show_status) }}
+            {{ ui.table_header('Seniority') }}
+            {{ ui.table_header('Conversion Time', visible=show_conversion_time) }}
+            {{ ui.table_header(uicon='activation_ratio', tooltip='Timeliness ratio', visible=show_activation_ratio) }}
+            {{ ui.table_header(uicon='client', tooltip='Client') }}
+            {{ ui.table_header('Offer') }}
+        </tr>
+    </thead>
+    <tbody>
+        {% for L in pagination.objects %}
+        {% set client = L.person.client%}
+        <tr>
+            <th><input id="check{{ L.id }}" type="checkbox" class="form-check-input mt-0 me-2 table-checkbox" name="check_commission['{{ L.id }}']" value="true" {% if L.commission_paid %}checked="checked" disabled="disabled"{% endif %} {% if not current_user.can_access('GiveCommissionToLeadGenerators', person=L.person) %}disabled="disabled"{% endif %} {{ ui.tooltip_code(L.commissionComment) }}>{{ ui.amount(L.commission, include_currency=true) }}</th>
+            <th><a href="/leads/{{ L.id }}">{{ L.id }}</a></th>
+            <td class="truncate-hoverable">{{ L.person.name }} {{ L.person.surname }}</td>
+            <td class="truncate-hoverable"><a href="{{ url_for('entities.view_entity', entity_id=L.person.village.id) }}">{{ L.person.village.name }}</a></td>
+            {% if show_generator %}<td class="truncate-hoverable">{{ ui.lead_generator_link(L.generator, link=false if is_custom_app else true) }}</td>{% endif %}
+            {% if show_status %}<td>{{ ui.lead_coloured(L) }}</td>{% endif %}
+            {% if client != None%}<td>{{ -(client.RegistrationDate - NOW).days }}</td>{% endif %}
+            {% if show_conversion_time %}<td>{% if L.getConversionTime() %}{{ (L.getConversionTime()/24)|round|int }}{% else %} - {% endif %}</td>{% endif %}
+            {% if client != None%}{% if show_activation_ratio %}<td>{% if client.get_average_timeliness_ratio() != 0 %}{{ (client.get_average_timeliness_ratio()*100)|round|int }}{% else %}Ended{% endif %}</td>{% endif %}{% endif %}
+            {% if client != None%}<td><a href="{{ url_for('client.view_client', client_id=client.id) }}">{{ ui.icon('client', 'table-icon') }}</a></td>
+            {% set FirstDevice = L.contract.linked_device %}
+            <td class="truncate-hoverable">{% if FirstDevice %}{{ FirstDevice.get_offer_code() }}{% else %} - {% endif %}</td>{% endif %}
+        </tr>
+        {% else%}{{ui.no_results_row(11, 'No leads found')}}
+        {% endfor %}
+    </tbody>
+</table>
+<hr class="mt-0">
+<div class="row mx-2 mt-2">
+    {{ pagination_nav.render_pagination(pagination, tab=pagination.tab) }}
+</div>
+
+{% if current_user.can_access_in_any('GiveCommissionToLeadGenerators') %}
+{{ ui.divider('Pay Commissions', small=true) }}
+<div class="row pt-1">
+    {{ forms.checkbox('create_expense', 'Create an Expense for the payment of commissions. ', labeltag='Generate Expense', size=6) }}
+    {{ ui.button(label='Pay Commissions', type='action', size=6, inline=true,
+        action='async_post', async_url='/lead_generators/'+(lead_generator.id|string if lead_generator else '')+'/pay_commission',
+        success_action='payCommissionSuccess') }}
+</div>
+<script>
+function payCommissionSuccess(data, options) {
+    if(data.commissions_paid) {
+        var success_message = data.commissions_paid+' comission paid. Total: '+data.total_commission_amount+' '+currencySymbol+' '
+        if(data.expense_id) {
+            success_message += '<br><br><a href="/accounting/expenses/'+data.expense_id+'"style="cursor: pointer;"><strong>View Expense</strong></a>'
+        }
+        success_toast(success_message)
+    } else {
+        toast(PaygOps_LNG["NO_COMMISSION"])
+    }
+    if(options.submit_button) {
+        $(options.submit_button).prop("disabled",false);
+    }
+}
+</script>
+{% endif %}
+{%- endmacro %}

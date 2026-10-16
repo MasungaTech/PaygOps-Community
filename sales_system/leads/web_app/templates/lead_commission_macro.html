@@ -1,0 +1,13 @@
+{% macro commission_form(Lead, active=true) -%}
+<div {{ ui.collapsible_card_start(uicon='payment', title='Lead Commission', active=Lead.commission or active) }}>
+    <form class="row">
+
+        {{ forms.input('commission', 'Commission for Lead generator', append_currency=true, value=Lead.commission, uicon='payment', type='number', size=5) }}
+        {{ forms.input('commission_note', 'Note about the commission', value=Lead.commissionComment, uicon='info', size=6) }}
+
+        {{ ui.button(uicon='save', type='action', size=1, inline=true,
+            action='async_post', async_url='/leads/'+Lead.id|string, success_message='Lead Edited', success_action='message') }}
+
+    </form>
+</div {{ ui.collapsible_card_end() }}>
+{%- endmacro %}

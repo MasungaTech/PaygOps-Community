@@ -1,0 +1,56 @@
+{% extends 'macros/base.html' %}
+{% import 'macros/general_macros.html' as ui with context %}
+{% import 'macros/form_macros.html' as forms with context %}
+{% import 'addon_offer_macros.html' as addons with context %}
+{% import 'addon_categories_macros.html' as addons_categories with context %}
+
+{% block title %}{{ ftext('Create new version')}}{% endblock %}
+{% block page_title %}{{ ui.page_title('Add-On Offers', 'Add Version', object=offer) }} {% endblock %}
+
+{% block content %}
+{{ ui.info_card(uicon='info', text=ftext('Add a New Version of {}', ui.addon_offer_link(offer)), color='secondary')}}
+
+<form action="" method="post" novalidate>
+
+<div {{ ui.card_start(title='Pricing Details' , uicon='payment' , body_class='row') }}>
+        <input type="hidden" name="offer_id:number" value="{{offer.id}}" />
+
+        {{ forms.input('price', ftext('Unit Price ({})', Currency), required=true, valid="float",
+        value=-offer.last_version.price if offer.purchasing_addon else offer.last_version.price, size=6,
+        tooltip='The price of the add-on per unit sold. In case of an hourly service, the price per hour.') }}
+
+        {{ forms.checkbox('enforce_extension_limit:boolean', labeltag='Add-ons of this offer count towards loan extension limit', label='Add-on count towards limit',
+        id="enforce_extension_limit", size=6, visible=offer.type == AddOnType.loan,
+        checked=offer.last_version.enforce_extension_limit) }}
+
+        {{ forms.checkbox('downpayment_required:skip', labeltag='Sales at lead level require downpayment', label='Downpayment Required',
+        id="downpayment_required", visible=offer.type == AddOnType.loan,
+        checked=offer.last_version.downpayment, size=6,
+        onchange='checkBoxToggleForms(this, ".downpayment_required")') }}
+
+        {{ forms.input('downpayment:number', ftext('Downpayment ({})', Currency), required=true, valid="float positive",
+        value=offer.last_version.downpayment, id="downpayment", visible=offer.type == AddOnType.loan, size=6,
+        selector_class='downpayment_required',
+        tooltip='This downpayment will only be applied to pre-sales and will be ignored if an addon is sold to an
+        existing client, <br>
+        adding the full value of the add-on to the contract. If a downpayment is paid for pre-sales, <br>
+        this quantity will be extracted from the total amount of the add-on that will affect the contract. <br>
+        E.g.: Total amount: 60000, downpayment: 10000. Then the total amount that will affect the contract will be
+        50000.<br>
+        The downpayment is applied per item sold and must be lower than the unit price. ') }}
+</div {{ ui.card_end() }}>
+
+<div {{ ui.card_start(title='Availability', uicon='offer', body_class='row') }}>
+        {{ forms.checkbox('available_for_sales:boolean', 'Available for sales', id='available_for_sales',
+        labeltag='Sales', size=6, tooltip="Allow or restrict this version to be used for sales.<br>Note: If a new
+        version is made available for sales,<br>the older one becomes unavailable") }}
+        {{ forms.checkbox('available_for_registration:boolean', 'Available for Registration',
+        id='available_for_registration', labeltag='Registration', size=6, tooltip="Allow or restrict this version to be
+        used for registration.<br>Note: It is possible to have several versions available for registration.") }}
+</div {{ ui.card_end() }}>
+
+{{ forms.button(label='Save Offer', uicon='save', type='action', size_class='pt-2', action='async_post', 
+    fit=true, size=6, center=true, async_url='/offer_versions', redirect_url=url_for('contract.view_addon_offer', offer_id=offer.id)) }}
+</form>
+
+{% endblock %}

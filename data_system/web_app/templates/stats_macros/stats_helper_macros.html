@@ -1,0 +1,12 @@
+{% macro growth_badge(valueBefore, valueAfter) -%}
+{% if valueBefore == valueAfter %}<span class="badge stat-badge bg-label-secondary gray-badge"> = </span>{% else %}
+{% if valueBefore != 0 %}
+{% set growthRate = (valueAfter-valueBefore)/valueBefore %}
+{% if growthRate >= 0 %}{% set badgeColor = 'green' %}{% else %}{% set badgeColor = 'red' %}{% endif %}
+<span class="badge stat-badge bg-label-secondary {{badgeColor}}-badge">{% if growthRate >0 %}+{% endif %}{{ (growthRate*100)|round|int }}%</span>
+{% else %}<span class="badge stat-badge bg-label-secondary green-badge"> +&#8734;%</span>{% endif %}{% endif %}
+{%- endmacro %}
+
+{% macro stat_card_value(title='', number='', number_last=none, hide_number=false) %}
+<div class="d-flex justify-content-between"><div class="smallCardTitle">{{ftext(title)}}</div><div>{% if not hide_number %}<span class="me-2">{{ human_number(number) }}</span>{% endif %}{{ growth_badge(number_last, number) }}</div></div>
+{% endmacro %}
