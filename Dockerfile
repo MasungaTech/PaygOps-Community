@@ -1,4 +1,4 @@
-FROM python:3.14.5-slim-bookworm
+FROM python:3.14.8-slim-trixie
 
 RUN apt-get -qq update && apt-get install -qq -y curl git postgresql-client
 
