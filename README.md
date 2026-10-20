@@ -3,6 +3,10 @@
 PaygOps Community Edition is the open‑source version of the PaygOps platform: a modular loan management platform and CRM/ERP designed for off‑grid and distributed asset financing operations. It provides client and portfolio management, loan management, payments, stock management, messaging, reporting, and integrations with devices for PAYGO. 
 
 
+
+> **We’d love to hear about your deployment and use of PaygOps Community, please send us an email at `community-edition@paygops.com` to let us know what you think!**
+
+
 ## Deploy to managed hosting
 
 To deploy PaygOps and the required dependant services (database, etc.) to a hosting provider, just click the button below for your preffered supported provider and follow the steps. If you know of other providers that support one click deployment and would like to add them feel free to create a request or contribute it yourself. 
@@ -116,6 +120,7 @@ The provided `docker-compose.yml` includes safe defaults for **local development
   - **`ANTHROPIC_API_KEY`**: key for AI‑powered features (if enabled).
   - **`GOOGLE_MAPS_API_KEY`**, **`GOOGLE_CAPTCHA_SITE_KEY`**: Google Maps and reCAPTCHA integration keys.
   - **`LOGIN_OAUTH_URL`**, **`LOGIN_JWT_SECRET`**: configuration for an external login platform / SSO.
+  - **`DISABLE_ANALYTICS`**: set to `1` or `true` to disable Google Analytics and PostHog. Default is `0` (analytics enabled). We use those analytics for anonymized usage metrics to help improve the product. 
 
 ### Example env file for local development
 
