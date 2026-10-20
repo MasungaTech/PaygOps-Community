@@ -657,19 +657,18 @@ For more information on this, and how to apply and follow the GNU AGPL, see
 The following additional terms supplement the GNU Affero General Public License v3.0
 and apply to this software:
 
-### 1. Branding and Attribution Requirement
+### 1. Attribution Requirement
 
-If you distribute this software in an **unmodified form**, you must preserve and display the following in the user interface whenever it is operational:
+If you distribute this software, you must preserve and display the following in the user interface whenever it is operational:
 
-- the **"PaygOps" logo**,
-- the accompanying **copyright notice**, and
+- the **copyright notice**, and
 - a statement that the software is provided under the GNU Affero General Public License v3.0.
 
 The PaygOps logo and associated branding elements are trademarks of their respective owners and are provided to you solely for the purpose of identifying unmodified versions of this software.
 
 ### 2. Usage Analytics in the Official Distribution
 
-The official distribution of this software includes Google Analytics tracking used for anonymized usage metrics to help improve the product. Use of the official version constitutes acceptance of this analytics functionality.
+The official distribution of this software includes user behaviour tracking used for anonymized usage metrics to help improve the product. You can disable the analytics by setting the environment variable `DISABLE_ANALYTICS` to `1`. 
 
 ### 3. Modified Versions and Trademark Use
 
@@ -689,14 +688,6 @@ If you modify this software and distribute the modified version, you must includ
 
 Any modified version that you distribute must be licensed in full under the GNU Affero General Public License v3.0, in compliance with its terms. You may not impose additional restrictions on recipients beyond those permitted by AGPLv3.
 
-### 5. Notification of Distribution
-
-If you distribute a modified version of this software, you must send a notification to the maintainers at **opensource@paygops.com** stating:
-
-- that you are distributing a modified version,
-- where the modified source code can be obtained, and
-- your contact information.
-
-### 6. Preservation of Existing Notices
+### 5. Preservation of Existing Notices
 
 You must keep all existing copyright notices, licensing notices, and attribution statements found in the original software.

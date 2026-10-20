@@ -1,6 +1,7 @@
 {% extends "macros/base_core.html" %}
 
 {% block head_scripts %}
+{% if not config.DISABLE_ANALYTICS %}
 <!-- Google tag (gtag.js) -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-SC26GDEWDY"></script>
 <script>
@@ -9,6 +10,7 @@
   gtag('js', new Date());
   gtag('config', 'G-SC26GDEWDY');
 </script>
+{% endif %}
 <!-- Helpers -->
 <script>
     // We init the global variables from settings
@@ -298,7 +300,7 @@
               </div>
               {% if not is_custom_app %}
               <div class="footer-text col-12 col-md-4 d-flex justify-content-center">
-                  <p>Copyright&copy; {{NOW.year}} <a href="https://www.masunga.tech">Masunga</a>, formerly Solaris Offgrid</p>
+                  <p>Copyright&copy; {{NOW.year}} Eternum Ltd (Trading as <a href="https://www.masunga.tech" class="light-text-link">Masunga</a>)</p>
               </div>
               <div class="footer-text col-12 col-md-4 d-flex justify-content-center justify-content-md-end">
                   <p>{% if platform_type == 'freemium-demo' %}<span class="badge bg-label-danger" data-bs-toggle="tooltip" title="{{ftext('This instance is in Demo Mode. This means that the data is randomized, that some feature might not work and that some statistics might be inaccurate.')}}">DEMO</span>{% endif %}
@@ -397,6 +399,7 @@
     // Add other bootstrap parameters as needed, using camel case.
   });
 </script>
+{% if not config.DISABLE_ANALYTICS %}
 <!-- Posthog -->
 <script>
   posthog.setPersonProperties({
@@ -405,4 +408,5 @@
       role_type: '{{current_user.AuthorizationLevel.get_role_type_name()}}',
   })
 </script>
+{% endif %}
 {% endblock %}

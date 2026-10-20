@@ -58,6 +58,7 @@
     {% else %}
       <script src="/static/assets_cache/vendor.js?{{ ASSETS_HASHES['vendor.js'] }}"></script>
     {% endif %}
+    {% if not config.DISABLE_ANALYTICS %}
     <script>
       const analyticsEdition = {{ EDITION | tojson }};
       const analyticsVersion = {{ VERSION | tojson }};
@@ -81,6 +82,7 @@
         });
       }
     </script>
+    {% endif %}
   </head>
 
   <body{% if is_custom_app %} class="is-custom-app"{% endif %}>

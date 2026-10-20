@@ -9,6 +9,7 @@ BUILD_MODE = os.getenv("BUILD_MODE", '0')
 AUTOMATED_TESTING = os.getenv("AUTOMATED_TESTING", '0') in ['1', 1]
 MIGRATE_MODE = os.getenv('MIGRATE_MODE', False)
 DISABLE_ANALYTICAL_DB = os.getenv('DISABLE_ANALYTICAL_DB', False)
+DISABLE_ANALYTICS = os.getenv('DISABLE_ANALYTICS', '0') in ['1', 'true', 'True', True, 1]
 DISABLE_HEAVY_TASKS = os.getenv('DISABLE_HEAVY_TASKS', False)
 TRIGGER_WEBHOOK_AFTER_EDIT = os.getenv('TRIGGER_WEBHOOK_AFTER_EDIT', False)
 SPLIT_SERVER_MODE = os.getenv('SPLIT_SERVER_MODE', 'STANDARD') # STANDARD: No split, MAIN: Main split server (data), SECONDARY: Secondary split server (process)

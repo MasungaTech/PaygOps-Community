@@ -1650,6 +1650,9 @@ function deleteQueryParam(param) {
 
 // Function to capture event
 function captureEvent(event_name, event_data) {
+    if (typeof posthog === 'undefined' || typeof posthog.capture !== 'function') {
+        return;
+    }
     posthog.capture(event_name, event_data);
 }
 
