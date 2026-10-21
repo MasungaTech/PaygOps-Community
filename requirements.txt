@@ -34,7 +34,7 @@ qrcode[pil]==8.2
 
 python-dateutil==2.9.0
 munch==4.0.0
-Pillow==12.3.0
+Pillow==13.0.0
 concurrent-log-handler==0.9.29
 httpagentparser==1.9.9
 python-slugify==8.0.4

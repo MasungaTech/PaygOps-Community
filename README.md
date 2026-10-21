@@ -11,7 +11,7 @@ PaygOps Community Edition is the open‑source version of the PaygOps platform: 
 
 To deploy PaygOps and the required dependant services (database, etc.) to a hosting provider, just click the button below for your preffered supported provider and follow the steps. If you know of other providers that support one click deployment and would like to add them feel free to create a request or contribute it yourself. 
 
-[![Deploy to DigitalOcean](https://www.deploytodo.com/do-btn-blue.svg)](https://cloud.digitalocean.com/apps/new?repo=https://github.com/MasungaTech/PaygOps-Community-OneClick/tree/main)
+[![Deploy to DigitalOcean](https://www.deploytodo.com/do-btn-blue.svg)](https://cloud.digitalocean.com/apps/new?repo=https://github.com/MasungaTech/PaygOps-Community/tree/main)
 
 ---
 
@@ -33,11 +33,13 @@ Video trainings are available online and accessible from PaygOps web app.
 
 ## Using PaygOps
 
-### Getting started (local development with Docker)
+### Getting started (locally running PaygOps with Docker)
 
 - **Prerequisites**
   - **Docker** and **Docker Compose** installed.
   - At least **4 GB RAM** available for Docker.
+
+- **Note:** Use the `docker-compose.dev.yml` file if you want to do development and modify the code, for just running locally for testing use the `docker-compose.yml` file. 
 
 - **Clone and start**
 
@@ -45,8 +47,8 @@ Video trainings are available online and accessible from PaygOps web app.
 git clone <this-repo-url> paygops-community
 cd paygops-community
 
-# Build images and start all services
-docker compose up --build
+# Start all services
+docker compose -f docker-compose.yml up
 ```
 
 - **What this starts**
@@ -62,7 +64,7 @@ The first startup may take several minutes while the database is created and mig
 To stop the stack:
 
 ```bash
-docker compose down
+docker compose -f docker-compose.yml down
 ```
 
 - **Log into PaygOps**
@@ -76,7 +78,8 @@ A popup will be shown in the app when a new version is available. To update, run
 ```bash
 docker compose down
 git pull
-docker compose up -d --build
+docker compose  -f docker-compose.yml pull
+docker compose -f docker-compose.yml up
 ```
 
 ### Environment variables to set
@@ -200,7 +203,7 @@ An example compose file including both PaygOps Community and OpenPAYGO-Docker is
 
 2. **Bring the stack up (or recreate it) with the new services**:
 
-   ```docker compose up -d --build```
+   ```docker compose -f docker-compose-openpaygo.yml up```
 
 3. **Upload devices to the OpenPAYGO API as needed**:
 
