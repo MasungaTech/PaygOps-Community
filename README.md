@@ -127,8 +127,8 @@ The provided `docker-compose.yml` includes safe defaults for **local development
 
 ### Example env file for local development
 
-For local development, we provide an `example_secrets.env` file next to `docker-compose.yml`.  
-This file is referenced by `docker-compose.yml` via `env_file` and contains **example values only**:
+For local development, we provide an `example_secrets.env` file next to `docker-compose.dev.yml`.  
+This file is referenced by `docker-compose.dev.yml` (and `docker-compose.yml`) via `env_file` and contains **example values only**:
 
 - Database credentials: `POSTGRES_USER`, `POSTGRES_PASSWORD`, `PG_USER`, `PG_PASSWORD`
 - Core environment: `ENV_VAR`, `PAYG_URL`
@@ -242,14 +242,13 @@ Once both stacks are running:
 
 ### Deploying in production
 
-The example `docker-compose.yml` is intentionally **minimal and development‑oriented**.  
+The example `docker-compose.yml` is intentionally **minimal and development‑oriented**. 
+
+> We recommend looking at our **One Click Deploy** solution above for DigitalOcean if you're planning on running in production
+
 For production you should:
 
-- **Build a tagged image** from `Dockerfile`:
-
-```bash
-docker build -f Dockerfile -t paygops_community:<version> .
-```
+- **Use the latest docker image from the registry** (`ghcr.io/masungatech/paygops-community:latest` as configured in `docker-compose.yml`)
 
 - **Run separate services** (web, API, workers, beat) with:
   - Managed **PostgreSQL** (or high‑availability cluster), for PaygOps (and for OpenPAYGO if you use it as well). 
