@@ -40,10 +40,7 @@ services:
       - redis_data:/data
 
   auto_setup:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: paygops_oss
+    image: ghcr.io/masungatech/paygops-community:latest
     container_name: paygops_oss_auto_setup
     depends_on:
       - postgres
@@ -61,10 +58,7 @@ services:
       - setup_data:/setup_data
 
   web:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: paygops_oss
+    image: ghcr.io/masungatech/paygops-community:latest
     container_name: paygops_oss_web
     depends_on:
       - auto_setup
@@ -87,10 +81,7 @@ services:
       - setup_data:/setup_data
 
   api:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: paygops_oss
+    image: ghcr.io/masungatech/paygops-community:latest
     container_name: paygops_oss_api
     depends_on:
       - auto_setup
@@ -113,10 +104,7 @@ services:
       - setup_data:/setup_data
 
   celery_worker:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: paygops_oss
+    image: ghcr.io/masungatech/paygops-community:latest
     container_name: paygops_oss_celery_worker
     depends_on:
       - auto_setup
@@ -135,10 +123,7 @@ services:
       - setup_data:/setup_data
 
   celery_heavy_worker:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: paygops_oss
+    image: ghcr.io/masungatech/paygops-community:latest
     container_name: paygops_oss_celery_heavy_worker
     depends_on:
       - auto_setup
@@ -157,10 +142,7 @@ services:
       - setup_data:/setup_data
 
   celery_beat:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: paygops_oss
+    image: ghcr.io/masungatech/paygops-community:latest
     container_name: paygops_oss_celery_beat
     depends_on:
       - auto_setup
@@ -185,5 +167,3 @@ volumes:
   temp_data:
   setup_data:
   analytical_db_data:
-
-

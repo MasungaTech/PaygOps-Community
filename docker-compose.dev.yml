@@ -1,0 +1,189 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: paygops_oss_postgres
+    restart: unless-stopped
+    env_file:
+      - example_secrets.env
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-${MAIN_DB_NAME:-main_db}}
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+
+  analytical_db:
+    image: postgres:16
+    container_name: paygops_oss_analytical_db
+    restart: unless-stopped
+    env_file:
+      - example_secrets.env
+    environment:
+      POSTGRES_DB: analytical_db
+    expose: 
+      - "5432"
+    ports:
+      - "5433:5432"
+    volumes:
+      - analytical_db_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7.4
+    container_name: paygops_oss_redis
+    restart: unless-stopped
+    command: redis-server --timeout 300 --tcp-keepalive 60 --maxclients 10000 --tcp-backlog 128
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  auto_setup:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: paygops_oss
+    container_name: paygops_oss_auto_setup
+    depends_on:
+      - postgres
+      - redis
+    restart: "no"
+    command: ["runtime_setup"]
+    env_file:
+      - example_secrets.env
+    environment:
+      PG_HOST: postgres
+      PG_PORT: "5432"
+    volumes:
+      - app_data:/data
+      - temp_data:/temp
+      - setup_data:/setup_data
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: paygops_oss
+    container_name: paygops_oss_web
+    depends_on:
+      - auto_setup
+      - postgres
+      - redis
+    restart: unless-stopped
+    command: ["start_web_app"]
+    env_file:
+      - example_secrets.env
+    environment:
+      PG_HOST: postgres
+      PG_PORT: "5432"
+      RELOAD_PYTHON: "true"
+      RELOAD_TEMPLATES: "true"
+    ports:
+      - "8000:8000"
+    volumes:
+      - app_data:/data
+      - temp_data:/temp
+      - setup_data:/setup_data
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: paygops_oss
+    container_name: paygops_oss_api
+    depends_on:
+      - auto_setup
+      - postgres
+      - redis
+    restart: unless-stopped
+    command: ["start_api_app"]
+    env_file:
+      - example_secrets.env
+    environment:
+      PG_HOST: postgres
+      PG_PORT: "5432"
+      RELOAD_PYTHON: "true"
+      RELOAD_TEMPLATES: "true"
+    ports:
+      - "6789:6789"
+    volumes:
+      - app_data:/data
+      - temp_data:/temp
+      - setup_data:/setup_data
+
+  celery_worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: paygops_oss
+    container_name: paygops_oss_celery_worker
+    depends_on:
+      - auto_setup
+      - postgres
+      - redis
+    restart: unless-stopped
+    command: ["start_worker"]
+    env_file:
+      - example_secrets.env
+    environment:
+      PG_HOST: postgres
+      PG_PORT: "5432"
+    volumes:
+      - app_data:/data
+      - temp_data:/temp
+      - setup_data:/setup_data
+
+  celery_heavy_worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: paygops_oss
+    container_name: paygops_oss_celery_heavy_worker
+    depends_on:
+      - auto_setup
+      - postgres
+      - redis
+    restart: unless-stopped
+    command: ["start_heavy_worker"]
+    env_file:
+      - example_secrets.env
+    environment:
+      PG_HOST: postgres
+      PG_PORT: "5432"
+    volumes:
+      - app_data:/data
+      - temp_data:/temp
+      - setup_data:/setup_data
+
+  celery_beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: paygops_oss
+    container_name: paygops_oss_celery_beat
+    depends_on:
+      - auto_setup
+      - postgres
+      - redis
+    restart: unless-stopped
+    command: ["start_beat"]
+    env_file:
+      - example_secrets.env
+    environment:
+      PG_HOST: postgres
+      PG_PORT: "5432"
+    volumes:
+      - app_data:/data
+      - temp_data:/temp
+      - setup_data:/setup_data
+
+volumes:
+  db_data:
+  redis_data:
+  app_data:
+  temp_data:
+  setup_data:
+  analytical_db_data:
+
+
