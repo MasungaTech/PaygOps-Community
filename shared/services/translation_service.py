@@ -21,7 +21,12 @@ class TranslationService:
 
     @classmethod
     def ftext(cls, text, *args, force=False, user=None, current=False, **kwargs):
-        if not user and current:
+        # `current=True` means "translate for flask-login's current user".
+        # Any other value is a "{current}" format placeholder and must not be swallowed.
+        use_current_user = current is True
+        if not use_current_user and current is not False:
+            kwargs['current'] = current
+        if not user and use_current_user:
             user=current_user
         text = TranslationService.get_translated_string(text, getattr(user, 'person', None), force=force)
         if not len(args) and not len(kwargs):
