@@ -47,3 +47,37 @@ class TestSettingsService():
         with patch.object(SettingsService, '_execute_callback'):
             SettingsService.set_defaults(override=True)
         assert Settings.get(key="MyTestSettingToDelete") == None
+
+
+MISSING = object()
+
+
+def patch_offline_mobile_app_settings(platform_type, offline_mobile_app):
+    feature_toggles = {'SalesFeatures': True}
+    if offline_mobile_app is not MISSING:
+        feature_toggles['OfflineMobileApp'] = offline_mobile_app
+    settings = {'PlatformType': platform_type, 'FeatureToggles': feature_toggles}
+    return patch.object(SettingsService, 'get_setting', side_effect=lambda key, *a, **kw: settings[key])
+
+
+class TestIsOfflineMobileAppEnabled:
+
+    @pytest.mark.parametrize('platform_type,offline_mobile_app,expected', [
+        ('new-premium', True, True),
+        ('new-premium', False, False),
+        ('new-premium', MISSING, True),
+        ('features-package', True, True),
+        ('features-package', False, False),
+        ('features-package', MISSING, False),
+        ('premium', True, True),
+        ('premium', False, False),
+        ('premium', MISSING, True),
+        ('freemium-demo', True, True),
+        ('freemium-demo', False, False),
+        ('freemium-demo', MISSING, True),
+        ('some-other-type', False, False),
+        ('some-other-type', MISSING, True),
+    ])
+    def test_is_offline_mobile_app_enabled(self, platform_type, offline_mobile_app, expected):
+        with patch_offline_mobile_app_settings(platform_type, offline_mobile_app):
+            assert SettingsService.is_offline_mobile_app_enabled() is expected

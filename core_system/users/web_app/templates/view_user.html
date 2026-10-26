@@ -258,7 +258,15 @@
                 {{ ui.report_field('Net transferred', ui.amount(accounting_user.get_net_transferred(), include_currency=true), 'redo', size=6, tooltip='Total trasferred to the user - Total transferred from the user to the company') }}
 
                 {% if GlobalSetting('CashCollectionLimitEnabled') %}
-                    {% set cash_limit = ui.amount(user.cash_collection_limit or GlobalSetting('CashCollectionLimit'), include_currency=true) + ('(platform default)' if not user.cash_collection_limit else '')%}
+                    {% set effective_cash_limit = user.cash_collection_limit or GlobalSetting('CashCollectionLimit') %}
+                    {% if effective_cash_limit %}
+                        {% set cash_limit = ui.amount(effective_cash_limit, include_currency=true) %}
+                    {% else %}
+                        {% set cash_limit = 'Unlimited' %}
+                    {% endif %}
+                    {% if not user.cash_collection_limit %}
+                        {% set cash_limit = cash_limit + ' (platform default)' %}
+                    {% endif %}
                 {%else%}
                     {% set cash_limit = 'Disabled in platform settings' %}
                 {% endif %}

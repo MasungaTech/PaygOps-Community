@@ -4197,5 +4197,6 @@
   "Manage Backup Codes": "የተተከሉ መለስ ኮዶችን አስተዳድር",
   "Allow contract without stock item": "ኮንትራትን ያለ እቃ መፈቀድ",
   "Select the device restrictions for contracts.": "ለኮንትራቶች የመሣሪያ ውስንነቶችን ይምረጡ።",
-  "Pairing": "ማጣመር"
+  "Pairing": "ማጣመር",
+  "The Offline Agent App is not enabled for this platform. Please contact your administrator.": "ከመስመር ውጭ የወኪል መተግበሪያ ለዚህ መድረክ አልነቃም። እባክዎ አስተዳዳሪዎን ያግኙ።"
 }

@@ -1683,6 +1683,13 @@ class SettingsService(BaseGetterService):
         raise Exception('INVALID SETTINGS KEY')
 
     @classmethod
+    def is_offline_mobile_app_enabled(cls):
+        # features-package only gets the app when explicitly enabled; other plans have it unless turned off.
+        default = cls.get_setting('PlatformType') != 'features-package'
+        feature_toggles = cls.get_setting('FeatureToggles') or {}
+        return bool(feature_toggles.get('OfflineMobileApp', default))
+
+    @classmethod
     def set_setting(cls, key, value, user=None):
         if key in cls.schema:
             if not user or user.can_access(cls.schema[key]['permission']):

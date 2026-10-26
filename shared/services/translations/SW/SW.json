@@ -4194,5 +4194,6 @@
   "Manage Backup Codes": "Dhibiti Nambari za Chelezo",
   "Allow contract without stock item": "Ruhusu mkataba bila bidhaa ya hisa",
   "Select the device restrictions for contracts.": "Chagua vikwazo vya kifaa kwa ajili ya mikataba.",
-  "Pairing": "Kuunganisha"
+  "Pairing": "Kuunganisha",
+  "The Offline Agent App is not enabled for this platform. Please contact your administrator.": "Programu ya Wakala Nje ya Mtandao haijawezeshwa kwa jukwaa hili. Tafadhali wasiliana na msimamizi wako."
 }
