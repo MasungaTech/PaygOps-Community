@@ -4195,5 +4195,6 @@
   "Manage Backup Codes": "管理备份代码",
   "Allow contract without stock item": "允许无库存项目的合同",
   "Select the device restrictions for contracts.": "选择合同的设备限制。",
-  "Pairing": "配对"
+  "Pairing": "配对",
+  "The Offline Agent App is not enabled for this platform. Please contact your administrator.": "此平台未启用离线代理应用。请联系您的管理员。"
 }

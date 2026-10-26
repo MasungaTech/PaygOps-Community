@@ -4201,5 +4201,6 @@
   "Manage Backup Codes": "Gestionar códigos de respaldo",
   "Allow contract without stock item": "Permitir contrato sin artículo en stock",
   "Select the device restrictions for contracts.": "Selecciona las restricciones de dispositivo para los contratos.",
-  "Pairing": "Emparejamiento"
+  "Pairing": "Emparejamiento",
+  "The Offline Agent App is not enabled for this platform. Please contact your administrator.": "La aplicación de agente sin conexión no está habilitada para esta plataforma. Por favor, contacta a tu administrador."
 }
