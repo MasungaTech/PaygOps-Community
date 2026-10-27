@@ -1,3 +1,13 @@
+## Thank you
+
+First off, thanks for your interest in PaygOps and for wanting to contribute!
+
+This document should give you a sense of where you might want to fit in if you want to contribute to PaygOps.
+
+## Contributor License Agreement
+
+To avoid any legal issues,  we'll need each person contributing code to sign a [Contributor License Agreement](https://docs.google.com/forms/d/1wCw-dR6JAlRlob6i8GBtx8vkVCWwKA4gzefvqywHBDg/preview) before they send a pull request. 
+
 ## Contributing guidelines
 
 - **Issues & feature requests**
