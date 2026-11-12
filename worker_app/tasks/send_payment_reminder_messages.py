@@ -55,7 +55,7 @@ def send_payment_reminder_sms_at_day_x(days_before_expiry):
     with orm.db_session(optimistic=False):
         all_late_contracts = orm.select(
             contract for contract in Contract
-            if contract.status == ContractStatus.active
+            if (contract.status == ContractStatus.active or contract.status == ContractStatus.late)
             and contract.next_repayment_due_time >= today
             and contract.next_repayment_due_time < tomorrow
         ).order_by(lambda c: c.id)
