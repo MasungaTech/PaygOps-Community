@@ -2,7 +2,6 @@ from payg_loan_system.actions.default import handle_default_request
 from payg_loan_system.transaction_requests.services.transaction_service import BOOLEAN_SCHEMA, CONTRACT_REFERENCE_SCHEMA, DEVICE_SERIAL_SCHEMA, REQUEST_CODE_SCHEMA, TransactionService, NOTES_SCHEMA
 from shared.logger.loggers import Error
 from payg_loan_system.contracts.models.contract_model import ContractStatus
-from shared.services.settings_service import SettingsService
 
 
 class DefaultTransactionService(TransactionService):
@@ -45,30 +44,34 @@ class DefaultTransactionService(TransactionService):
 
     @classmethod
     def _validate_data(cls, **kwargs):
-        contract = None
-        if not SettingsService.get_setting('ContractDeviceRestrictions') == 'no_device' and not kwargs.get('device_serial'):
-            processed = {'this_contract': cls._get_contract(
-                contract_reference=kwargs.get('contract_reference'),
-                user=kwargs['user']
-            )}
-            if not processed['this_contract']:
-                raise Error('A contract could not be found with the reference provided')
-            contract = processed['this_contract']
-        elif not SettingsService.get_setting('ContractDeviceRestrictions') == 'no_device' and kwargs.get('device_serial'):
-            processed = {'this_device': cls._get_device(
-                kwargs.get('device_serial'),
-                kwargs.get('contract_reference'),
-                kwargs['user']
-            )}
-            if not processed['this_device']:
+        user = kwargs['user']
+        device_serial = kwargs.get('device_serial')
+        contract_reference = kwargs.get('contract_reference')
+        this_device = None
+        this_contract = None
+
+        if device_serial:
+            this_device = cls._get_device(device_serial, contract_reference, user)
+            if not this_device:
                 raise Error('A contract could not be found with the serial number or reference provided')
-            contract = processed['this_device'].contract
-        if not contract:
+            this_contract = this_device.contract
+            if not this_contract:
+                raise Error('DEVICE_NOT_REGISTERED')
+        elif contract_reference:
+            this_contract = cls._get_contract(contract_reference=contract_reference, user=user)
+            if not this_contract:
+                raise Error('A contract could not be found with the reference provided')
+            this_device = this_contract.linked_device
+        else:
             raise Error('DEVICE_NOT_REGISTERED')
-        if contract.status == ContractStatus.paused:
+
+        if this_contract.status == ContractStatus.paused:
             raise Error('CONTRACT_PAUSED')
-        processed['client'] = contract.client
-        return processed
+        return {
+            'this_device': this_device,
+            'this_contract': this_contract,
+            'client': this_contract.client,
+        }
 
     @classmethod
     def _process(cls, user, offline, time, **kwargs):

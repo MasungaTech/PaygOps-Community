@@ -49,6 +49,39 @@ class TestSettingsService():
         assert Settings.get(key="MyTestSettingToDelete") == None
 
 
+class TestNullableSettings:
+
+    @pytest.fixture(autouse=True)
+    def restore_cash_collection_limit(self):
+        with db_session:
+            previous = SettingsService.get_setting('CashCollectionLimit')
+        yield
+        with db_session:
+            SettingsService.set_setting('CashCollectionLimit', previous)
+
+    @pytest.mark.parametrize('empty_value', [None, ''])
+    @db_session
+    def test_empty_value_is_stored_as_none(self, empty_value):
+        SettingsService.set_setting('CashCollectionLimit', empty_value)
+        assert Settings.get(key='CashCollectionLimit').value == ''
+        assert SettingsService.get_setting('CashCollectionLimit') is None
+
+    @db_session
+    def test_zero_is_kept_as_a_value(self):
+        SettingsService.set_setting('CashCollectionLimit', 0)
+        assert SettingsService.get_setting('CashCollectionLimit') == Decimal(0)
+
+    @db_session
+    def test_validation_still_applies_to_values(self):
+        with pytest.raises(Exception):
+            SettingsService.set_setting('CashCollectionPercentageWarning', 101)
+
+    @db_session
+    def test_non_nullable_setting_rejects_empty_value(self):
+        with pytest.raises(TypeError):
+            SettingsService.set_setting('MaxRoundingDiscount', '')
+
+
 MISSING = object()
 
 
@@ -58,6 +91,38 @@ def patch_offline_mobile_app_settings(platform_type, offline_mobile_app):
         feature_toggles['OfflineMobileApp'] = offline_mobile_app
     settings = {'PlatformType': platform_type, 'FeatureToggles': feature_toggles}
     return patch.object(SettingsService, 'get_setting', side_effect=lambda key, *a, **kw: settings[key])
+
+
+class _McpUser:
+    def __init__(self, viewer):
+        self.viewer = viewer
+
+    def can_access(self, permission, entity=None, person=None):
+        return self.viewer and permission == 'ViewSettingsInterfaceAdmin'
+
+
+class TestMcpWriteAllowed:
+
+    @pytest.mark.parametrize('viewer,for_viewers,for_others,expected', [
+        (True, True, False, True),
+        (True, False, True, False),
+        (False, True, False, False),
+        (False, False, True, True),
+        (True, False, False, False),
+        (False, False, False, False),
+        (True, True, True, True),
+        (False, True, True, True),
+    ])
+    def test_flags_follow_settings_view_permission(self, viewer, for_viewers, for_others, expected):
+        settings = {
+            'AllowMcpWriteForSettingsViewers': for_viewers,
+            'AllowMcpWriteForNonSettingsViewers': for_others,
+        }
+        with patch.object(SettingsService, 'get_setting', side_effect=lambda key, *a, **kw: settings[key]):
+            assert SettingsService.mcp_write_allowed(_McpUser(viewer)) is expected
+
+    def test_missing_user_is_denied(self):
+        assert SettingsService.mcp_write_allowed(None) is False
 
 
 class TestIsOfflineMobileAppEnabled:

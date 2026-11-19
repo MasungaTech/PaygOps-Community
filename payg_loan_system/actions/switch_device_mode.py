@@ -34,8 +34,13 @@ def handle_switch_device_mode(acting_user, new_mode, registration_request_code):
         elif contract.status != ContractStatus.completed:
             requires_permissions = True
 
-    if requires_permissions and not acting_user.can_access('ForcePAYGModeDevices', person=thisClient.person):
-        return {'success': False, 'status': 'INSUFFICIENT_PERMISSION', 'permission': 'ForcePAYGModeDevices'}
+    if requires_permissions:
+        if thisClient:
+            can_force = acting_user.can_access('ForcePAYGModeDevices', person=thisClient.person)
+        else:
+            can_force = acting_user.can_access_in_all('ForcePAYGModeDevices')
+        if not can_force:
+            return {'success': False, 'status': 'INSUFFICIENT_PERMISSION', 'permission': 'ForcePAYGModeDevices'}
 
     if this_device.Mode == new_mode:
         answer.append({'status': 'DEVICE_ALREADY_IN_MODE'})

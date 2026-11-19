@@ -9,9 +9,12 @@ PaygOps Community Edition is the open‑source version of the PaygOps platform: 
 
 ## Deploy to managed hosting
 
-To deploy PaygOps and the required dependant services (database, etc.) to a hosting provider, just click the button below for your preffered supported provider and follow the steps. If you know of other providers that support one click deployment and would like to add them feel free to create a request or contribute it yourself. 
+To deploy PaygOps and the required dependant services (database, etc.) to a hosting provider, just click the button below for your preffered supported provider and follow the steps. Make sure to define the environment variable `KEY_SECRET`.
 
 [![Deploy to DigitalOcean](https://www.deploytodo.com/do-btn-blue.svg)](https://cloud.digitalocean.com/apps/new?repo=https://github.com/MasungaTech/PaygOps-Community/tree/main)
+
+If you know of other providers that support one click deployment and would like to add them feel free to create a request or contribute it yourself. 
+
 
 ---
 

@@ -950,12 +950,14 @@ class SettingsService(BaseGetterService):
         },
         'CashCollectionLimit': {
             'type': "decimal",
-            'default': 0,
+            'default': None,
+            'nullable': True,  # empty means unlimited
             'permission': 'ConfigurePaymentManagementAdmin'
         },
         'CashCollectionPercentageWarning': {
             'type': "decimal",
-            'default': 0,
+            'default': None,
+            'nullable': True,  # empty means deactivated
             'permission': 'ConfigurePaymentManagementAdmin',
             'validation': {
                 'min': 0,
@@ -964,7 +966,8 @@ class SettingsService(BaseGetterService):
         },
         'CashCollectionAmountWarning': {
             'type': "decimal",
-            'default': 0,
+            'default': None,
+            'nullable': True,  # empty means deactivated
             'permission': 'ConfigurePaymentManagementAdmin'
         },
         'EnableLimitOnPlannedDeliveryDate': {
@@ -1150,6 +1153,16 @@ class SettingsService(BaseGetterService):
         'GatewaySendingAsynchronous': {
             'type': 'boolean',
             'default': config.delayed_gateway_post,
+            'permission': 'SuperAdmin',
+        },
+        'AllowMcpWriteForSettingsViewers': {
+            'type': 'boolean',
+            'default': False,
+            'permission': 'SuperAdmin',
+        },
+        'AllowMcpWriteForNonSettingsViewers': {
+            'type': 'boolean',
+            'default': False,
             'permission': 'SuperAdmin',
         },
         'PlatformLogoPictureID': {
@@ -1677,10 +1690,26 @@ class SettingsService(BaseGetterService):
             setting = Settings.get(key=key) if not setting else setting
             type = cls.schema[key]['type']
             if setting:
+                if setting.value == '' and cls.schema[key].get('nullable'):
+                    return None
                 return cls._get_type_compliant(setting.value, type)
             LogAPI.check_and_warn(not config.MIGRATE_MODE and not config.INSTALL_MODE, f'Setting missing in the database: "{key}"')
             return cls.schema[key]['default']
         raise Exception('INVALID SETTINGS KEY')
+
+    @classmethod
+    def mcp_write_allowed(cls, user):
+        """Whether this user may call MCP write tools.
+
+        Viewers of Settings follow AllowMcpWriteForSettingsViewers.
+        Everyone else follows AllowMcpWriteForNonSettingsViewers.
+        Neither flag grants a resource permission the user does not already have.
+        """
+        if user is None or not hasattr(user, 'can_access'):
+            return False
+        if user.can_access('ViewSettingsInterfaceAdmin'):
+            return bool(cls.get_setting('AllowMcpWriteForSettingsViewers'))
+        return bool(cls.get_setting('AllowMcpWriteForNonSettingsViewers'))
 
     @classmethod
     def is_offline_mobile_app_enabled(cls):
@@ -1694,11 +1723,12 @@ class SettingsService(BaseGetterService):
         if key in cls.schema:
             if not user or user.can_access(cls.schema[key]['permission']):
                 type = cls.schema[key]['type']
-                value = cls._get_type_compliant(value, type)
+                is_empty = cls.schema[key].get('nullable') and value in (None, '')
+                value = None if is_empty else cls._get_type_compliant(value, type)
                 rules = cls.schema[key].get('validation', {})
-                if cls._check_validity(value, type, rules):
+                if is_empty or cls._check_validity(value, type, rules):
                     value = cls._execute_preprocess(cls.schema[key], value)
-                    DBvalue = cls._get_DB_compliant(value, type)
+                    DBvalue = '' if is_empty else cls._get_DB_compliant(value, type)
                     setting = Settings.get(key=key)
                     if setting:
                         setting.value = DBvalue

@@ -12,13 +12,21 @@ from shared.services.base_service import BaseService
 
 
 class EditOperationalEntityService(BaseService):
-    
+
+    @classmethod
+    def _level_from_data(cls, data):
+        try:
+            level = int(data.get('level'))
+        except (TypeError, ValueError):
+            raise Error('The level is required and must be 0, 1, 2, 3, or 4.')
+        return level
+
     @classmethod
     def _add_from_data_and_user(cls, data, user, check_permissions=True):
         name = data.get('name')
         if not name:
             raise Error('The name is required.')
-        level = int(data.get('level'))
+        level = cls._level_from_data(data)
         if level not in [0, 1, 2, 3, 4]:
             raise Error('Invalid level')
         parent = HierarchicalOperationalEntity.get(id=data.get('parent_id'))   
@@ -126,7 +134,7 @@ class EditOperationalEntityService(BaseService):
     def get_affected_entity(cls, data, user, id=None, **kwargs):
         if id:
             return HierarchicalOperationalEntity.get(id=id)
-        level = int(data.get('level'))
+        level = cls._level_from_data(data)
         if level not in [0, 1, 2, 3, 4]:
             raise Error('Invalid level')
         parent = HierarchicalOperationalEntity.get(id=data.get('parent_id'))  

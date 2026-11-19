@@ -308,3 +308,26 @@ class TestAddLead:
         response = self._post_data(lead_data, api_client, admin_api_key) # We a second lead with the same number
         assert response.status_code == 400
         assert response.json['error'] == 'PHONE_NUMBER_ALREADY_OWNED'
+
+    @db_session
+    def test_list_lead_with_time_based_offer_and_special_data(self, api_client, admin_api_key):
+        lead_data = {
+            'name': 'TimeBased',
+            'surname': 'Lead',
+            'village': Village.select().first().not_empty_code,
+            'generator': 1,
+            'gender': "Male",
+            'status': 14,
+            'preferred_phone_number': '+2341234123488',
+            'offer': 895,
+        }
+        response = self._post_data(lead_data, api_client, admin_api_key)
+        assert response.status_code == 201, response.json
+        lead_id = response.json['id']
+        response = api_client.get(
+            API_PREFIX + f'/leads?include_objects=true&special_data=true&lead_id={lead_id}&page=1&page_size=10',
+            headers={'Authorization': 'Bearer ' + admin_api_key},
+        )
+        assert response.status_code == 200, response.json
+        listed = next(lead for lead in response.json if lead['id'] == lead_id)
+        assert listed['total_duration'] is None

@@ -8,8 +8,8 @@ from pony.orm import Json, Optional, Required, Set, StrArray, db_session, desc, 
 import config
 from accounting_system.accounting_db import accounting_db
 from constants import (BOOLEAN_PATTERN, FEATURE_FLAGS_CONFIG,
-                       OPTIONAL_DATETIME_OPTIONS, OPTIONAL_EMAIL_OPTIONS,
-                       REQUIRED_STRING_PATTERN)
+                       FLOAT_OPTIONAL_OPTIONS, OPTIONAL_DATETIME_OPTIONS,
+                       OPTIONAL_EMAIL_OPTIONS, REQUIRED_STRING_PATTERN)
 from core_system.core_entities import db
 from core_system.operational_entities.models import (
     HierarchicalOperationalEntity, OperationalEntity,
@@ -223,8 +223,8 @@ class User(db.Entity, ModelInterface, ModelDefinitionMixin):
                     "value": lambda o: o.bad_login_count
                 },
                 'cash_collection_limit': {
-                    "description": "The limit of cash that the user can collect (empty means the platform default)",
-                    "type": "number",
+                    "description": "The limit of cash that the user can collect (empty/null means the platform default)",
+                    "oneOf": FLOAT_OPTIONAL_OPTIONS,
                     "example": 30000,
                     "value": lambda o: o.cash_collection_limit
                 },
@@ -384,8 +384,11 @@ class User(db.Entity, ModelInterface, ModelDefinitionMixin):
 
     @property
     def cash_limit_overall(self):
-        return self.cash_collection_limit or SettingsService.get_setting('CashCollectionLimit') \
-            if SettingsService.get_setting('CashCollectionLimitEnabled') else None
+        if not SettingsService.get_setting('CashCollectionLimitEnabled'):
+            return None
+        if self.cash_collection_limit is not None:
+            return self.cash_collection_limit
+        return SettingsService.get_setting('CashCollectionLimit')
 
     @property
     def total_cash_collected(self):
@@ -393,7 +396,8 @@ class User(db.Entity, ModelInterface, ModelDefinitionMixin):
 
     @property
     def cash_allowance(self):
-        return self.cash_limit_overall - self.total_cash_collected + self.total_reconciled if self.cash_limit_overall else None
+        cash_limit = self.cash_limit_overall
+        return cash_limit - self.total_cash_collected + self.total_reconciled if cash_limit is not None else None
 
     @property
     def active(self):

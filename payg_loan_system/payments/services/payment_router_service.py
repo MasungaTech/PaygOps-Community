@@ -33,6 +33,10 @@ class PaymentRouterService:
                     for contract in contracts:
                         contract = Contract.get(id=contract.id) # needed cause we are handling exceptions inside the processing function, to avoid db_session ended errors
                         ContractRepaymentService.process_contract_with_unprocessed_repayments(contract)
+                # Commit before raising AlreadyExistsError: the caller's db_session
+                # rolls back on any exception, which would drop the reconciliation
+                # and token of a re-sent payment the device cloud already credited.
+                orm.commit()
             except Exception as error:
                 orm.rollback()
                 LogAPI.Fatal(error)

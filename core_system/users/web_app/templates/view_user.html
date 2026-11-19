@@ -258,13 +258,13 @@
                 {{ ui.report_field('Net transferred', ui.amount(accounting_user.get_net_transferred(), include_currency=true), 'redo', size=6, tooltip='Total trasferred to the user - Total transferred from the user to the company') }}
 
                 {% if GlobalSetting('CashCollectionLimitEnabled') %}
-                    {% set effective_cash_limit = user.cash_collection_limit or GlobalSetting('CashCollectionLimit') %}
-                    {% if effective_cash_limit %}
+                    {% set effective_cash_limit = user.cash_limit_overall %}
+                    {% if effective_cash_limit is not none %}
                         {% set cash_limit = ui.amount(effective_cash_limit, include_currency=true) %}
                     {% else %}
                         {% set cash_limit = 'Unlimited' %}
                     {% endif %}
-                    {% if not user.cash_collection_limit %}
+                    {% if user.cash_collection_limit is none %}
                         {% set cash_limit = cash_limit + ' (platform default)' %}
                     {% endif %}
                 {%else%}
@@ -273,7 +273,7 @@
                 {{ ui.report_field('Cash Collection limit', cash_limit, 'cash', size=6) }}
                 {{ ui.report_field('Total cash collected', ui.amount(user.total_cash_collected, include_currency=true), 'cash', size=6) }}
 
-                {{ ui.report_field('Remaining cash allowance', ui.amount(user.cash_allowance, include_currency=true) if user.cash_allowance else 'Unlimited', 'cash', size=6) }}
+                {{ ui.report_field('Remaining cash allowance', ui.amount(user.cash_allowance, include_currency=true) if user.cash_allowance is not none else 'Unlimited', 'cash', size=6) }}
                 {{ ui.report_field('Total Cash repaid', ui.amount(user.total_reconciled, include_currency=true), 'cash', size=6) }}
 
                 {{ ui.report_field('Expenses balance', ui.amount(accounting_user.get_expense_amount()-accounting_user.get_net_transferred(), include_currency=true), 'receipt', size=6, tooltip='Total expenses - Net transferred') }}

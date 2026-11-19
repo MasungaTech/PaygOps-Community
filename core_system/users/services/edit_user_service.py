@@ -175,10 +175,8 @@ class EditUserService(BaseService):
         pin = str(data.get('pin', data.get('mobile_pin', '')))
         if pin == '' and edited_user:
             pin = edited_user.pin
-        cash_limit = edited_user.cash_collection_limit if edited_user else None
-        if 'cash_collection_limit' in data:
-            cash_limit = data['cash_collection_limit'] or None # if empty cast to None
-        if cash_limit:
+        cash_limit = cls._get_cash_limit_from_data(data, edited_user)
+        if cash_limit is not None:
             cash_limit = round(Decimal(str(cash_limit)), 2)
         if 'login_expiration_date' in data:
             login_expiration_date = data.get('login_expiration_date')
@@ -246,6 +244,16 @@ class EditUserService(BaseService):
             return edited_user
 
     @classmethod
+    def _get_cash_limit_from_data(cls, data, edited_user=None):
+        # An empty value means "use the platform default", but 0 is a valid limit
+        if 'cash_collection_limit' not in data:
+            return edited_user.cash_collection_limit if edited_user else None
+        cash_limit = data['cash_collection_limit']
+        if cash_limit is None or str(cash_limit).strip() == '':
+            return None
+        return cash_limit
+
+    @classmethod
     def get_phone_numbers_data(cls, data):
         numbers_data = {}
         if 'phone_numbers' in data:
@@ -305,10 +313,8 @@ class EditUserService(BaseService):
         preferred_password_communication = data.get('preferred_password_communication', 'email').lower()
         if autogen_password and preferred_password_communication == 'email' and not email:
             raise Error('EMAIL_REQUIRED')
-        cash_limit = edited_user.cash_collection_limit if edited_user else None
-        if 'cash_collection_limit' in data:
-            cash_limit = data['cash_collection_limit'] or None # if empty cast to None
-        if cash_limit:
+        cash_limit = cls._get_cash_limit_from_data(data, edited_user)
+        if cash_limit is not None:
             try:
                 round(Decimal(str(cash_limit)), 2)
             except (ValueError, TypeError, DecimalException):

@@ -89,7 +89,7 @@ class ContractUndoTerminationService:
             return {'success': False,
                     'status': 'CONTRACT_NOT_DEFAULTED'}
 
-        if not this_device and SettingsService.get_setting('ContractDeviceRestrictions') != 'no_device' and not contract.linked_device:
+        if not this_device and not contract.linked_device and cls._contract_requires_device(contract):
             return {'success': False,
                     'status': 'CONTRACT_HAS_NO_DEVICE'}
         if SettingsService.get_setting('ContractDeviceRestrictions') != 'no_device' and this_device:
@@ -112,6 +112,16 @@ class ContractUndoTerminationService:
                 }
                 return answer
         return None
+
+    @staticmethod
+    def _contract_requires_device(contract):
+        # Matches registration: a device is required only when the platform is not
+        # in no-device mode and the offer is tied to a product. Contracts that were
+        # registered without a device can be re-activated without one.
+        if SettingsService.get_setting('ContractDeviceRestrictions') in ('no_device', 'both'):
+            return False
+        offer = contract.offer
+        return bool(offer and offer.linked_to_product)
 
     @classmethod
     def _send_data_to_hook_undo_default(cls, contract, approver, was_repossessed):

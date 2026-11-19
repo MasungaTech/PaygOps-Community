@@ -326,7 +326,7 @@ class ContractTerminationService:
             'surname': client.person.surname,
             'contract_reference': contract.reference,
             'acting_user_id': approver.id,
-            'device_serial_number': contract.linked_device.get_display_name(),
+            'device_serial_number': cls._device_serial_number(contract),
             'contract_event_id': ContractEvent.select(lambda ce: ce.contract == contract and ce.type == ContractEventType.pause).order_by(desc(ContractEvent.time)).first().id
         }
         add_hook_after_commit(db, 'contract_paused', formatted_data)
@@ -340,10 +340,15 @@ class ContractTerminationService:
             'surname': client.person.surname,
             'contract_reference': contract.reference,
             'acting_user_id': approver.id,
-            'device_serial_number': contract.linked_device.get_display_name(),
+            'device_serial_number': cls._device_serial_number(contract),
             'contract_event_id': ContractEvent.select(lambda ce: ce.contract == contract and ce.type == ContractEventType.pause).order_by(desc(ContractEvent.time)).first().id
         }
         add_hook_after_commit(db, 'contract_resumed', formatted_data)
+
+    @classmethod
+    def _device_serial_number(cls, contract):
+        device = contract.linked_device
+        return device.get_display_name() if device else None
 
     @classmethod
     def _create_contract_event_object(cls, **kwargs):

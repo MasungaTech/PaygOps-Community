@@ -63,14 +63,15 @@ class APIHelper(object):
         body = (response.text or '')[:4000].lower()
         return 'cloudflare' in body or 'cf-ray' in body or 'just a moment' in body
 
-    def _request_with_retry(self, request_fn):
+    def _request_with_retry(self, request_fn, max_attempts=None):
+        max_attempts = max_attempts or self.MAX_RETRIES
         delay = 1
         response = None
-        for attempt in range(1, self.MAX_RETRIES + 1):
+        for attempt in range(1, max_attempts + 1):
             try:
                 response = request_fn()
             except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as error:
-                if attempt == self.MAX_RETRIES:
+                if attempt == max_attempts:
                     print('Networking Error: ' + str(error))
                     raise APINetworkingError(str(error)) from error
                 print(f'Transient networking error, retrying in {delay}s: {error}')
@@ -80,7 +81,7 @@ class APIHelper(object):
             except Exception as error:
                 print('Networking Error: ' + str(error))
                 raise APINetworkingError(str(error)) from error
-            if self._is_retryable_response(response) and attempt < self.MAX_RETRIES:
+            if self._is_retryable_response(response) and attempt < max_attempts:
                 print(f'Retryable HTTP {response.status_code} from device API, retrying in {delay}s')
                 time.sleep(delay)
                 delay *= 2
@@ -99,14 +100,14 @@ class APIHelper(object):
         ))
         return deserialize_received_json(request_result, expected_schema)
 
-    def post(self, partial_url, params=None, data=None, expected_schema=None, timeout=30):
+    def post(self, partial_url, params=None, data=None, expected_schema=None, timeout=30, max_attempts=None):
         self.refresh_token_if_needed()
         data_json = serialize_data_to_json(data)
         request_result = self._request_with_retry(lambda: self.session.post(
             self.api_base_url + partial_url, params=params,
             data=data_json, headers=self.auth_headers_json,
             verify=self._should_verify(), timeout=timeout
-        ))
+        ), max_attempts=max_attempts)
         return deserialize_received_json(request_result, expected_schema)
 
     def delayed_post(self, partial_url, params=None, data=None, log_error=True, custom_handlers=None, timeout=90):
@@ -199,7 +200,7 @@ class TestAPIHelper(APIHelper):
             'credit_value': device.ActiveUntil or datetime.now()
         }
 
-    def post(self, partial_url, params=None, data=None, expected_schema=None, timeout=30):
+    def post(self, partial_url, params=None, data=None, expected_schema=None, timeout=30, max_attempts=None):
         if self.v != 'v2':
             return FakeJsonResponse({
                 "uuid": data['uuid'],

@@ -13,20 +13,27 @@ from stock_management_system.services.stock_movement_creation_service import Sto
 
 
 @db_session
-def handle_deregistration_request(acting_user, this_device, registration_request_code=None, cancel_contract=False, duplicate_lead=False, send_sms=False, note=None):
+def handle_deregistration_request(acting_user, this_device, registration_request_code=None, cancel_contract=False, duplicate_lead=False, send_sms=False, note=None, this_contract=None):
     duplicate_lead = value_to_bool(duplicate_lead)
     send_sms = value_to_bool(send_sms)
     cancel_contract = value_to_bool(cancel_contract)
 
-    if not StockMovementCreationService.user_can_make_action(this_device.stock_item, acting_user):
-        answer = [{'success': False,
-                  'status': 'STOCK_ITEM_NOT_VISIBLE',
-                  'device_serial': this_device.get_display_name()}]
-        return answer
+    if this_device:
+        if not StockMovementCreationService.user_can_make_action(this_device.stock_item, acting_user):
+            answer = [{'success': False,
+                      'status': 'STOCK_ITEM_NOT_VISIBLE',
+                      'device_serial': this_device.get_display_name()}]
+            return answer
 
-    # We check who owned the device
-    this_client = this_device.contract.client if this_device.contract else None
-    contract = this_device.contract
+        # We check who owned the device
+        this_client = this_device.contract.client if this_device.contract else None
+        contract = this_device.contract
+    elif cancel_contract and this_contract:
+        this_client = this_contract.client
+        contract = this_contract
+    else:
+        return [{'success': False, 'status': 'DEVICE_NOT_REGISTERED'}]
+
     if this_client is None or contract is None:
         return [{'success': False, 'status': 'DEVICE_NOT_REGISTERED'}]
     
@@ -48,23 +55,23 @@ def handle_deregistration_request(acting_user, this_device, registration_request
         if not default_status['success']:
             return [default_status]
 
-    # We repossess
+    # Repossession and device sync only apply when a device is linked.
     device = contract.linked_device
-    repossess_status = ContractTerminationService.repossess_device(contract, acting_user, cancel_contract, note)
-    if not repossess_status['success']:
-        return [repossess_status]
-    
+    answer = []
+    if device:
+        repossess_status = ContractTerminationService.repossess_device(contract, acting_user, cancel_contract, note)
+        if not repossess_status['success']:
+            return [repossess_status]
+
+        try:
+            DeviceAPIService.sync_device_settings(this_device, registration_request_code)
+        except DeviceAPIError as CE:
+            # In the case of  de-registration we can let de-register without the device
+            answer.append(handle_device_code_error(CE))
+            answer.append({'success': True, 'status': 'DEVICE_SYNC_ISSUE_DEREGISTRATION'})
+
     # We count the number of active contracts owned by the client
     active_contracts = this_client.active_contracts.count()
-
-    answer = []
-
-    try:
-        DeviceAPIService.sync_device_settings(this_device, registration_request_code)
-    except DeviceAPIError as CE:
-        # In the case of  de-registration we can let de-register without the device
-        answer.append(handle_device_code_error(CE))
-        answer.append({'success': True, 'status': 'DEVICE_SYNC_ISSUE_DEREGISTRATION'})
 
     if active_contracts == 0 and not cancel_contract and not duplicate_lead:
         answer.append({'success': True, 'status': 'CLIENT_DEREGISTRATION_SUCCESS',
@@ -77,10 +84,10 @@ def handle_deregistration_request(acting_user, this_device, registration_request
                        'surname': this_client.person.surname, 'device_serial': this_device.get_display_name()})
     elif duplicate_lead:
         LeadStatusChangeService.cancel_lead(contract.lead, acting_user)
-        new_lead = AddLeadService.add_lead({
-            'contract_reference': contract.reference,
-            'allocated_device': device.composed_serial
-        }, acting_user)
+        lead_data = {'contract_reference': contract.reference}
+        if device:
+            lead_data['allocated_device'] = device.composed_serial
+        new_lead = AddLeadService.add_lead(lead_data, acting_user)
         view_lead_url = f'/leads/{new_lead.id}'
         markdown_link = f'[Lead]({view_lead_url})'
         answer.append({'success': True, 'status': 'CONTRACT_AND_LEAD_CANCELLATION_SUCCESS', 'contract_reference': contract.reference, 'new_lead': markdown_link})
@@ -94,7 +101,7 @@ def handle_deregistration_request(acting_user, this_device, registration_request
                 'contract_reference': contract.reference,
                 'name': this_client.person.name,
                 'surname': this_client.person.surname,
-                'device_serial': this_device.get_display_name(),
+                'device_serial': this_device.get_display_name() if this_device else '',
                 'offer_name': contract.offer.name,
                 }]
 
@@ -106,8 +113,10 @@ def handle_deregistration_request(acting_user, this_device, registration_request
 
 
 def save_mentor_request(acting_user, this_client, this_device, registration_request_code):
-    if registration_request_code is None:
+    if registration_request_code is None and this_device:
         registration_request_code = str(this_device.composed_serial)
+    elif registration_request_code is None:
+        registration_request_code = 'No Device'
     MentorRequest(ReceptionTime=datetime.now(), Type='DeRegistration', RequestCode=registration_request_code,
                   ActivationTimeAddedInDays=0, Device=this_device,
                   client=this_client, user=acting_user)

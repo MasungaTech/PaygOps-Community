@@ -88,26 +88,31 @@
         label='Enable collection limit',
         onchange='checkBoxToggleForms(this, ".collection_limit_input")') }}
 
-        {{ forms.input('CashCollectionLimit:number',
+        {{ forms.input('CashCollectionLimit:number_or_null',
         uicon="cash",
-        label="Default Cash Collection Limit (can be overriden user-wise)",
+        label="Default Cash Collection Limit (leave empty for unlimited, can be overriden user-wise)",
+        placeholder=ftext('Unlimited'),
         value=GlobalSetting('CashCollectionLimit'),
         type='number',
         selector_class='collection_limit_input',
         size=6)
         }}
 
-        {{ forms.input('CashCollectionPercentageWarning:number',
-        uicon="cash",
-        label="Warn agents when reaching the following percentage (0 for deactivate)",
+        {{ forms.input('CashCollectionPercentageWarning:number_or_null',
+        uicon="percent",
+        label="Warn agents when reaching the following percentage of their limit (leave empty to deactivate)",
+        placeholder=ftext('Deactivated'),
         value=GlobalSetting('CashCollectionPercentageWarning'),
         type='number',
+        min=0,
+        max=100,
         selector_class='collection_limit_input',
         size=6) }}
 
-        {{ forms.input('CashCollectionAmountWarning:number',
-        uicon="percent",
-        label="Warn agents when reaching the following amount (0 for deactivate)",
+        {{ forms.input('CashCollectionAmountWarning:number_or_null',
+        uicon="cash",
+        label="Warn agents when reaching the following amount (leave empty to deactivate)",
+        placeholder=ftext('Deactivated'),
         size=6,
         selector_class='collection_limit_input',
         value=GlobalSetting('CashCollectionAmountWarning'),

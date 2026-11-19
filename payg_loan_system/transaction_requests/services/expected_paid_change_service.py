@@ -47,17 +47,22 @@ class ExpectedPaidChangeTransactionService(TransactionService):
 
     @classmethod
     def _validate_data(cls, **kwargs):
-        processed = {'this_device': cls._get_device(
-            kwargs.get('device_serial'),
-            kwargs.get('contract_reference'),
-            kwargs['user']
-        )}
-        if not processed['this_device']:
-            raise Error('A contract could not be found with the serial number or reference provided')
-        contract = processed['this_device'].contract
+        user = kwargs['user']
+        this_device = None
+        if kwargs.get('device_serial'):
+            this_device = cls._get_device(kwargs.get('device_serial'), None, user)
+            if not this_device:
+                raise Error('A contract could not be found with the serial number or reference provided')
+            contract = this_device.contract
+            if not contract:
+                raise Error('DEVICE_NOT_REGISTERED')
+        else:
+            contract = cls._get_contract(None, kwargs.get('contract_reference'), user)
+            if contract:
+                this_device = contract.linked_device
         if not contract:
-            raise Error('DEVICE_NOT_REGISTERED')
-        processed['client'] = contract.client
+            raise Error('A contract could not be found with the serial number or reference provided')
+        processed = {'this_device': this_device, 'this_contract': contract, 'client': contract.client}
         if contract.offer.is_lump_sum:
             raise Error('EXPECTED_PAID_NOT_POSSIBLE_LUMP_SUM')
         if contract.can_be_completed and contract.get_expected_amount_repaid() + Decimal(str(kwargs['adjustment_amount'])) > contract.get_total_value():
@@ -68,8 +73,7 @@ class ExpectedPaidChangeTransactionService(TransactionService):
 
     @classmethod
     def _process(cls, user, offline, time, **kwargs):
-        device = kwargs['this_device']
-        contract = device.contract
+        contract = kwargs.get('this_contract') or kwargs['this_device'].contract
         client = contract.client
         adjustment_amount = Decimal(str(kwargs['adjustment_amount']))
         note = kwargs.get('note') if kwargs.get('note') else ''

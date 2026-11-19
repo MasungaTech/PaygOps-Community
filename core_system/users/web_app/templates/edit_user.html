@@ -68,8 +68,15 @@ color='secondary') }}
     {{ forms.select('organization', ORGANIZATION_LIST|listMapper, size="6", labeltag="Choose
     Organization",value=User.organization,uicon="recent_actors")}}
 
-    {{ forms.input('cash_collection_limit:number', 'Cash collection limit (leave empty to use platform default)',
-    valid='float', value=User.cash_collection_limit, uicon='cash', size=6) }}
+    {% set cash_collection_limit_enabled = GlobalSetting('CashCollectionLimitEnabled') %}
+    {% set platform_cash_limit = GlobalSetting('CashCollectionLimit') %}
+    {% set platform_cash_limit_text = ui.amount(platform_cash_limit, include_currency=true) if platform_cash_limit is not none else ftext('Unlimited') %}
+    {{ forms.input('cash_collection_limit:number_or_null', 'Cash collection limit (leave empty to use platform default)',
+    placeholder=platform_cash_limit_text ~ ' (' ~ ftext('platform default') ~ ')' if cash_collection_limit_enabled else ftext('Disabled'),
+    valid='float', value=User.cash_collection_limit, uicon='cash', size=6,
+    disabled=not cash_collection_limit_enabled,
+    class='' if cash_collection_limit_enabled else 'skip',
+    tooltip='Set to 0 to block cash collection until the user makes a payment to the company' if cash_collection_limit_enabled else 'Cash collection limit is not enabled on the platform') }}
 
     {{ forms.checkbox('create_lead_generator:skip', labeltag='User is lead generator', label='Create associated Lead Generator profile', value='True', 
       size=6, checked=true, visible=adding, onchange='checkBoxToggleForms(this, ".lg_type_form")') }}

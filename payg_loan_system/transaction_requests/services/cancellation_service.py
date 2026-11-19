@@ -73,12 +73,14 @@ class CancelContractTransactionService(TransactionService):
             raise Error('INVALID_CONTRACT')
         if contract.status == ContractStatus.cancelled:
             raise Error('Contract already cancelled')
-        linked_device = contract.linked_device
-        if not linked_device:
-            raise Error('CONTRACT_HAS_NO_DEVICE')
         if contract.status == ContractStatus.paused:
             raise Error('CONTRACT_PAUSED')
-        return {'contract': contract, 'this_device': linked_device, 'client': contract.client, 'note': kwargs.get('note')}
+        return {
+            'contract': contract,
+            'this_device': contract.linked_device,
+            'client': contract.client,
+            'note': kwargs.get('note'),
+        }
 
     @classmethod
     def _process(cls, user, offline, time, contract, this_device,**kwargs):
@@ -128,6 +130,7 @@ class CancelContractTransactionService(TransactionService):
         duplicate_lead = value_to_bool(kwargs.get('duplicate_lead', False))
         send_sms = value_to_bool(kwargs.get('send_sms', False))
         return handle_deregistration_request(
-            user, this_device, registration_request_code=kwargs['request_code'],
-            cancel_contract=True, duplicate_lead=duplicate_lead, send_sms=send_sms, note=kwargs.get('note')
+            user, this_device, registration_request_code=kwargs.get('request_code'),
+            cancel_contract=True, duplicate_lead=duplicate_lead, send_sms=send_sms,
+            note=kwargs.get('note'), this_contract=contract,
         )

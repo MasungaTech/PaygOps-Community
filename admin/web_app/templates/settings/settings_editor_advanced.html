@@ -341,6 +341,28 @@
     </form>
 </div {{ ui.collapsible_card_end() }}>
 
+{% if config.ENABLE_ENTERPRISE_FEATURES %}
+<div {{ ui.collapsible_card_start(uicon='contact_support', title='MCP write', active=false) }}>
+    <form class="row card-row">
+        {{ forms.checkbox('AllowMcpWriteForSettingsViewers:boolean', size=6,
+            checked=GlobalSetting('AllowMcpWriteForSettingsViewers'),
+            value='true',
+            id='AllowMcpWriteForSettingsViewers',
+            label='Allow MCP write for admins',
+            labeltag='Settings viewers',
+            tooltip='People with permission to view Settings can let the PaygOps assistant change PaygOps configuration and records. They still need the existing edit permission for each change.') }}
+        {{ forms.checkbox('AllowMcpWriteForNonSettingsViewers:boolean', size=6,
+            checked=GlobalSetting('AllowMcpWriteForNonSettingsViewers'),
+            value='true',
+            id='AllowMcpWriteForNonSettingsViewers',
+            label='Allow MCP write for non-admins',
+            labeltag='Everyone else',
+            tooltip='People without permission to view Settings can let the PaygOps assistant change PaygOps configuration and records. They still need the existing edit permission for each change.') }}
+        {{ settings_forms.save_button() }}
+    </form>
+</div {{ ui.collapsible_card_end() }}>
+{% endif %}
+
 <div {{ ui.collapsible_card_start(uicon='send', title='Gateway Sending Settings', active=false) }}>
     <form class="row card-row">
         {{ forms.checkbox('GatewaySendingEnabled', size=6,
