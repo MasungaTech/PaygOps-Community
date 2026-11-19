@@ -26,8 +26,9 @@ class UndoDefaultTransactionService(TransactionService):
     @classmethod
     def _validate_data(cls, **kwargs):
 
-        this_device = cls._get_device(kwargs['device_serial'], create=True)
-        if kwargs['device_serial'] and not this_device:
+        device_serial = kwargs.get('device_serial')
+        this_device = cls._get_device(device_serial, create=True)
+        if device_serial and not this_device:
             raise Error('A device could not be found with the serial number provided')
 
         this_contract = ContractGetterService.get_from_user_and_properties(kwargs['user'], reference=kwargs['contract_reference'], strict=True)

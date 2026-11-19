@@ -58,7 +58,8 @@ def collect_cash(acting_user, amount, paying_client=None, lead=None, commission=
     else:
         raise Exception('Cash collection requires either lead or client')
 
-    thresholds = [SettingsService.get_setting('CashCollectionPercentageWarning')/Decimal(100)*(acting_user.cash_limit_overall or 0),
+    percentage_warning = SettingsService.get_setting('CashCollectionPercentageWarning') or 0
+    thresholds = [percentage_warning/Decimal(100)*(acting_user.cash_limit_overall or 0),
                   SettingsService.get_setting('CashCollectionAmountWarning')]
     if SettingsService.get_setting('CashCollectionLimitEnabled') and any(acting_user.total_cash_collected >= t for t in thresholds if t):
         answer.append({

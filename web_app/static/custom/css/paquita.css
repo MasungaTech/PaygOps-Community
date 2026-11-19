@@ -17,6 +17,41 @@
     height: 400px;
     overflow-y: auto;
   }
+  .paquita-write-consent {
+    flex: 0 0 auto;
+    padding: 0.65rem 1rem;
+    background: #e3f2fd;
+    border-bottom: 1px solid #bbdefb;
+    color: #003E51;
+  }
+  .paquita-write-consent .form-check {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    margin: 0;
+    padding-left: 0;
+    min-height: 0;
+  }
+  .paquita-write-consent .form-check-input {
+    float: none;
+    margin: 0.15rem 0 0;
+    cursor: pointer;
+  }
+  .paquita-write-consent .form-check-input:checked {
+    background-color: #5eb3e4;
+    border-color: #5eb3e4;
+  }
+  .paquita-write-consent .form-check-input:focus {
+    border-color: #5eb3e4;
+    box-shadow: 0 0 0 0.2rem rgba(94, 179, 228, 0.25);
+  }
+  .paquita-write-consent .form-check-label {
+    padding-right: 0;
+    margin: 0;
+    font-size: 0.9rem;
+    line-height: 1.35;
+    cursor: pointer;
+  }
   .chat-message {
     border: 0 !important;
   }

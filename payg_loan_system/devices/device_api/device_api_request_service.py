@@ -1,10 +1,14 @@
 from datetime import datetime
+import hashlib
+import json
 import time
+from flask import has_request_context
 from shared.services.settings_service import SettingsService
 from shared.api_helpers.client_helpers.api_helper_object import APIHelper, TestAPIHelper
 from shared.api_helpers.client_helpers.api_exceptions import APIError
 from shared.logger.loggers import LogAPI, Error
 from shared.api_helpers.client_helpers import uuid_generation_helpers as api_helpers
+from shared.api_helpers.client_helpers.json_datetime_helpers import json_serializer
 from payg_loan_system.devices.device_api.device_api_errors import DeviceAPIError
 from payg_loan_system.devices.model.token import Token
 from payg_loan_system.devices.model.offline_token_model import TokenType
@@ -290,10 +294,22 @@ class DeviceAPIHelperV2(DeviceAPIHelperBase):
     DEVICE_METRIC_DATA_ENDPOINT = 'devices/{}/metrics/{}'
     DEVICE_NEW_DATA_HOOK_ENDPOINT = 'devices/{}/hooks/{}'
 
+    # Inside an HTTP request (POST /payments from the Gateway, web actions) the whole
+    # request must answer before the Gateway gives up (30s read timeout, then it
+    # re-sends) and well before the gunicorn worker timeout (90s). One attempt of
+    # at most 5s connect + 15s read leaves ~10s for the rest of the request. A
+    # timeout raises API_NETWORKING_ERROR: the payment is kept, the Gateway gets a
+    # 202 and the credit is delivered by the next re-processing of the payment.
+    REQUEST_CREDIT_UPDATE_TIMEOUT = (5, 15)
+    REQUEST_CREDIT_UPDATE_ATTEMPTS = 1
+    # Celery tasks (fix_payment_processing, force_sync_devices) are not raced by a
+    # caller and keep the long timeout and default retries.
+    BACKGROUND_CREDIT_UPDATE_TIMEOUT = 90
+
     def post_credit_update(self, device, data, request_code='', repayments=None):
         data.update({'device_serial_number': device.SerialNumber})
-        request_uuid = api_helpers.generate_uuid()
-        result = self._post(self.CREDIT_UPDATES + request_uuid, data=data, timeout=90)
+        request_uuid = self._credit_update_uuid(device, data, repayments)
+        result = self._post(self.CREDIT_UPDATES + request_uuid, data=data, **self._credit_update_call_options())
         if result and 'token' in result:
             if not result['token']:
                 result['token'] = 'NO_TOKEN'
@@ -309,6 +325,41 @@ class DeviceAPIHelperV2(DeviceAPIHelperBase):
             return result['token']
         NotificationsService.add_token_generation_error_notification(device, result.get('error', ''))
         return self._result_or_error(result)
+
+    @classmethod
+    def _credit_update_call_options(cls):
+        if has_request_context():
+            return {'timeout': cls.REQUEST_CREDIT_UPDATE_TIMEOUT, 'max_attempts': cls.REQUEST_CREDIT_UPDATE_ATTEMPTS}
+        return {'timeout': cls.BACKGROUND_CREDIT_UPDATE_TIMEOUT}
+
+    @staticmethod
+    def _credit_update_uuid(device, data, repayments):
+        # A timed-out credit update may still complete on the device cloud. PaygOps
+        # rolls back and re-processes the same payment later (Gateway re-send or the
+        # hourly fix_payment_processing). Deriving the uuid from the payments and the
+        # requested credit makes that retry hit the same device cloud credit update,
+        # which the device cloud returns unchanged (same token) instead of crediting
+        # the device a second time. Credit updates not tied to a payment keep a
+        # random uuid.
+        payment_ids = sorted({
+            rp.linked_payment.id
+            for repayment in repayments or []
+            for rp in repayment.reconciled_payments
+            if rp.linked_payment is not None
+        })
+        if not payment_ids:
+            return api_helpers.generate_uuid()
+        key = json.dumps({
+            'device_type': device.type,
+            'device_serial_number': device.SerialNumber,
+            'payment_ids': payment_ids,
+            'credit_update_type': data.get('credit_update_type'),
+            'credit_unit': data.get('credit_unit'),
+            'credit_value': data.get('credit_value'),
+            'status': data.get('status'),
+        }, sort_keys=True, default=json_serializer)
+        digest = hashlib.sha256(key.encode('utf-8')).hexdigest()
+        return '-'.join([digest[0:8], digest[8:16], digest[16:24]])
 
     def list_supported_unit_types(self):
         result = self._get(self.SUPPORTED_UNIT_TYPES_ENDPOINT[:-1])

@@ -648,7 +648,11 @@ function SubmitForm(this_button, submit_url, options) {
                     .value
             );
         } else {
-            var serial_options = { useIntKeysAsArrayIndex: true };
+            var serial_options = {
+                useIntKeysAsArrayIndex: true,
+                // ":number" turns empty inputs into 0, use ":number_or_null" when empty has its own meaning
+                customTypes: { number_or_null: (value) => value.trim() === '' ? null : Number(value) },
+            };
             if ($(this_form).data('checkbox-false') === true) {
                 $.extend(serial_options, { checkboxUncheckedValue: "false" });
             }

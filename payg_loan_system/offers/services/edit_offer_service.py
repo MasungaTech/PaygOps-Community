@@ -31,6 +31,20 @@ from shared.services.settings_service import SettingsService
 OPT_DEC = lambda x: Decimal(x) if x not in [None, ''] else None
 
 
+def canonical_payment_frequency(value):
+    """Return DAILY or MONTHLY. Matching ignores case. Empty stays empty."""
+    if value is None or value == '':
+        return value or ''
+    by_key = {key.upper(): key for key in AVAILABLE_OFFER_PAYMENT_FREQUENCIES}
+    canonical = by_key.get(str(value).strip().upper())
+    if canonical is None:
+        raise Error(
+            'Invalid payment_frequency, it should be one of the following values: '
+            + str(list(AVAILABLE_OFFER_PAYMENT_FREQUENCIES))
+        )
+    return canonical
+
+
 class EditOfferService(BaseService):
     @classmethod
     def _edit_from_data_and_user(cls, this_offer, data, user):
@@ -145,12 +159,10 @@ class EditOfferService(BaseService):
                         this_offer.forgive_lateness = False
                     this_offer.payment_day_of_month = payment_day_of_month
                     if payment_frequency:
+                        payment_frequency = canonical_payment_frequency(payment_frequency)
                         if payment_frequency == MONTHLY_PAYMENT_FREQUENCY:
                             offline_config = None
-                        if payment_frequency in AVAILABLE_OFFER_PAYMENT_FREQUENCIES:
-                            this_offer.payment_frequency = payment_frequency
-                        else:
-                            raise Error('Invalid payment_frequency, it should be one of the following values: '+str(AVAILABLE_OFFER_PAYMENT_FREQUENCIES.keys()))
+                        this_offer.payment_frequency = payment_frequency
                 cls._set_properties(this_offer, data, [
                     ['registration_fee', 'downpayment', Decimal],
                     ['base_price_amount', 'base_price_amount', Decimal],
@@ -206,6 +218,8 @@ class EditOfferService(BaseService):
             OfferType.time_based: 'time_based'
         }
         suffix = offer_type_map.get(offer_type)
+        if not suffix:
+            return data_raw if isinstance(data_raw, DefaultMunch) else DefaultMunch(None, data_clean)
         VAR_WITH_ALT_NAMES = [
             ('free_credit_at_start', 'time_given_at_start_in_days', 'time_given_at_start_in_months'),
             ('base_price_credit', 'base_price_time_in_days', 'base_price_time_in_months', 'base_price_credit_in_units'), 

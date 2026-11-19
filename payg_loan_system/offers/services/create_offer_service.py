@@ -11,13 +11,71 @@ from payg_loan_system.offers.models import LoanOffer, LumpSumOffer, Offer, Offer
 from config import DEFAULT_UNIT
 from shared.helpers.form_helpers import value_to_bool
 from shared.helpers.many_to_many_helpers import get_create_many_to_many_ids
-from payg_loan_system.offers.services.edit_offer_service import EditOfferService
+from payg_loan_system.offers.services.edit_offer_service import (
+    EditOfferService, canonical_payment_frequency)
 from shared.services.base_service import BaseService
 from stock_management_system.services.product_sub_type_service import ProductSubTypeService
 from shared.services.settings_service import SettingsService
 from payg_loan_system.devices.device_api.device_api_service import DeviceAPIService
 
 OPT_DEC = lambda x: Decimal(x) if x else None
+
+_OFFER_TYPE_ALIASES = {
+    'loan': OfferType.loan,
+    'lump sum': OfferType.lump_sum,
+    'lump_sum': OfferType.lump_sum,
+    'time based': OfferType.time_based,
+    'time_based': OfferType.time_based,
+    'subscription': OfferType.time_based,
+    'usage based': OfferType.usage_based,
+    'usage_based': OfferType.usage_based,
+}
+
+
+def canonical_offer_type(value):
+    """Return the stored offer type. Accepts the API values and the snake_case names."""
+    if value in OfferType.to_list():
+        return value
+    if value is not None:
+        text = str(value).strip()
+        for official in OfferType.to_list():
+            if text.lower() == official.lower():
+                return official
+        found = _OFFER_TYPE_ALIASES.get(text.lower())
+        if found is not None:
+            return found
+    raise Error("OFFER_TYPE_NOT_SUPPORTED", value, OfferType.to_list())
+
+
+def _blank(value):
+    return value in (None, '')
+
+
+def normalize_offer_input(data_raw):
+    """Accept the field names a GET offer returns, and the names the create form uses."""
+    if isinstance(data_raw, DefaultMunch):
+        data = data_raw.toDict()
+    else:
+        data = dict(data_raw)
+
+    if _blank(data.get('type')) and not _blank(data.get('offer_type')):
+        data['type'] = data.get('offer_type')
+    data['type'] = canonical_offer_type(data.get('type'))
+
+    if _blank(data.get('downpayment')) and not _blank(data.get('registration_fee')):
+        data['downpayment'] = data['registration_fee']
+    if 'can_be_approved_and_registered' not in data and 'in_use' in data:
+        data['can_be_approved_and_registered'] = data['in_use']
+    if 'in_use_for_new_leads' not in data and 'in_use_for_new_clients' in data:
+        data['in_use_for_new_leads'] = data['in_use_for_new_clients']
+    if 'approval_required' not in data and 'no_approval_required' in data:
+        data['approval_required'] = not value_to_bool(data['no_approval_required'])
+
+    if data['type'] == OfferType.time_based:
+        frequency = canonical_payment_frequency(data.get('payment_frequency') or '')
+        if frequency:
+            data['payment_frequency'] = frequency
+    return DefaultMunch(None, data)
 
 
 class CreateOfferService(BaseService):
@@ -51,7 +109,7 @@ class CreateOfferService(BaseService):
             if orm.exists(offer for offer in Offer if offer.code == data.code):
                 raise Error("OFFER_CODE_ALREADY_EXISTS")
             
-            if data.family and data.family not in ['Home', 'Business']:
+            if not data.family or data.family not in ['Home', 'Business']:
                 raise Error("INVALID_OFFER_FAMILY")
 
             if data.panel_size_in_w:
@@ -72,6 +130,7 @@ class CreateOfferService(BaseService):
 
     @classmethod
     def _create_offer(cls, data_raw, based_on, user):
+        data_raw = normalize_offer_input(data_raw)
         data = EditOfferService.clean_data_for_alternate_variable_names(data_raw, data_raw.type)
 
         allow_pro_rata = value_to_bool(data.allow_pro_rata) if data.allow_pro_rata is not None else True
@@ -136,12 +195,15 @@ class CreateOfferService(BaseService):
             if payment_day_of_month == "":
                 payment_day_of_month = None
             credits_given_at_start = data.get('free_credit_at_start')
+            if credits_given_at_start is None:
+                credits_given_at_start = 0
             if data.base_price_credit == 0:
                 raise Error('The reference pricing duration cannot be 0 days')
             if payment_day_of_month:
                 credits_given_at_start = 0
                 allow_pro_rata = False
                 forgive_lateness = False
+            data.payment_frequency = canonical_payment_frequency(data.get('payment_frequency', ''))
             offer = TimeBasedOffer(
                 name=data.name,
                 code=data.code,

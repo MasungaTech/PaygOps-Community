@@ -90,7 +90,7 @@ function addToChat(msg) {
         newMessage.innerHTML = `
             <div class="d-flex">
                 <div class="flex-shrink-0 avatar-wrapper" style="margin-right: 8px;">
-                    <img src="/static/img/paquita_profile_pic.jpeg" alt="Paquita Profile Picture" class="w-px-40 h-auto rounded-circle">
+                    <img src="/static/img/paquita_profile_pic.jpeg" alt="PaygOps assistant profile picture" class="w-px-40 h-auto rounded-circle">
                 </div>
                 ${content.replace('MSG', formattedContent).replace('TIME', msg.time)}
             </div>`;
@@ -114,14 +114,23 @@ var PAYGOPS_MCP_TOOLS = [
     'get_device',
     'get_issues',
     'get_lead',
+    'list_lead_statuses',
+    'get_lead_generator',
     'get_offer',
     'get_user',
     'get_role',
     'get_settings',
-    'get_outgoing_messages'
+    'get_outgoing_messages',
+    'read_configuration'
+];
+
+var PAYGOPS_MCP_WRITE_TOOLS = [
+    'write_configuration',
+    'write_operational_record'
 ];
 
 var PAQUITA_NEW_CONVERSATION_KEY = 'paquitaNewConversation';
+var PAQUITA_ALLOW_WRITES_KEY = 'paquitaAllowWrites';
 var paquitaRequestId = 0;
 
 function getPaygopsMcpUrl() {
@@ -165,6 +174,30 @@ function getTodayDateContext() {
     return "[Today's date and time in the local timezone is " + now + ".]";
 }
 
+function paquitaWritesChecked() {
+    var box = document.getElementById('paquitaAllowWrites');
+    return !!(box && box.checked);
+}
+
+function initPaquitaWriteConsent() {
+    var box = document.getElementById('paquitaAllowWrites');
+    if (!box) {
+        return;
+    }
+    box.checked = sessionStorage.getItem(PAQUITA_ALLOW_WRITES_KEY) === 'true';
+    box.addEventListener('change', function () {
+        sessionStorage.setItem(PAQUITA_ALLOW_WRITES_KEY, box.checked ? 'true' : 'false');
+    });
+}
+
+function paquitaAllowedTools() {
+    var tools = PAYGOPS_MCP_TOOLS.slice();
+    if (paquitaWritesChecked()) {
+        tools = tools.concat(PAYGOPS_MCP_WRITE_TOOLS);
+    }
+    return tools;
+}
+
 function getResponse(message) {
     var requestId = ++paquitaRequestId;
     addLoader();
@@ -178,7 +211,7 @@ function getResponse(message) {
             "name": "paygops",
             "url": getPaygopsMcpUrl(),
             "authorization_token": JWTKey,
-            "allowed_tools": PAYGOPS_MCP_TOOLS
+            "allowed_tools": paquitaAllowedTools()
         }]
     };
     if (sessionStorage.getItem(PAQUITA_NEW_CONVERSATION_KEY) === 'true') {
@@ -329,6 +362,8 @@ function scrollToBottom() {
         });
     }, 50);
 }
+
+document.addEventListener('DOMContentLoaded', initPaquitaWriteConsent);
 
 function addWelcomeMessage() {
     message = {

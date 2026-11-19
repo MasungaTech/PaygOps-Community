@@ -17,7 +17,7 @@ class OffersErrorHandlerService:
                            'and that the pricing follows the rules specified on the form.',
         'OFFER_TYPE_NOT_SUPPORTED': 'The specified offer type is not currently supported by your platform. ',
         'OFFER_CODE_HAS_SPACES': 'The specified offer code cannot contain spaces.',
-        'INVALID_OFFER_FAMILY': 'The specified offer family is not "Home" or "Business".',
+        'INVALID_OFFER_FAMILY': 'Offer family is required and must be "Home" or "Business".',
         'INVALID_PANEL_SIZE': 'The panel size must be an integer number.',
         'INVALID_BATERY_SIZE': 'The batery size must be an integer number.',
         'INVALID_BASE_PRICE': 'The base price of the offer is not a valid number.',

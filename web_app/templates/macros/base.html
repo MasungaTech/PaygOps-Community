@@ -255,11 +255,7 @@
                   <li>
                     <a class="dropdown-item" {{ ui.tooltip_code('Click to copy version to clipboard') }} onclick="copyToClipboard('{{VERSION}}', 'Version');">
                       {{ ui.icon('info', 'user-dropdown-icon') }}
-                      {% if config.ENABLE_ENTERPRISE_FEATURES %}
                       <span class="align-middle">{{ VERSION }}</span>
-                      {% else %}
-                      <span class="align-middle">{{ EDITION }}</span>
-                      {% endif %}
                     </a>
                   </li>
                 </ul>

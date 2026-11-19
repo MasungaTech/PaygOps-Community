@@ -716,16 +716,18 @@ def api_caller_csv_template(action):
     columns = []
     examples = []
     restricted = resource.SUBACTIONS[method][subaction]['properties'] if subaction else None
-    excluded = resource.API_CALLER_GENERATORS.get(method, {}).keys()
+    param_names = [p['name'] for p in docs['parameters'] or []]
+    excluded = list(resource.API_CALLER_GENERATORS.get(method, {}).keys())
 
     def example(ex, type):
-        return ex if type != 'array' else f'"{",".join(map(str, ex))}"'
-    
+        return ex if type != 'array' and not isinstance(ex, list) else f'"{",".join(map(str, ex))}"'
+
     if docs['parameters']:
         for prop in docs['parameters']:
             if (not restricted or prop['name'] in restricted) and prop['name'] not in excluded:
                 columns.append(prop['name']+('*' if prop['required'] else ''))
                 examples.append(prop['example'])
+    excluded += param_names
     if docs['requestBody'] and docs['requestBody']['schema'].get('properties'):
         for prop, data in docs['requestBody']['schema']['properties'].items():
             if not data.get('deprecated') and not (data.get('type') == 'object' or (data.get('type') == 'array' and data.get('items', {}).get('type') == 'object')):

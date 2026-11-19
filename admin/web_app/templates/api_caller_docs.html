@@ -1,5 +1,5 @@
 {% macro example(ex, type) -%}
-{%- if type == 'array' -%}
+{%- if type == 'array' or (ex is sequence and ex is not string) -%}
 "{{ex|join(",")}}" (<b>*Quotes are needed, but some editors like Excel already include it when editing a cell content.</b>)
 {%- else -%}{{ex}}
 {%-endif-%}
@@ -11,8 +11,9 @@
     {% if data.get('type') == 'object' or (data.get('type') == 'array' and ('items' in data and data['items'].get('type') == 'object')) %}
     <s><b>{{prop}}</b></s>: Not available via Bulk Actions, if you need to use it please use API directly.
     {% else %}
+    {% set is_list = data.get('example') is sequence and data.get('example') is not string %}
     <b>{{prop}}</b>{{'*' if prop in (docs['requestBody']['schema'].get('required', []) + required) else ''}}:
-    {{data['description']}} ({{data.get('type', 'string')}}).
+    {{data['description']}} ({{data.get('type') or ('array' if is_list else 'string')}}).
     {% if data.get('enum') -%}<em>Options</em>: {{data['enum']|join(", ")}}
     {%- else -%}<em>Example</em>: {{example(data['example'], data.get('type'))}}{%- endif -%}
     {%- if data.get('default') %}. <em>Default</em>: {{data['default']}} {%endif%}
@@ -23,6 +24,7 @@
 {% endmacro %}
 {% set restricted = docs['subaction']['properties'] if 'subaction' in docs else {} %}
 {% set extra_required = docs['subaction'].get('required', []) if 'subaction' in docs else [] %}
+{% set excluded = (docs['generators']|list) + ((docs['parameters'] or [])|map(attribute='name')|list) %}
 {% if 'subaction' in docs %}
 <h4>{{docs['subaction']['description']}}</h4>
 {% set permissions = docs['subaction'].get('permissions', docs['permissions']) %}
@@ -50,7 +52,7 @@ The CSV file can have some or all of the following columns (marked with * the on
 {% endfor %}
 {% endif %}
 {% if docs['requestBody'] and docs['requestBody']['schema'].get('properties') %}
-{{properties_description(docs['requestBody']['schema']['properties'], restricted, docs['generators'], extra_required)}}
+{{properties_description(docs['requestBody']['schema']['properties'], restricted, excluded, extra_required)}}
 {% endif %}
 </ul>
 </p>
@@ -61,7 +63,7 @@ The CSV file can have some or all of the following columns (marked with * the on
     {% for option in docs['requestBody']['schema']['oneOf'] %}
     <b>Option {{loop.index}}: {{option.get('title')}}</b>:<br />
     <ul>
-    {{properties_description(option['properties'], restricted, docs['generators'])}}
+    {{properties_description(option['properties'], restricted, excluded)}}
     </ul>
     You can download a CSV Template for Option {{loop.index}} <a href="{{url_for('admin.api_caller_csv_template', action=action)}}-{{loop.index}}">here</a>.
     </p>

@@ -2,6 +2,7 @@ from datetime import datetime
 from decimal import Decimal
 import json
 from munch import DefaultMunch
+from core_system.client.api_app.client_resource import ClientResource
 from core_system.client.services.client_edit_service import ClientEditService
 from core_system.client.services.client_getter_service import ClientGetterService
 from core_system.operational_entities.models import ClientGroup, OperationalEntity
@@ -184,5 +185,8 @@ class BulkUploadTaskProcessors:
         elif issubclass(resource, PaymentReversalResource):
             if method == "post":
                 return PaymentReversalResource.post_core(body, user)
+        elif issubclass(resource, ClientResource):
+            if method == "post":
+                return ClientResource.core_post(user, params, body)
         raise Exception('Action execution not defined')
     

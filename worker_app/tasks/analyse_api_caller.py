@@ -40,7 +40,7 @@ def schema_converter(d, schema, final=True):
                 return []
             elif allows_integer(schema):
                 return [int(x) for x in d.split(',')]
-            return d.split(',')
+            return [x.strip() for x in d.split(',')]
     if 'oneOf' in schema:
         for option in schema['oneOf']:
             v = schema_converter(d, option, final=False)

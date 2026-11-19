@@ -157,7 +157,8 @@ class ContractRepaymentService:
         if contract.offer.type == OfferType.time_based and contract.offer.payment_day_of_month:
             raise Error('DELAY_NOT_ALLOWED_FOR_DAY_OF_MONTH')
         if contract.offer.type == OfferType.usage_based:
-            raise Error('CREDIT_UNIT_NOT_ALLOWED_FOR_DEVICE', contract.linked_device.get_allowed_units())
+            allowed_units = contract.linked_device.get_allowed_units() if contract.linked_device else None
+            raise Error('CREDIT_UNIT_NOT_ALLOWED_FOR_DEVICE', allowed_units)
         hours_added = round(Decimal(grace_period_in_days)*24, 4)
         if abs(round(hours_added, 4)) > 10**8:
             raise Error('AMOUNT_TOO_HIGH')

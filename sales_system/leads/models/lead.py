@@ -238,6 +238,8 @@ class Lead(db.Entity, ModelDefinitionMixin, CachedModelMixin):
 
     @property
     def future_contract_duration(self):
+        if not getattr(self.offer, "is_loan", False):
+            return None
         return self.offer.time_to_ownership_in_days + self.total_extended
 
     @property
@@ -814,7 +816,7 @@ class Lead(db.Entity, ModelDefinitionMixin, CachedModelMixin):
                     "type": "number",
                     "format": "integer",
                     "example": 365,
-                    "value": lambda o: o.future_contract_duration if o.offer and o.offer.type not in [OfferType.lump_sum] else None
+                    "value": lambda o: o.future_contract_duration if o.offer and o.offer.is_loan else None
                 },
             })
         include_subobjects = value_to_bool(include_subobjects)

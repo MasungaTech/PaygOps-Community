@@ -14,6 +14,31 @@ log_api = LogAPI()
 
 class ClientResource(DocumentedResource):
 
+    ALLOWED_API_CALLER = ['post']
+    SUBACTIONS = {
+        'post': {
+            'set_tags': {
+                "name": "Set Client Tags",
+                "permissions": ['AddTagsClients'],
+                "description": "Replace the client tags completely by a new set of tags. Tags must already exist "
+                               "(create them in Settings > Tags), tags that do not exist are ignored. "
+                               "Leaving the tags column empty removes all the tags of the client.",
+                "properties": ["id", "tags"]
+            },
+            'edit_tags': {
+                "name": "Add/remove Client Tags",
+                "permissions": ['AddTagsClients', 'CreateTagsClients'],
+                "description": "Adds or removes specific tags to the client. "
+                               "If a tag in add_tags exists in the system, it is added to the client "
+                               "(requires the Add Tags Clients permission)."
+                               "If it does not exist yet, it is created and added to the client "
+                               "(requires the Create Tags Clients permission, without it the row fails "
+                               "with an insufficient permission error).",
+                "properties": ["id", "add_tags", "remove_tags"]
+            }
+       }
+    }
+
     CLIENTID_PARAM = {
         "name": "id",
         "description": "The unique id of the Client",
@@ -103,11 +128,13 @@ class ClientResource(DocumentedResource):
     @verify(**META['post'], schema=Client.get_model_schema(op="edit", for_validate=True))
     @orm.db_session
     def post(self, id):
-        current_user = get_current_api_user()
-        client = ClientGetterService.get_from_user_and_id(current_user, id, strict=True, main_resource=True)
+        return self.core_post(get_current_api_user(), {'id': id}, request.json), 200
+
+    @classmethod
+    def core_post(cls, user, params, data):
+        client = ClientGetterService.get_from_user_and_id(user, params['id'], strict=True, main_resource=True)
         try:
-            data = request.json
-            ClientEditService.edit_from_data_and_user(client, data, current_user)
+            ClientEditService.edit_from_data_and_user(client, data, user)
             orm.commit()
         except Error as error:
             orm.rollback()
@@ -115,4 +142,4 @@ class ClientResource(DocumentedResource):
         except Exception as error:
             orm.rollback()
             raise error
-        return client.get_serialized_object(), 200
+        return client.get_serialized_object()

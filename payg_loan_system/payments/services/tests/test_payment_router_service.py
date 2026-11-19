@@ -415,6 +415,53 @@ class TestPaymentRouterService:
         assert not payment.processed
         assert payment.reconciled_payments.count() == 0
 
+    @mock.patch('payg_loan_system.payments.services.payment_router_service.PaymentRouterService._get_routing_rules')
+    @mock.patch('payg_loan_system.devices.device_api.device_api_service.DeviceAPIService.device_can_auto_activate')
+    @mock.patch('payg_loan_system.devices.device_api.device_api_service.DeviceAPIService.sync_device_activation')
+    def test_post_payment_device_cloud_timeout_answers_202_and_retry_delivers(
+            self, mocked_sync_device_activation, mocked_device_can_auto_activate, mocked_routing_rules,
+            api_client, good_api_key):
+        # What the Gateway sees when the device cloud times out inside POST /payments:
+        # a 202 (payment kept, credit pending), and re-processing the same payment
+        # later delivers the credit without creating a second payment.
+        mocked_routing_rules.return_value = {
+            '1': {'routing_attribute': 'wallet_name', 'matching_parameter': 'contract_reference'}
+        }
+        mocked_device_can_auto_activate.return_value = True
+        mocked_sync_device_activation.side_effect = DeviceAPIError('API_NETWORKING_ERROR')
+        with orm.db_session:
+            offer = self._get_or_create_offer()
+            contract = TestContractCreator.create_test_contract(
+                'test_post_payment_device_cloud_timeout_202', offer=offer, npg_device=False
+            )
+            contract_reference = contract.reference
+        payload = {
+            'transaction_id': 'TESTROUTE_DEVICE_TIMEOUT_202',
+            'amount': 1000,
+            'sender_name': contract_reference,
+            'sent_datetime': datetime.now().isoformat(),
+        }
+        headers = {'Authorization': 'Bearer ' + good_api_key}
+
+        response = api_client.post(config.API_PREFIX + '/payments', json=payload, headers=headers)
+        assert response.status_code == 202, response.get_json()
+        with orm.db_session:
+            payment = Payment.get(Reference='TESTROUTE_DEVICE_TIMEOUT_202', wallet_operator='')
+            assert payment is not None
+            assert not payment.processed
+            assert payment.reconciled_payments.count() == 0
+
+        mocked_sync_device_activation.side_effect = None
+        mocked_sync_device_activation.return_value = '111 222 333'
+        response = api_client.post(config.API_PREFIX + '/payments', json=payload, headers=headers)
+        assert response.status_code == 200, response.get_json()
+        with orm.db_session:
+            assert Payment.select(lambda p: p.Reference == 'TESTROUTE_DEVICE_TIMEOUT_202').count() == 1
+            payment = Payment.get(Reference='TESTROUTE_DEVICE_TIMEOUT_202', wallet_operator='')
+            assert payment.processed
+            assert payment.reconciled_payments.count() > 0
+        assert mocked_sync_device_activation.call_count == 2
+
     @orm.db_session
     @mock.patch('payg_loan_system.payments.services.payment_router_service.PaymentRouterService._get_routing_rules')
     @mock.patch('payg_loan_system.devices.device_api.device_api_service.DeviceAPIService.device_can_auto_activate')

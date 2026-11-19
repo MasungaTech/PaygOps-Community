@@ -8,6 +8,7 @@ from admin.api_app.force_sync import ForceSyncResource
 from admin.api_app.hook_subscription_resources import (
     AllWebhooksResource, IndividualWebhooksResource, SubscribeHookResource,
     UnsubscribeHookResource)
+from admin.api_app.mcp_write_access_resource import McpWriteAccessResource
 from admin.api_app.settings_resource import (SettingsResource,
                                              SettingsResourceAll, RemoveCustomSideMenuResource)
 from admin.api_app.testing_resource import TestResource
@@ -138,6 +139,7 @@ from sales_system.lead_generator.api_views.generators_api import (
 from sales_system.lead_generator.api_views.lead_generator_type_api import AllLeadGeneratorTypeResource, IndividualLeadGeneratorTypeResource
 from sales_system.leads.api_views.all_leads import AllLeadsResource
 from sales_system.leads.api_views.individual_lead import IndividualLeadResource
+from sales_system.leads.api_views.lead_statuses_resource import LeadStatusesResource
 from shared.file_upload.api_app.upload_file_resource import (
     DownloadFileResource, FileResource, UploadFileResource)
 from stock_management_system.api_views.product_sub_type_resource import (
@@ -163,6 +165,7 @@ API_STRUCTURE = {
     ThirdPartyAPIKeyResource: '/api_key/web',
     SettingsResource: '/settings/<string:name>',
     SettingsResourceAll: '/settings',
+    McpWriteAccessResource: '/mcp_write_access',
     RemoveCustomSideMenuResource: '/settings/remove_custom_side_menu',
     DeleteCustomMessageResource: '/custom_messages/<int:id>',
     AllCustomMessageResource: '/custom_messages',
@@ -251,6 +254,7 @@ API_STRUCTURE = {
     AllSurveyAnswersResource: '/custom_forms/answers',
     AllLeadsResource: '/leads',
     IndividualLeadResource: '/leads/<int:id>',
+    LeadStatusesResource: '/lead_statuses',
     AllLeadGeneratorResource: '/lead_generators',
     IndividualLeadGeneratorResource: '/lead_generators/<int:id>',
     LeadGeneratorCommissionResource: '/lead_generators/<int:id>/pay_commission',
