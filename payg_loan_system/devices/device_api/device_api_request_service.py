@@ -297,10 +297,12 @@ class DeviceAPIHelperV2(DeviceAPIHelperBase):
     # Inside an HTTP request (POST /payments from the Gateway, web actions) the whole
     # request must answer before the Gateway gives up (30s read timeout, then it
     # re-sends) and well before the gunicorn worker timeout (90s). One attempt of
-    # at most 5s connect + 15s read leaves ~10s for the rest of the request. A
-    # timeout raises API_NETWORKING_ERROR: the payment is kept, the Gateway gets a
-    # 202 and the credit is delivered by the next re-processing of the payment.
-    REQUEST_CREDIT_UPDATE_TIMEOUT = (5, 15)
+    # at most 3s connect + 22s read. The read budget covers device clouds that
+    # pause between calls (Zola lock-then-add-time sleeps 15s) and still finishes
+    # inside the Gateway timeout. A timeout raises API_NETWORKING_ERROR: the
+    # payment is kept, the Gateway gets a 202 and the credit is delivered by the
+    # next re-processing of the payment.
+    REQUEST_CREDIT_UPDATE_TIMEOUT = (3, 22)
     REQUEST_CREDIT_UPDATE_ATTEMPTS = 1
     # Celery tasks (fix_payment_processing, force_sync_devices) are not raced by a
     # caller and keep the long timeout and default retries.
