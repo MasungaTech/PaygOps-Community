@@ -43,10 +43,6 @@ def _helper_with_mock_api():
     return DeviceAPIHelperV2(api, {}), api
 
 
-def _total_budget(timeout):
-    return sum(timeout) if isinstance(timeout, tuple) else timeout
-
-
 class TestCreditUpdateTimeoutBudget:
 
     def test_request_path_uses_short_timeout_and_single_attempt(self):
@@ -55,10 +51,12 @@ class TestCreditUpdateTimeoutBudget:
                 mock.patch.object(DeviceAPIHelperV2, '_create_token_from_result'):
             helper.post_credit_update(_device(), _credit_data())
         kwargs = api.post.call_args.kwargs
-        assert kwargs['max_attempts'] == 1
+        assert kwargs['max_attempts'] == DeviceAPIHelperV2.REQUEST_CREDIT_UPDATE_ATTEMPTS
         connect, read = kwargs['timeout']
-        assert connect <= 5
-        assert _total_budget(kwargs['timeout']) < GATEWAY_TIMEOUT_SECONDS
+        assert (connect, read) == DeviceAPIHelperV2.REQUEST_CREDIT_UPDATE_TIMEOUT
+        assert connect == 3
+        assert read == 22
+        assert read < GATEWAY_TIMEOUT_SECONDS
 
     def test_background_path_keeps_long_timeout(self):
         # Celery tasks (fix_payment_processing, force_sync_devices) are not
@@ -81,7 +79,11 @@ class TestCreditUpdateTimeoutBudget:
         assert error.value.type == 'API_NETWORKING_ERROR'
         assert post.call_count == 1
         sleep.assert_not_called()
-        assert _total_budget(post.call_args.kwargs['timeout']) < GATEWAY_TIMEOUT_SECONDS
+        connect, read = post.call_args.kwargs['timeout']
+        assert (connect, read) == DeviceAPIHelperV2.REQUEST_CREDIT_UPDATE_TIMEOUT
+        assert connect == 3
+        assert read == 22
+        assert read < GATEWAY_TIMEOUT_SECONDS
 
 
 class TestAPIHelperMaxAttempts:
